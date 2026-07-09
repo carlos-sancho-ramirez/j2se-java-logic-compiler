@@ -11,4 +11,12 @@ public final class IntegerType implements Type {
         mMin = min;
         mMax = max;
     }
+
+    public Token getMin() {
+        return mMin;
+    }
+
+    public Token getMax() {
+        return mMax;
+    }
 }

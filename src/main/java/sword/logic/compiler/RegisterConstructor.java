@@ -13,4 +13,12 @@ public final class RegisterConstructor implements Expression {
         mType = type;
         mStatements = statements;
     }
+
+    public Token getType() {
+        return mType;
+    }
+
+    public ImmutableList<Statement> getStatements() {
+        return mStatements;
+    }
 }

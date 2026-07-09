@@ -11,4 +11,12 @@ public final class AdditionExpression implements Expression {
         mLeft = left;
         mRight = right;
     }
+
+    public Expression getLeftExpression() {
+        return mLeft;
+    }
+
+    public Expression getRightExpression() {
+        return mRight;
+    }
 }

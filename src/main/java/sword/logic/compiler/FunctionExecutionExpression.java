@@ -13,4 +13,12 @@ public final class FunctionExecutionExpression implements Expression {
         mFunction = function;
         mParameters = parameters;
     }
+
+    public Expression getFunction() {
+        return mFunction;
+    }
+
+    public ImmutableList<Expression> getParameters() {
+        return mParameters;
+    }
 }

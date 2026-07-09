@@ -11,4 +11,12 @@ public final class TypeAliasStatement implements Statement {
         mName = name;
         mType = type;
     }
+
+    public Token getName() {
+        return mName;
+    }
+
+    public Type getType() {
+        return mType;
+    }
 }

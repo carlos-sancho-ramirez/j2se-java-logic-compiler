@@ -15,4 +15,8 @@ public final class ConstantDefinitionStatement implements Statement {
     public Token getName() {
         return mName;
     }
+
+    public Expression getExpression() {
+        return mExpression;
+    }
 }

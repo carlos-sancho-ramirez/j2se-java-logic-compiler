@@ -9,4 +9,8 @@ public final class ArrayType implements Type {
         ensureNonNull(itemType);
         mItemType = itemType;
     }
+
+    public Type getItemType() {
+        return mItemType;
+    }
 }

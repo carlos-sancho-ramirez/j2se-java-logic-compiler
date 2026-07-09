@@ -11,4 +11,12 @@ public final class FunctionParameter {
         mName = name;
         mType = type;
     }
+
+    public Token getName() {
+        return mName;
+    }
+
+    public Type getType() {
+        return mType;
+    }
 }

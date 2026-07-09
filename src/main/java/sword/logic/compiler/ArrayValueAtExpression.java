@@ -11,4 +11,12 @@ public final class ArrayValueAtExpression implements Expression {
         mArray = array;
         mIndex = index;
     }
+
+    public Expression getArray() {
+        return mArray;
+    }
+
+    public Expression getIndex() {
+        return mIndex;
+    }
 }

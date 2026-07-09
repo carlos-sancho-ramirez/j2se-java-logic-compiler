@@ -9,4 +9,8 @@ public final class IntegerLiteralExpression implements Expression {
         ensureValidArguments(literal.getText().charAt(0) >= '0' && literal.getText().charAt(0) <= '9');
         mLiteral = literal;
     }
+
+    public Token getLiteral() {
+        return mLiteral;
+    }
 }

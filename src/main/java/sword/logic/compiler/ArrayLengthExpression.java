@@ -9,4 +9,8 @@ public final class ArrayLengthExpression implements Expression {
         ensureNonNull(array);
         mArray = array;
     }
+
+    public Expression getArray() {
+        return mArray;
+    }
 }

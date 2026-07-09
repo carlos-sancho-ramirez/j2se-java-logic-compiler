@@ -11,4 +11,8 @@ public final class BooleanLiteralExpression implements Expression {
         mToken = token;
         mValue = value;
     }
+
+    public boolean getValue() {
+        return mValue;
+    }
 }

@@ -9,4 +9,8 @@ public final class StringLiteralExpression implements Expression {
         ensureValidArguments(literal.getText().charAt(0) == '"');
         mLiteral = literal;
     }
+
+    public Token getLiteral() {
+        return mLiteral;
+    }
 }

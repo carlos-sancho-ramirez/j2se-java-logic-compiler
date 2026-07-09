@@ -9,4 +9,8 @@ public final class SimpleType implements Type {
         ensureNonNull(name);
         mName = name;
     }
+
+    public Token getName() {
+        return mName;
+    }
 }

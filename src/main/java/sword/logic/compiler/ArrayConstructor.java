@@ -13,4 +13,8 @@ public final class ArrayConstructor implements Expression {
         mType = type;
         mValues = values;
     }
+
+    public ImmutableList<Expression> getValues() {
+        return mValues;
+    }
 }

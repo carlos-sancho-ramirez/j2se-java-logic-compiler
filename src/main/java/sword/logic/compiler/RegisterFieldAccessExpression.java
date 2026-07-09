@@ -11,4 +11,12 @@ public final class RegisterFieldAccessExpression implements Expression {
         mRegister = register;
         mFieldName = fieldName;
     }
+
+    public Expression getRegister() {
+        return mRegister;
+    }
+
+    public Token getFieldName() {
+        return mFieldName;
+    }
 }

@@ -17,7 +17,14 @@ public final class Main {
                 final TokenParser parser = new TokenParser(inStream);
                 final TokenInterpreter interpreter = new TokenInterpreter(parser);
                 final ImmutableList<Statement> statements = interpreter.interpret();
-                System.out.println("File read until the end");
+                System.out.println("File read until the end with " + statements.size() + " statements");
+
+                final StatementDumper dumper = new StatementDumper();
+                for (Statement statement : statements) {
+                    final StringBuilder sb = new StringBuilder();
+                    dumper.dump(statement, sb, "");
+                    System.out.print(sb);
+                }
             }
             catch (UnexpectedEndOfFileException e) {
                 System.err.println("Unexpected end of file " + fileName + ". " + e.getMessage());

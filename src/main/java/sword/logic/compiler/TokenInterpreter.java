@@ -307,6 +307,7 @@ public final class TokenInterpreter {
                         }
                     }
 
+                    parametersBuilder.append(result.result);
                     expression[accumulated / 2] = new FunctionExecutionExpression(expression[accumulated / 2], parametersBuilder.build());
                 }
                 else {
@@ -458,7 +459,12 @@ public final class TokenInterpreter {
                                 assigningName = null;
                             }
                             else {
-                                return new ExpressionInterpretationResult(ifExpression, elseClauseResult.closingToken);
+                                if (assignments.isEmpty()) {
+                                    return new ExpressionInterpretationResult(ifExpression, elseClauseResult.closingToken);
+                                }
+                                else {
+                                    return new ExpressionInterpretationResult(new ComplexExpression(assignments.toImmutable(), ifExpression), elseClauseResult.closingToken);
+                                }
                             }
                         }
                         else {
