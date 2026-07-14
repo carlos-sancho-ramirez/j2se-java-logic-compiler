@@ -49,6 +49,26 @@ public final class IntegerLiteralOperations {
         }
     }
 
+    public static boolean greaterOrEqualThan(String a, String b) {
+        return !greaterThan(b, a);
+    }
+
+    public static boolean lowerThan(String a, String b) {
+        return greaterThan(b, a);
+    }
+
+    public static boolean lowerOrEqualThan(String a, String b) {
+        return !greaterThan(a, b);
+    }
+
+    public static String min(String a, String b) {
+        return greaterThan(a, b)? b : a;
+    }
+
+    public static String max(String a, String b) {
+        return greaterThan(a, b)? a : b;
+    }
+
     private static String sumForPositiveDecimalNumbers(String a, String b) {
         while (a.length() > b.length()) {
             b = "0" + b;

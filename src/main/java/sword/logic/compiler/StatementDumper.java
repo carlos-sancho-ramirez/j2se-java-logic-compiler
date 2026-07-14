@@ -32,8 +32,8 @@ public final class StatementDumper {
             sb.append(indentation)
                     .append("}");
         }
-        else if (type instanceof SimpleType simpleType) {
-            sb.append(simpleType.getName().getText());
+        else if (type instanceof EnumType enumType) {
+            sb.append(enumType.getName().getText());
         }
         else {
             throw new UnsupportedOperationException("Unknown type " + type.getClass().getName());

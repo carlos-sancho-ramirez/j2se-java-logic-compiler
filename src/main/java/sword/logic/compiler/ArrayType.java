@@ -13,4 +13,15 @@ public final class ArrayType implements Type {
     public Type getItemType() {
         return mItemType;
     }
+
+    @Override
+    public int hashCode() {
+        return mItemType.hashCode() + 1;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return this == obj || obj instanceof ArrayType that &&
+                mItemType.equals(that.mItemType);
+    }
 }

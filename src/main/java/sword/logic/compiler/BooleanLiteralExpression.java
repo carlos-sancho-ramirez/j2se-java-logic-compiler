@@ -15,4 +15,19 @@ public final class BooleanLiteralExpression implements Expression {
     public boolean getValue() {
         return mValue;
     }
+
+    @Override
+    public Type resultingType() {
+        return ExpressionConstants.booleanType;
+    }
+
+    @Override
+    public Expression resultTo(Type type) throws TypeMismatchException {
+        if (type == UnknownType.getInstance() || type == ExpressionConstants.booleanType) {
+            return this;
+        }
+        else {
+            throw new TypeMismatchException("Unable to resolve this expression to " + type.getClass().getSimpleName() + ". It is already a Boolean");
+        }
+    }
 }

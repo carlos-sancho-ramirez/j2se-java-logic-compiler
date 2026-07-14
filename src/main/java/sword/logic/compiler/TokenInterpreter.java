@@ -90,15 +90,23 @@ public final class TokenInterpreter {
         }
     }
 
-    private boolean isArrayType(Expression exp) {
-        return exp instanceof StringLiteralExpression || exp instanceof ArrayConcatenationExpression;
+    private ImmutableMap<String, ConstantDefinitionStatement> mergeKnownConstants(
+            ImmutableMap<String, ConstantDefinitionStatement> outerKnownConstants,
+            List<Statement> scopeStatements) {
+        final MutableMap<String, ConstantDefinitionStatement> result = outerKnownConstants.mutate();
+        for (Statement statement : scopeStatements) {
+            if (statement instanceof ConstantDefinitionStatement constDef) {
+                result.put(constDef.getName().getText(), constDef);
+            }
+        }
+
+        return result.toImmutable();
     }
 
-    private boolean isIntegerType(Expression exp) {
-        return exp instanceof IntegerLiteralExpression || exp instanceof AdditionExpression || exp instanceof SubtractionExpression || exp instanceof MultiplicationExpression || exp instanceof DivisionExpression || exp instanceof ModuleExpression;
-    }
-
-    private ExpressionInterpretationResult interpretExpression(ImmutableMap<String, Type> knownTypes) throws IOException, SyntaxErrorException, SemanticErrorException, UnexpectedEndOfFileException {
+    private ExpressionInterpretationResult interpretExpression(
+            ImmutableMap<String, Type> knownTypes,
+            ImmutableMap<String, ConstantDefinitionStatement> outerKnownConstants
+    ) throws IOException, SyntaxErrorException, SemanticErrorException, UnexpectedEndOfFileException {
         final Expression[] expression = new Expression[6];
 
         /*
@@ -156,16 +164,42 @@ public final class TokenInterpreter {
                         if (operatorText.equals("+")) {
                             final Expression leftExpression = expression[accumulated / 2 - 1];
                             final Expression rightExpression = expression[accumulated / 2];
-                            final boolean leftIsArray = isArrayType(leftExpression);
-                            final boolean leftIsInteger = isIntegerType(leftExpression);
-                            final boolean rightIsArray = isArrayType(rightExpression);
-                            final boolean rightIsInteger = isIntegerType(rightExpression);
+                            final boolean leftIsArray = leftExpression.resultingType() instanceof ArrayType;
+                            final boolean leftIsInteger = leftExpression.resultingType() instanceof IntegerType;
+                            final boolean rightIsArray = rightExpression.resultingType() instanceof ArrayType;
+                            final boolean rightIsInteger = rightExpression.resultingType() instanceof IntegerType;
 
-                            if (leftIsArray && !rightIsInteger || rightIsArray && !leftIsInteger) {
-                                expression[accumulated / 2 - 1] = new ArrayConcatenationExpression(leftExpression, rightExpression);
+                            if (leftIsArray && !rightIsInteger) {
+                                try {
+                                    expression[accumulated / 2 - 1] = new ArrayConcatenationExpression(leftExpression, rightExpression.resultTo(leftExpression.resultingType()));
+                                }
+                                catch (TypeMismatchException e) {
+                                    throwSemanticError(e.getMessage(), token);
+                                }
                             }
-                            else if (leftIsInteger && !rightIsArray || rightIsInteger && !leftIsArray) {
-                                expression[accumulated / 2 - 1] = new AdditionExpression(leftExpression, rightExpression);
+                            else if (rightIsArray && !leftIsInteger) {
+                                try {
+                                    expression[accumulated / 2 - 1] = new ArrayConcatenationExpression(leftExpression.resultTo(rightExpression.resultingType()), rightExpression);
+                                }
+                                catch (TypeMismatchException e) {
+                                    throwSemanticError(e.getMessage(), token);
+                                }
+                            }
+                            else if (leftIsInteger && !rightIsArray) {
+                                try {
+                                    expression[accumulated / 2 - 1] = new AdditionExpression(leftExpression, rightExpression.resultTo(leftExpression.resultingType()));
+                                }
+                                catch (TypeMismatchException e) {
+                                    throwSemanticError(e.getMessage(), token);
+                                }
+                            }
+                            else if (rightIsInteger && !leftIsArray) {
+                                try {
+                                    expression[accumulated / 2 - 1] = new AdditionExpression(leftExpression.resultTo(rightExpression.resultingType()), rightExpression);
+                                }
+                                catch (TypeMismatchException e) {
+                                    throwSemanticError(e.getMessage(), token);
+                                }
                             }
                             else {
                                 throwSemanticError("Unable to determine if '+' is a sum of 2 integers or a concatenation of arrays", operator[accumulated / 2 - 1]);
@@ -174,7 +208,13 @@ public final class TokenInterpreter {
                             accumulated -= 2;
                         }
                         else if (operatorText.equals("-")) {
-                            expression[accumulated / 2 - 1] = new SubtractionExpression(expression[accumulated / 2 - 1], expression[accumulated / 2]);
+                            try {
+                                expression[accumulated / 2 - 1] = new SubtractionExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), expression[accumulated / 2].resultTo(ExpressionConstants.unboundIntegerType));
+                            }
+                            catch (TypeMismatchException e) {
+                                throwSemanticError(e.getMessage(), token);
+                            }
+
                             accumulated -= 2;
                         }
                     }
@@ -190,19 +230,39 @@ public final class TokenInterpreter {
                             accumulated -= 2;
                         }
                         else if (operatorText.equals(">=")) {
-                            expression[accumulated / 2 - 1] = new GreaterOrEqualThanExpression(expression[accumulated / 2 - 1], expression[accumulated / 2]);
+                            try {
+                                expression[accumulated / 2 - 1] = new GreaterOrEqualThanExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), expression[accumulated / 2].resultTo(ExpressionConstants.unboundIntegerType));
+                            }
+                            catch (TypeMismatchException e) {
+                                throwSemanticError(e.getMessage(), token);
+                            }
                             accumulated -= 2;
                         }
                         else if (operatorText.equals("<=")) {
-                            expression[accumulated / 2 - 1] = new LowerOrEqualThanExpression(expression[accumulated / 2 - 1], expression[accumulated / 2]);
+                            try {
+                                expression[accumulated / 2 - 1] = new LowerOrEqualThanExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), expression[accumulated / 2].resultTo(ExpressionConstants.unboundIntegerType));
+                            }
+                            catch (TypeMismatchException e) {
+                                throwSemanticError(e.getMessage(), token);
+                            }
                             accumulated -= 2;
                         }
                         else if (operatorText.equals(">")) {
-                            expression[accumulated / 2 - 1] = new GreaterThanExpression(expression[accumulated / 2 - 1], expression[accumulated / 2]);
+                            try {
+                                expression[accumulated / 2 - 1] = new GreaterThanExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), expression[accumulated / 2].resultTo(ExpressionConstants.unboundIntegerType));
+                            }
+                            catch (TypeMismatchException e) {
+                                throwSemanticError(e.getMessage(), token);
+                            }
                             accumulated -= 2;
                         }
                         else if (operatorText.equals("<")) {
-                            expression[accumulated / 2 - 1] = new LowerThanExpression(expression[accumulated / 2 - 1], expression[accumulated / 2]);
+                            try {
+                                expression[accumulated / 2 - 1] = new LowerThanExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), expression[accumulated / 2].resultTo(ExpressionConstants.unboundIntegerType));
+                            }
+                            catch (TypeMismatchException e) {
+                                throwSemanticError(e.getMessage(), token);
+                            }
                             accumulated -= 2;
                         }
                     }
@@ -247,7 +307,7 @@ public final class TokenInterpreter {
             }
             else if (tokenText.equals("(")) {
                 if (accumulated == 0) {
-                    final ExpressionInterpretationResult result = interpretExpression(knownTypes);
+                    final ExpressionInterpretationResult result = interpretExpression(knownTypes, mergeKnownConstants(outerKnownConstants, assignments));
                     if (result.result instanceof ReferenceExpression refExp && result.closingToken.getText().equals(":")) {
                         final ImmutableList.Builder<FunctionParameter> parametersBuilder = new ImmutableList.Builder<>();
                         parametersBuilder.append(new FunctionParameter(refExp.getReference(), interpretType(knownTypes)));
@@ -260,7 +320,7 @@ public final class TokenInterpreter {
 
                         if (separatorToken.getText().equals(")")) {
                             validateNextToken("->", "Expected '->'");
-                            final ExpressionInterpretationResult funcExpressionResult = interpretExpression(knownTypes);
+                            final ExpressionInterpretationResult funcExpressionResult = interpretExpression(knownTypes, mergeKnownConstants(outerKnownConstants, assignments));
                             final Expression functionExpression = new FunctionExpression(parametersBuilder.build(), funcExpressionResult.result);
                             if (assigningName == null) {
                                 return new ExpressionInterpretationResult(functionExpression, funcExpressionResult.closingToken);
@@ -286,7 +346,7 @@ public final class TokenInterpreter {
                     }
                 }
                 else if (accumulated % 2 == 0) {
-                    final ExpressionInterpretationResult result = interpretExpression(knownTypes);
+                    final ExpressionInterpretationResult result = interpretExpression(knownTypes, mergeKnownConstants(outerKnownConstants, assignments));
                     if (result.closingToken.getText().equals(")")) {
                         expression[accumulated / 2] = result.result;
                         accumulated++;
@@ -298,7 +358,7 @@ public final class TokenInterpreter {
                 else if (accumulated % 2 == 1) {
                     final ImmutableList.Builder<Expression> parametersBuilder = new ImmutableList.Builder<>();
                     ExpressionInterpretationResult result;
-                    while (!(result = interpretExpression(knownTypes)).closingToken.getText().equals(")")) {
+                    while (!(result = interpretExpression(knownTypes, mergeKnownConstants(outerKnownConstants, assignments))).closingToken.getText().equals(")")) {
                         if (result.closingToken.getText().equals(",")) {
                             parametersBuilder.append(result.result);
                         }
@@ -319,8 +379,12 @@ public final class TokenInterpreter {
                     throwSemanticError("Expected expression before operator", token);
                 }
                 else {
-                    final ExpressionInterpretationResult result = interpretExpression(knownTypes);
+                    final ExpressionInterpretationResult result = interpretExpression(knownTypes, mergeKnownConstants(outerKnownConstants, assignments));
                     if (result.closingToken.getText().equals("]")) {
+                        if (expression[accumulated / 2] instanceof ReferenceExpression refExp && refExp.resultingType() == UnknownType.getInstance()) {
+                            expression[accumulated / 2] = new ReferenceExpression(new ArrayType(UnknownType.getInstance()), refExp.getReference());
+                        }
+
                         expression[accumulated / 2] = new ArrayValueAtExpression(expression[accumulated / 2], result.result);
                     }
                     else {
@@ -330,7 +394,7 @@ public final class TokenInterpreter {
             }
             else if (tokenText.equals("{")) {
                 if (accumulated % 2 == 0) {
-                    final ExpressionInterpretationResult result = interpretExpression(knownTypes);
+                    final ExpressionInterpretationResult result = interpretExpression(knownTypes, mergeKnownConstants(outerKnownConstants, assignments));
                     if (result.closingToken.getText().equals("}")) {
                         expression[accumulated / 2] = result.result;
                         accumulated++;
@@ -375,7 +439,7 @@ public final class TokenInterpreter {
                 final ImmutableList.Builder<Expression> paramsBuilder = new ImmutableList.Builder<>();
                 ExpressionInterpretationResult paramExpressionResult;
                 do {
-                    paramExpressionResult = interpretExpression(knownTypes);
+                    paramExpressionResult = interpretExpression(knownTypes, mergeKnownConstants(outerKnownConstants, assignments));
                     paramsBuilder.append(paramExpressionResult.result);
                 }
                 while (paramExpressionResult.closingToken.getText().equals(","));
@@ -398,7 +462,7 @@ public final class TokenInterpreter {
                     final Type type = knownTypes.get(tokenText);
                     if (type instanceof RegisterType regType) {
                         validateNextToken("{", "Expected '{'");
-                        final ExpressionInterpretationResult result = interpretExpression(knownTypes);
+                        final ExpressionInterpretationResult result = interpretExpression(knownTypes, mergeKnownConstants(outerKnownConstants, assignments));
                         if (result.closingToken.getText().equals("}")) {
                             if (accumulated == 0) {
                                 if (result.result instanceof ComplexExpression complexExpression) {
@@ -410,7 +474,7 @@ public final class TokenInterpreter {
                                             }
                                         }
 
-                                        expression[0] = new RegisterConstructor(token, statements);
+                                        expression[0] = new RegisterConstructor(regType, token, statements);
                                         accumulated = 1;
                                     }
                                     else {
@@ -448,12 +512,37 @@ public final class TokenInterpreter {
             }
             else if (tokenText.equals("if")) {
                 if (accumulated == 0) {
-                    final ExpressionInterpretationResult conditionResult = interpretExpression(knownTypes);
+                    final ImmutableMap<String, ConstantDefinitionStatement> mergedKnownConstants = mergeKnownConstants(outerKnownConstants, assignments);
+                    final ExpressionInterpretationResult conditionResult = interpretExpression(knownTypes, mergedKnownConstants);
                     if (conditionResult.closingToken.getText().equals("then")) {
-                        final ExpressionInterpretationResult thenClauseResult = interpretExpression(knownTypes);
+                        final ExpressionInterpretationResult thenClauseResult = interpretExpression(knownTypes, mergedKnownConstants);
                         if (thenClauseResult.closingToken.getText().equals("else")) {
-                            final ExpressionInterpretationResult elseClauseResult = interpretExpression(knownTypes);
-                            final IfExpression ifExpression = new IfExpression(conditionResult.result, thenClauseResult.result, elseClauseResult.result);
+                            final ExpressionInterpretationResult elseClauseResult = interpretExpression(knownTypes, mergedKnownConstants);
+                            Expression thenClause = thenClauseResult.result;
+                            Expression elseClause = elseClauseResult.result;
+                            if (thenClause.resultingType() == UnknownType.getInstance()) {
+                                if (elseClause.resultingType() != UnknownType.getInstance()) {
+                                    try {
+                                        thenClause = thenClause.resultTo(elseClause.resultingType());
+                                    }
+                                    catch (TypeMismatchException e) {
+                                        throwSemanticError(e.getMessage(), token);
+                                    }
+                                }
+                            }
+
+                            if (elseClause.resultingType() == UnknownType.getInstance()) {
+                                if (thenClause.resultingType() != UnknownType.getInstance()) {
+                                    try {
+                                        elseClause = elseClause.resultTo(thenClause.resultingType());
+                                    }
+                                    catch (TypeMismatchException e) {
+                                        throwSemanticError(e.getMessage(), token);
+                                    }
+                                }
+                            }
+
+                            final IfExpression ifExpression = new IfExpression(conditionResult.result, thenClause, elseClause);
                             if (assigningName != null && elseClauseResult.closingToken.getText().equals(";")) {
                                 assignments.append(new ConstantDefinitionStatement(assigningName, ifExpression));
                                 assigningName = null;
@@ -601,10 +690,10 @@ public final class TokenInterpreter {
                         if (operatorText.equals("+")) {
                             final Expression leftExpression = expression[accumulated / 2 - 1];
                             final Expression rightExpression = expression[accumulated / 2];
-                            final boolean leftIsArray = isArrayType(leftExpression);
-                            final boolean leftIsInteger = isIntegerType(leftExpression);
-                            final boolean rightIsArray = isArrayType(rightExpression);
-                            final boolean rightIsInteger = isIntegerType(rightExpression);
+                            final boolean leftIsArray = leftExpression.resultingType() instanceof ArrayType;
+                            final boolean leftIsInteger = leftExpression.resultingType() instanceof IntegerType;
+                            final boolean rightIsArray = rightExpression.resultingType() instanceof ArrayType;
+                            final boolean rightIsInteger = rightExpression.resultingType() instanceof IntegerType;
 
                             if (leftIsArray && !rightIsInteger || rightIsArray && !leftIsInteger) {
                                 expression[accumulated / 2 - 1] = new ArrayConcatenationExpression(leftExpression, expression[accumulated / 2]);
@@ -635,19 +724,39 @@ public final class TokenInterpreter {
                             accumulated -= 2;
                         }
                         else if (operatorText.equals(">=")) {
-                            expression[accumulated / 2 - 1] = new GreaterOrEqualThanExpression(expression[accumulated / 2 - 1], expression[accumulated / 2]);
+                            try {
+                                expression[accumulated / 2 - 1] = new GreaterOrEqualThanExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), expression[accumulated / 2].resultTo(ExpressionConstants.unboundIntegerType));
+                            }
+                            catch (TypeMismatchException e) {
+                                throwSemanticError(e.getMessage(), token);
+                            }
                             accumulated -= 2;
                         }
                         else if (operatorText.equals("<=")) {
-                            expression[accumulated / 2 - 1] = new LowerOrEqualThanExpression(expression[accumulated / 2 - 1], expression[accumulated / 2]);
+                            try {
+                                expression[accumulated / 2 - 1] = new LowerOrEqualThanExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), expression[accumulated / 2].resultTo(ExpressionConstants.unboundIntegerType));
+                            }
+                            catch (TypeMismatchException e) {
+                                throwSemanticError(e.getMessage(), token);
+                            }
                             accumulated -= 2;
                         }
                         else if (operatorText.equals(">")) {
-                            expression[accumulated / 2 - 1] = new GreaterThanExpression(expression[accumulated / 2 - 1], expression[accumulated / 2]);
+                            try {
+                                expression[accumulated / 2 - 1] = new GreaterThanExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), expression[accumulated / 2].resultTo(ExpressionConstants.unboundIntegerType));
+                            }
+                            catch (TypeMismatchException e) {
+                                throwSemanticError(e.getMessage(), token);
+                            }
                             accumulated -= 2;
                         }
                         else if (operatorText.equals("<")) {
-                            expression[accumulated / 2 - 1] = new LowerThanExpression(expression[accumulated / 2 - 1], expression[accumulated / 2]);
+                            try {
+                                expression[accumulated / 2 - 1] = new LowerThanExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), expression[accumulated / 2].resultTo(ExpressionConstants.unboundIntegerType));
+                            }
+                            catch (TypeMismatchException e) {
+                                throwSemanticError(e.getMessage(), token);
+                            }
                             accumulated -= 2;
                         }
                     }
@@ -723,16 +832,34 @@ public final class TokenInterpreter {
                 else if (accumulated == 3) {
                     final String operatorText = operator[0].getText();
                     if (operatorText.equals("+")) {
-                        final boolean leftIsArray = isArrayType(expression[0]);
-                        final boolean leftIsInteger = isIntegerType(expression[0]);
-                        final boolean rightIsArray = isArrayType(expression[1]);
-                        final boolean rightIsInteger = isIntegerType(expression[1]);
+                        final boolean leftIsArray = expression[0].resultingType() instanceof ArrayType;
+                        final boolean leftIsInteger = expression[0].resultingType() instanceof IntegerType;
+                        final boolean rightIsArray = expression[1].resultingType() instanceof ArrayType;
+                        final boolean rightIsInteger = expression[1].resultingType() instanceof IntegerType;
 
-                        if (leftIsArray && !rightIsInteger || rightIsArray && !leftIsInteger) {
-                            expression[0] = new ArrayConcatenationExpression(expression[0], expression[1]);
+                        if (leftIsArray && !rightIsInteger) {
+                            try {
+                                expression[0] = new ArrayConcatenationExpression(expression[0], expression[1].resultTo(expression[0].resultingType()));
+                            }
+                            catch (TypeMismatchException e) {
+                                throwSemanticError(e.getMessage(), token);
+                            }
+                        }
+                        else if (rightIsArray && !leftIsInteger) {
+                            try {
+                                expression[0] = new ArrayConcatenationExpression(expression[0].resultTo(expression[1].resultingType()), expression[1]);
+                            }
+                            catch (TypeMismatchException e) {
+                                throwSemanticError(e.getMessage(), token);
+                            }
                         }
                         else if (leftIsInteger && !leftIsArray || rightIsInteger && !rightIsArray) {
-                            expression[0] = new AdditionExpression(expression[0], expression[1]);
+                            try {
+                                expression[0] = new AdditionExpression(expression[0].resultTo(ExpressionConstants.unboundIntegerType), expression[1].resultTo(ExpressionConstants.unboundIntegerType));
+                            }
+                            catch (TypeMismatchException e) {
+                                throwSemanticError(e.getMessage(), token);
+                            }
                         }
                         else {
                             throwSemanticError("Unable to determine if '+' is a sum of 2 integers or a concatenation of arrays", operator[0]);
@@ -803,11 +930,13 @@ public final class TokenInterpreter {
                     throwSemanticError("Operator expected", token);
                 }
                 else if (accumulated > 1 && operator[accumulated / 2 - 1].getText().equals(".")) {
-                    expression[accumulated / 2 - 1] = new RegisterFieldAccessExpression(expression[accumulated / 2 - 1], token);
+                    expression[accumulated / 2 - 1] = new RegisterFieldAccessExpression(UnknownType.getInstance(), expression[accumulated / 2 - 1], token);
                     accumulated--;
                 }
                 else {
-                    expression[accumulated / 2] = new ReferenceExpression(token);
+                    final ConstantDefinitionStatement constDef = mergeKnownConstants(outerKnownConstants, assignments).get(tokenText, null);
+                    final Type refType = (constDef != null)? constDef.getExpression().resultingType() : UnknownType.getInstance();
+                    expression[accumulated / 2] = new ReferenceExpression(refType, token);
                     accumulated++;
                 }
             }
@@ -827,15 +956,30 @@ public final class TokenInterpreter {
                             throwSemanticError("Unexpected integer literal after '.'", token);
                         }
                         else if (operatorText.equals("*")) {
-                            expression[accumulated / 2 - 1] = new MultiplicationExpression(expression[accumulated / 2 - 1], intExpression);
+                            try {
+                                expression[accumulated / 2 - 1] = new MultiplicationExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), intExpression);
+                            }
+                            catch (TypeMismatchException e) {
+                                throwSemanticError(e.getMessage(), token);
+                            }
                             accumulated--;
                         }
                         else if (operatorText.equals("/")) {
-                            expression[accumulated / 2 - 1] = new DivisionExpression(expression[accumulated / 2 - 1], intExpression);
+                            try {
+                                expression[accumulated / 2 - 1] = new DivisionExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), intExpression);
+                            }
+                            catch (TypeMismatchException e) {
+                                throwSemanticError(e.getMessage(), token);
+                            }
                             accumulated--;
                         }
                         else if (operatorText.equals("%")) {
-                            expression[accumulated / 2 - 1] = new ModuleExpression(expression[accumulated / 2 - 1], intExpression);
+                            try {
+                                expression[accumulated / 2 - 1] = new ModuleExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), intExpression);
+                            }
+                            catch (TypeMismatchException e) {
+                                throwSemanticError(e.getMessage(), token);
+                            }
                             accumulated--;
                         }
                         else {
@@ -863,9 +1007,11 @@ public final class TokenInterpreter {
 
     public ImmutableList<Statement> interpret() throws IOException, SyntaxErrorException, SemanticErrorException, UnexpectedEndOfFileException {
         ImmutableMap<String, Type> knownTypes = new ImmutableHashMap.Builder<String, Type>()
-                .put("Boolean", new SimpleType(new Token(1, 1, "Boolean")))
-                .put("String", new ArrayType(new IntegerType(new Token(1, 1, "0"), new Token(1, 1, "255"))))
+                .put("Boolean", ExpressionConstants.booleanType)
+                .put("String", new ArrayType(new IntegerType(new Token("0"), new Token("255"))))
                 .build();
+
+        ImmutableMap<String, ConstantDefinitionStatement> knownConstants = ImmutableHashMap.empty();
 
         final ImmutableList.Builder<Statement> builder = new ImmutableList.Builder<>();
         Token typeKeywordToken = null;
@@ -880,6 +1026,10 @@ public final class TokenInterpreter {
                     }
                     else if (tokenText.charAt(0) >= 'a' && tokenText.charAt(0) <= 'z') {
                         assignmentName = token;
+
+                        if (knownConstants.containsKey(assignmentName.getText())) {
+                            throwSemanticError("Constant \"" + assignmentName.getText() + "\" already declared in this scope", token);
+                        }
                     }
                     else {
                         throwSemanticError("Constant names must start with a lower-case character", token);
@@ -887,9 +1037,11 @@ public final class TokenInterpreter {
                 }
                 else {
                     if (tokenText.equals("=")) {
-                        final ExpressionInterpretationResult result = interpretExpression(knownTypes);
+                        final ExpressionInterpretationResult result = interpretExpression(knownTypes, knownConstants);
                         if (result.closingToken.getText().equals(";")) {
-                            builder.append(new ConstantDefinitionStatement(assignmentName, result.result));
+                            final ConstantDefinitionStatement statement = new ConstantDefinitionStatement(assignmentName, result.result);
+                            knownConstants = knownConstants.put(assignmentName.getText(), statement);
+                            builder.append(statement);
                             assignmentName = null;
                         }
                         else {

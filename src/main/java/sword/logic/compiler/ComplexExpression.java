@@ -22,4 +22,15 @@ public final class ComplexExpression implements Expression {
     public ImmutableList<Statement> getStatements() {
         return mStatements;
     }
+
+    @Override
+    public Type resultingType() {
+        return mExpression.resultingType();
+    }
+
+    @Override
+    public Expression resultTo(Type type) throws TypeMismatchException {
+        final Expression newExpression = mExpression.resultTo(type);
+        return (newExpression == mExpression)? this : new ComplexExpression(mStatements, newExpression);
+    }
 }

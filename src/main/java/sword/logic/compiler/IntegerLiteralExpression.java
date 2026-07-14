@@ -3,6 +3,7 @@ package sword.logic.compiler;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 
 public final class IntegerLiteralExpression implements Expression {
+    private IntegerType mResultingType;
     private final Token mLiteral;
 
     public IntegerLiteralExpression(Token literal) {
@@ -12,5 +13,24 @@ public final class IntegerLiteralExpression implements Expression {
 
     public Token getLiteral() {
         return mLiteral;
+    }
+
+    @Override
+    public IntegerType resultingType() {
+        if (mResultingType == null) {
+            mResultingType = new IntegerType(new Token(mLiteral.getText()), new Token(mLiteral.getText()));
+        }
+
+        return mResultingType;
+    }
+
+    @Override
+    public Expression resultTo(Type type) throws TypeMismatchException {
+        if (type == UnknownType.getInstance() || type instanceof IntegerType) {
+            return this;
+        }
+        else {
+            throw new TypeMismatchException("Unable to resolve this expression to " + type.getClass().getSimpleName() + ". It is already an Integer");
+        }
     }
 }
