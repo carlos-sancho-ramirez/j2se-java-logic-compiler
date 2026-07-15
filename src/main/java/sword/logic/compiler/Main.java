@@ -1,6 +1,7 @@
 package sword.logic.compiler;
 
 import sword.collections.ImmutableList;
+import sword.logic.syntax_tree.statements.Statement;
 
 import java.io.FileInputStream;
 import java.io.IOException;

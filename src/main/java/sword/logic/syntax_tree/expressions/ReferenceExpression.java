@@ -1,0 +1,58 @@
+package sword.logic.syntax_tree.expressions;
+
+import sword.logic.compiler.TypeMismatchException;
+import sword.logic.syntax_tree.Token;
+import sword.logic.syntax_tree.types.ArrayType;
+import sword.logic.syntax_tree.types.FunctionType;
+import sword.logic.syntax_tree.types.IntegerType;
+import sword.logic.syntax_tree.types.Type;
+import sword.logic.syntax_tree.types.UnknownType;
+
+import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
+
+public final class ReferenceExpression implements Expression {
+    private final Type mResultingType;
+    private final Token mReference;
+
+    public ReferenceExpression(Type resultingType, Token reference) {
+        ensureNonNull(resultingType, reference);
+        mResultingType = resultingType;
+        mReference = reference;
+    }
+
+    @Override
+    public Type resultingType() {
+        return mResultingType;
+    }
+
+    public Token getReference() {
+        return mReference;
+    }
+
+    private Expression resultToType(Type current, Type type, Type newType) throws TypeMismatchException {
+        if (type == UnknownType.getInstance()) {
+            return this;
+        }
+        else if (current == UnknownType.getInstance()) {
+            return new ReferenceExpression(newType, mReference);
+        }
+        else if (type instanceof IntegerType && current instanceof IntegerType) {
+            return this;
+        }
+        else if (type instanceof ArrayType arrayType && current instanceof ArrayType currentArrayType) {
+            return resultToType(currentArrayType.getItemType(), arrayType.getItemType(), newType);
+        }
+        else if (type instanceof FunctionType funcType && current instanceof FunctionType currentFuncType) {
+            // TODO: We should take the parameters into account as well
+            return resultToType(currentFuncType.getResultType(), funcType.getResultType(), newType);
+        }
+        else {
+            throw new TypeMismatchException("Unable to resolve this expression to " + type.getClass().getSimpleName() + ". It is already resolved to " + mResultingType.getClass().getSimpleName());
+        }
+    }
+
+    @Override
+    public Expression resultTo(Type type) throws TypeMismatchException {
+        return resultToType(mResultingType, type, type);
+    }
+}

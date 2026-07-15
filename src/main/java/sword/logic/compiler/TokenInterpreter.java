@@ -1,6 +1,44 @@
 package sword.logic.compiler;
 
 import sword.collections.*;
+import sword.logic.syntax_tree.Token;
+import sword.logic.syntax_tree.expressions.AdditionExpression;
+import sword.logic.syntax_tree.expressions.AndExpression;
+import sword.logic.syntax_tree.expressions.ArrayConcatenationExpression;
+import sword.logic.syntax_tree.expressions.ArrayConstructor;
+import sword.logic.syntax_tree.expressions.ArrayValueAtExpression;
+import sword.logic.syntax_tree.expressions.BooleanLiteralExpression;
+import sword.logic.syntax_tree.expressions.ComplexExpression;
+import sword.logic.syntax_tree.expressions.DifferentFromExpression;
+import sword.logic.syntax_tree.expressions.DivisionExpression;
+import sword.logic.syntax_tree.expressions.EqualThanExpression;
+import sword.logic.syntax_tree.expressions.Expression;
+import sword.logic.syntax_tree.types.TypeConstants;
+import sword.logic.syntax_tree.expressions.FunctionExecutionExpression;
+import sword.logic.syntax_tree.expressions.FunctionExpression;
+import sword.logic.syntax_tree.expressions.FunctionParameter;
+import sword.logic.syntax_tree.expressions.GreaterOrEqualThanExpression;
+import sword.logic.syntax_tree.expressions.GreaterThanExpression;
+import sword.logic.syntax_tree.expressions.IfExpression;
+import sword.logic.syntax_tree.expressions.IntegerLiteralExpression;
+import sword.logic.syntax_tree.expressions.LowerOrEqualThanExpression;
+import sword.logic.syntax_tree.expressions.LowerThanExpression;
+import sword.logic.syntax_tree.expressions.ModuleExpression;
+import sword.logic.syntax_tree.expressions.MultiplicationExpression;
+import sword.logic.syntax_tree.expressions.OrExpression;
+import sword.logic.syntax_tree.expressions.ReferenceExpression;
+import sword.logic.syntax_tree.expressions.RegisterConstructor;
+import sword.logic.syntax_tree.expressions.RegisterFieldAccessExpression;
+import sword.logic.syntax_tree.expressions.StringLiteralExpression;
+import sword.logic.syntax_tree.expressions.SubtractionExpression;
+import sword.logic.syntax_tree.statements.ConstantDefinitionStatement;
+import sword.logic.syntax_tree.statements.Statement;
+import sword.logic.syntax_tree.statements.TypeAliasStatement;
+import sword.logic.syntax_tree.types.ArrayType;
+import sword.logic.syntax_tree.types.IntegerType;
+import sword.logic.syntax_tree.types.RegisterType;
+import sword.logic.syntax_tree.types.Type;
+import sword.logic.syntax_tree.types.UnknownType;
 
 import java.io.IOException;
 
@@ -209,7 +247,7 @@ public final class TokenInterpreter {
                         }
                         else if (operatorText.equals("-")) {
                             try {
-                                expression[accumulated / 2 - 1] = new SubtractionExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), expression[accumulated / 2].resultTo(ExpressionConstants.unboundIntegerType));
+                                expression[accumulated / 2 - 1] = new SubtractionExpression(expression[accumulated / 2 - 1].resultTo(TypeConstants.unboundIntegerType), expression[accumulated / 2].resultTo(TypeConstants.unboundIntegerType));
                             }
                             catch (TypeMismatchException e) {
                                 throwSemanticError(e.getMessage(), token);
@@ -231,7 +269,7 @@ public final class TokenInterpreter {
                         }
                         else if (operatorText.equals(">=")) {
                             try {
-                                expression[accumulated / 2 - 1] = new GreaterOrEqualThanExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), expression[accumulated / 2].resultTo(ExpressionConstants.unboundIntegerType));
+                                expression[accumulated / 2 - 1] = new GreaterOrEqualThanExpression(expression[accumulated / 2 - 1].resultTo(TypeConstants.unboundIntegerType), expression[accumulated / 2].resultTo(TypeConstants.unboundIntegerType));
                             }
                             catch (TypeMismatchException e) {
                                 throwSemanticError(e.getMessage(), token);
@@ -240,7 +278,7 @@ public final class TokenInterpreter {
                         }
                         else if (operatorText.equals("<=")) {
                             try {
-                                expression[accumulated / 2 - 1] = new LowerOrEqualThanExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), expression[accumulated / 2].resultTo(ExpressionConstants.unboundIntegerType));
+                                expression[accumulated / 2 - 1] = new LowerOrEqualThanExpression(expression[accumulated / 2 - 1].resultTo(TypeConstants.unboundIntegerType), expression[accumulated / 2].resultTo(TypeConstants.unboundIntegerType));
                             }
                             catch (TypeMismatchException e) {
                                 throwSemanticError(e.getMessage(), token);
@@ -249,7 +287,7 @@ public final class TokenInterpreter {
                         }
                         else if (operatorText.equals(">")) {
                             try {
-                                expression[accumulated / 2 - 1] = new GreaterThanExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), expression[accumulated / 2].resultTo(ExpressionConstants.unboundIntegerType));
+                                expression[accumulated / 2 - 1] = new GreaterThanExpression(expression[accumulated / 2 - 1].resultTo(TypeConstants.unboundIntegerType), expression[accumulated / 2].resultTo(TypeConstants.unboundIntegerType));
                             }
                             catch (TypeMismatchException e) {
                                 throwSemanticError(e.getMessage(), token);
@@ -258,7 +296,7 @@ public final class TokenInterpreter {
                         }
                         else if (operatorText.equals("<")) {
                             try {
-                                expression[accumulated / 2 - 1] = new LowerThanExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), expression[accumulated / 2].resultTo(ExpressionConstants.unboundIntegerType));
+                                expression[accumulated / 2 - 1] = new LowerThanExpression(expression[accumulated / 2 - 1].resultTo(TypeConstants.unboundIntegerType), expression[accumulated / 2].resultTo(TypeConstants.unboundIntegerType));
                             }
                             catch (TypeMismatchException e) {
                                 throwSemanticError(e.getMessage(), token);
@@ -725,7 +763,7 @@ public final class TokenInterpreter {
                         }
                         else if (operatorText.equals(">=")) {
                             try {
-                                expression[accumulated / 2 - 1] = new GreaterOrEqualThanExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), expression[accumulated / 2].resultTo(ExpressionConstants.unboundIntegerType));
+                                expression[accumulated / 2 - 1] = new GreaterOrEqualThanExpression(expression[accumulated / 2 - 1].resultTo(TypeConstants.unboundIntegerType), expression[accumulated / 2].resultTo(TypeConstants.unboundIntegerType));
                             }
                             catch (TypeMismatchException e) {
                                 throwSemanticError(e.getMessage(), token);
@@ -734,7 +772,7 @@ public final class TokenInterpreter {
                         }
                         else if (operatorText.equals("<=")) {
                             try {
-                                expression[accumulated / 2 - 1] = new LowerOrEqualThanExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), expression[accumulated / 2].resultTo(ExpressionConstants.unboundIntegerType));
+                                expression[accumulated / 2 - 1] = new LowerOrEqualThanExpression(expression[accumulated / 2 - 1].resultTo(TypeConstants.unboundIntegerType), expression[accumulated / 2].resultTo(TypeConstants.unboundIntegerType));
                             }
                             catch (TypeMismatchException e) {
                                 throwSemanticError(e.getMessage(), token);
@@ -743,7 +781,7 @@ public final class TokenInterpreter {
                         }
                         else if (operatorText.equals(">")) {
                             try {
-                                expression[accumulated / 2 - 1] = new GreaterThanExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), expression[accumulated / 2].resultTo(ExpressionConstants.unboundIntegerType));
+                                expression[accumulated / 2 - 1] = new GreaterThanExpression(expression[accumulated / 2 - 1].resultTo(TypeConstants.unboundIntegerType), expression[accumulated / 2].resultTo(TypeConstants.unboundIntegerType));
                             }
                             catch (TypeMismatchException e) {
                                 throwSemanticError(e.getMessage(), token);
@@ -752,7 +790,7 @@ public final class TokenInterpreter {
                         }
                         else if (operatorText.equals("<")) {
                             try {
-                                expression[accumulated / 2 - 1] = new LowerThanExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), expression[accumulated / 2].resultTo(ExpressionConstants.unboundIntegerType));
+                                expression[accumulated / 2 - 1] = new LowerThanExpression(expression[accumulated / 2 - 1].resultTo(TypeConstants.unboundIntegerType), expression[accumulated / 2].resultTo(TypeConstants.unboundIntegerType));
                             }
                             catch (TypeMismatchException e) {
                                 throwSemanticError(e.getMessage(), token);
@@ -855,7 +893,7 @@ public final class TokenInterpreter {
                         }
                         else if (leftIsInteger && !leftIsArray || rightIsInteger && !rightIsArray) {
                             try {
-                                expression[0] = new AdditionExpression(expression[0].resultTo(ExpressionConstants.unboundIntegerType), expression[1].resultTo(ExpressionConstants.unboundIntegerType));
+                                expression[0] = new AdditionExpression(expression[0].resultTo(TypeConstants.unboundIntegerType), expression[1].resultTo(TypeConstants.unboundIntegerType));
                             }
                             catch (TypeMismatchException e) {
                                 throwSemanticError(e.getMessage(), token);
@@ -957,7 +995,7 @@ public final class TokenInterpreter {
                         }
                         else if (operatorText.equals("*")) {
                             try {
-                                expression[accumulated / 2 - 1] = new MultiplicationExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), intExpression);
+                                expression[accumulated / 2 - 1] = new MultiplicationExpression(expression[accumulated / 2 - 1].resultTo(TypeConstants.unboundIntegerType), intExpression);
                             }
                             catch (TypeMismatchException e) {
                                 throwSemanticError(e.getMessage(), token);
@@ -966,7 +1004,7 @@ public final class TokenInterpreter {
                         }
                         else if (operatorText.equals("/")) {
                             try {
-                                expression[accumulated / 2 - 1] = new DivisionExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), intExpression);
+                                expression[accumulated / 2 - 1] = new DivisionExpression(expression[accumulated / 2 - 1].resultTo(TypeConstants.unboundIntegerType), intExpression);
                             }
                             catch (TypeMismatchException e) {
                                 throwSemanticError(e.getMessage(), token);
@@ -975,7 +1013,7 @@ public final class TokenInterpreter {
                         }
                         else if (operatorText.equals("%")) {
                             try {
-                                expression[accumulated / 2 - 1] = new ModuleExpression(expression[accumulated / 2 - 1].resultTo(ExpressionConstants.unboundIntegerType), intExpression);
+                                expression[accumulated / 2 - 1] = new ModuleExpression(expression[accumulated / 2 - 1].resultTo(TypeConstants.unboundIntegerType), intExpression);
                             }
                             catch (TypeMismatchException e) {
                                 throwSemanticError(e.getMessage(), token);
@@ -1007,7 +1045,7 @@ public final class TokenInterpreter {
 
     public ImmutableList<Statement> interpret() throws IOException, SyntaxErrorException, SemanticErrorException, UnexpectedEndOfFileException {
         ImmutableMap<String, Type> knownTypes = new ImmutableHashMap.Builder<String, Type>()
-                .put("Boolean", ExpressionConstants.booleanType)
+                .put("Boolean", TypeConstants.booleanType)
                 .put("String", new ArrayType(new IntegerType(new Token("0"), new Token("255"))))
                 .build();
 

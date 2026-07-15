@@ -1,5 +1,7 @@
 package sword.logic.compiler;
 
+import sword.logic.syntax_tree.Token;
+
 import java.io.IOException;
 import java.io.InputStream;
 

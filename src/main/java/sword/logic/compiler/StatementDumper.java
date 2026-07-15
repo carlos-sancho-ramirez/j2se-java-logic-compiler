@@ -1,6 +1,44 @@
 package sword.logic.compiler;
 
 import sword.collections.ImmutableMap;
+import sword.logic.syntax_tree.Token;
+import sword.logic.syntax_tree.expressions.AdditionExpression;
+import sword.logic.syntax_tree.expressions.AndExpression;
+import sword.logic.syntax_tree.expressions.ArrayConcatenationExpression;
+import sword.logic.syntax_tree.expressions.ArrayConstructor;
+import sword.logic.syntax_tree.expressions.ArrayLengthExpression;
+import sword.logic.syntax_tree.expressions.ArrayValueAtExpression;
+import sword.logic.syntax_tree.expressions.BooleanLiteralExpression;
+import sword.logic.syntax_tree.expressions.ComplexExpression;
+import sword.logic.syntax_tree.expressions.DifferentFromExpression;
+import sword.logic.syntax_tree.expressions.DivisionExpression;
+import sword.logic.syntax_tree.expressions.EqualThanExpression;
+import sword.logic.syntax_tree.expressions.Expression;
+import sword.logic.syntax_tree.expressions.FunctionExecutionExpression;
+import sword.logic.syntax_tree.expressions.FunctionExpression;
+import sword.logic.syntax_tree.expressions.FunctionParameter;
+import sword.logic.syntax_tree.expressions.GreaterOrEqualThanExpression;
+import sword.logic.syntax_tree.expressions.GreaterThanExpression;
+import sword.logic.syntax_tree.expressions.IfExpression;
+import sword.logic.syntax_tree.expressions.IntegerLiteralExpression;
+import sword.logic.syntax_tree.expressions.LowerOrEqualThanExpression;
+import sword.logic.syntax_tree.expressions.LowerThanExpression;
+import sword.logic.syntax_tree.expressions.ModuleExpression;
+import sword.logic.syntax_tree.expressions.MultiplicationExpression;
+import sword.logic.syntax_tree.expressions.OrExpression;
+import sword.logic.syntax_tree.expressions.ReferenceExpression;
+import sword.logic.syntax_tree.expressions.RegisterConstructor;
+import sword.logic.syntax_tree.expressions.RegisterFieldAccessExpression;
+import sword.logic.syntax_tree.expressions.StringLiteralExpression;
+import sword.logic.syntax_tree.expressions.SubtractionExpression;
+import sword.logic.syntax_tree.statements.ConstantDefinitionStatement;
+import sword.logic.syntax_tree.statements.Statement;
+import sword.logic.syntax_tree.statements.TypeAliasStatement;
+import sword.logic.syntax_tree.types.ArrayType;
+import sword.logic.syntax_tree.types.EnumType;
+import sword.logic.syntax_tree.types.IntegerType;
+import sword.logic.syntax_tree.types.RegisterType;
+import sword.logic.syntax_tree.types.Type;
 
 public final class StatementDumper {
     private static final String INDENTATION = "  ";
