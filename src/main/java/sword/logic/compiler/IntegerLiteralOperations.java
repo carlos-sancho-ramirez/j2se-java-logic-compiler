@@ -9,6 +9,29 @@ public final class IntegerLiteralOperations {
         else if (first == '-' && value.length() >= 2 && value.charAt(1) >= '1' && value.charAt(1) <= '9') {
             return "-" + toDecimal(value.substring(1));
         }
+        else if (value.length() > 2 && first == '0' && value.charAt(1) == 'x') {
+            String result = "0";
+            for (int i = 2; i < value.length(); i++) {
+                char ch = value.charAt(i);
+                int v;
+                if (ch >= '0' && ch <= '9') {
+                    v = ch - '0';
+                }
+                else if (ch >= 'A' && ch <= 'F') {
+                    v = ch - 'A' + 10;
+                }
+                else if (ch >= 'a' && ch <= 'f') {
+                    v = ch - 'a' + 10;
+                }
+                else {
+                    throw new UnsupportedOperationException("Invalid hex literal value '" + value + "'");
+                }
+
+                result = sum(multiplicationForPositiveDecimalNumbers(result, "16"), "" + v);
+            }
+
+            return result;
+        }
         else {
             throw new UnsupportedOperationException("Missing implementation to transform integer literals starting " + first);
         }
