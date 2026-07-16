@@ -204,6 +204,11 @@ public final class IntegerLiteralOperations {
             if (retained > 0) {
                 lineResult = "" + (char)(retained + '0') + lineResult;
             }
+
+            while (lineResult.length() > 1 && lineResult.charAt(0) == '0') {
+                lineResult = lineResult.substring(1);
+            }
+
             total = sumForPositiveDecimalNumbers(total, lineResult);
         }
 
