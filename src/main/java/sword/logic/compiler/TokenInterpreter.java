@@ -91,7 +91,7 @@ public final class TokenInterpreter {
             validateNextToken("[", "Expected '[' after 'Array'");
             final Type itemType = interpretType(knownTypes);
             validateNextToken("]", "Expected ']'");
-            return new ArrayType(itemType);
+            return new ArrayType(new IntegerType(new Token("0"), TypeConstants.unboundToken), itemType);
         }
         else if (typeTokenText.equals("{")) {
             final ImmutableMap.Builder<Token, Type> map = new ImmutableHashMap.Builder<>();
@@ -128,22 +128,34 @@ public final class TokenInterpreter {
         }
     }
 
-    private ImmutableMap<String, ConstantDefinitionStatement> mergeKnownConstants(
-            ImmutableMap<String, ConstantDefinitionStatement> outerKnownConstants,
+    private ImmutableMap<String, Type> mergeKnownConstants(
+            ImmutableMap<String, Type> outerKnownConstants,
             List<Statement> scopeStatements) {
-        final MutableMap<String, ConstantDefinitionStatement> result = outerKnownConstants.mutate();
+        final MutableMap<String, Type> result = outerKnownConstants.mutate();
         for (Statement statement : scopeStatements) {
             if (statement instanceof ConstantDefinitionStatement constDef) {
-                result.put(constDef.getName().getText(), constDef);
+                result.put(constDef.getName().getText(), constDef.getExpression().resultingType());
             }
         }
 
         return result.toImmutable();
     }
 
+    private Type composeCompatibleType(Type type) {
+        if (type instanceof IntegerType) {
+            return TypeConstants.unboundIntegerType;
+        }
+        else if (type instanceof ArrayType arrayType) {
+            return new ArrayType(TypeConstants.unboundLengthType, composeCompatibleType(arrayType.getItemType()));
+        }
+        else {
+            throw new UnsupportedOperationException("Unimplemented");
+        }
+    }
+
     private ExpressionInterpretationResult interpretExpression(
             ImmutableMap<String, Type> knownTypes,
-            ImmutableMap<String, ConstantDefinitionStatement> outerKnownConstants
+            ImmutableMap<String, Type> outerKnownConstants
     ) throws IOException, SyntaxErrorException, SemanticErrorException, UnexpectedEndOfFileException {
         final Expression[] expression = new Expression[6];
 
@@ -209,7 +221,7 @@ public final class TokenInterpreter {
 
                             if (leftIsArray && !rightIsInteger) {
                                 try {
-                                    expression[accumulated / 2 - 1] = new ArrayConcatenationExpression(leftExpression, rightExpression.resultTo(leftExpression.resultingType()));
+                                    expression[accumulated / 2 - 1] = new ArrayConcatenationExpression(leftExpression, rightExpression.resultTo(composeCompatibleType(leftExpression.resultingType())));
                                 }
                                 catch (TypeMismatchException e) {
                                     throwSemanticError(e.getMessage(), token);
@@ -217,7 +229,7 @@ public final class TokenInterpreter {
                             }
                             else if (rightIsArray && !leftIsInteger) {
                                 try {
-                                    expression[accumulated / 2 - 1] = new ArrayConcatenationExpression(leftExpression.resultTo(rightExpression.resultingType()), rightExpression);
+                                    expression[accumulated / 2 - 1] = new ArrayConcatenationExpression(leftExpression.resultTo(composeCompatibleType(rightExpression.resultingType())), rightExpression);
                                 }
                                 catch (TypeMismatchException e) {
                                     throwSemanticError(e.getMessage(), token);
@@ -358,8 +370,14 @@ public final class TokenInterpreter {
 
                         if (separatorToken.getText().equals(")")) {
                             validateNextToken("->", "Expected '->'");
-                            final ExpressionInterpretationResult funcExpressionResult = interpretExpression(knownTypes, mergeKnownConstants(outerKnownConstants, assignments));
-                            final Expression functionExpression = new FunctionExpression(parametersBuilder.build(), funcExpressionResult.result);
+                            final ImmutableList<FunctionParameter> parameters = parametersBuilder.build();
+                            ImmutableMap<String, Type> knownConstants = mergeKnownConstants(outerKnownConstants, assignments);
+                            for (FunctionParameter parameter : parameters) {
+                                knownConstants = knownConstants.put(parameter.getName().getText(), parameter.getType());
+                            }
+
+                            final ExpressionInterpretationResult funcExpressionResult = interpretExpression(knownTypes, knownConstants);
+                            final Expression functionExpression = new FunctionExpression(parameters, funcExpressionResult.result);
                             if (assigningName == null) {
                                 return new ExpressionInterpretationResult(functionExpression, funcExpressionResult.closingToken);
                             }
@@ -419,11 +437,18 @@ public final class TokenInterpreter {
                 else {
                     final ExpressionInterpretationResult result = interpretExpression(knownTypes, mergeKnownConstants(outerKnownConstants, assignments));
                     if (result.closingToken.getText().equals("]")) {
-                        if (expression[accumulated / 2] instanceof ReferenceExpression refExp && refExp.resultingType() == UnknownType.getInstance()) {
-                            expression[accumulated / 2] = new ReferenceExpression(new ArrayType(UnknownType.getInstance()), refExp.getReference());
-                        }
+                        if (result.result.resultingType() instanceof IntegerType indexType) {
+                            final Token lengthMaxToken = indexType.getMax().getText().equals(TypeConstants.unboundText)? TypeConstants.unboundToken : new Token(IntegerLiteralOperations.sum(indexType.getMax().getText(), "1"));
+                            final IntegerType lengthType = new IntegerType(new Token(IntegerLiteralOperations.sum(indexType.getMin().getText(), "1")), lengthMaxToken);
+                            if (expression[accumulated / 2] instanceof ReferenceExpression refExp && refExp.resultingType() == UnknownType.getInstance()) {
+                                expression[accumulated / 2] = new ReferenceExpression(new ArrayType(lengthType, UnknownType.getInstance()), refExp.getReference());
+                            }
 
-                        expression[accumulated / 2] = new ArrayValueAtExpression(expression[accumulated / 2], result.result);
+                            expression[accumulated / 2] = new ArrayValueAtExpression(expression[accumulated / 2], result.result);
+                        }
+                        else {
+                            throwSemanticError("Expected integer expression within square brackets", token);
+                        }
                     }
                     else {
                         throwSemanticError("Expected ']'", token);
@@ -550,7 +575,7 @@ public final class TokenInterpreter {
             }
             else if (tokenText.equals("if")) {
                 if (accumulated == 0) {
-                    final ImmutableMap<String, ConstantDefinitionStatement> mergedKnownConstants = mergeKnownConstants(outerKnownConstants, assignments);
+                    final ImmutableMap<String, Type> mergedKnownConstants = mergeKnownConstants(outerKnownConstants, assignments);
                     final ExpressionInterpretationResult conditionResult = interpretExpression(knownTypes, mergedKnownConstants);
                     if (conditionResult.closingToken.getText().equals("then")) {
                         final ExpressionInterpretationResult thenClauseResult = interpretExpression(knownTypes, mergedKnownConstants);
@@ -877,7 +902,7 @@ public final class TokenInterpreter {
 
                         if (leftIsArray && !rightIsInteger) {
                             try {
-                                expression[0] = new ArrayConcatenationExpression(expression[0], expression[1].resultTo(expression[0].resultingType()));
+                                expression[0] = new ArrayConcatenationExpression(expression[0], expression[1].resultTo(composeCompatibleType(expression[0].resultingType())));
                             }
                             catch (TypeMismatchException e) {
                                 throwSemanticError(e.getMessage(), token);
@@ -885,7 +910,7 @@ public final class TokenInterpreter {
                         }
                         else if (rightIsArray && !leftIsInteger) {
                             try {
-                                expression[0] = new ArrayConcatenationExpression(expression[0].resultTo(expression[1].resultingType()), expression[1]);
+                                expression[0] = new ArrayConcatenationExpression(expression[0].resultTo(composeCompatibleType(expression[1].resultingType())), expression[1]);
                             }
                             catch (TypeMismatchException e) {
                                 throwSemanticError(e.getMessage(), token);
@@ -972,8 +997,7 @@ public final class TokenInterpreter {
                     accumulated--;
                 }
                 else {
-                    final ConstantDefinitionStatement constDef = mergeKnownConstants(outerKnownConstants, assignments).get(tokenText, null);
-                    final Type refType = (constDef != null)? constDef.getExpression().resultingType() : UnknownType.getInstance();
+                    final Type refType = mergeKnownConstants(outerKnownConstants, assignments).get(tokenText, UnknownType.getInstance());
                     expression[accumulated / 2] = new ReferenceExpression(refType, token);
                     accumulated++;
                 }
@@ -1046,10 +1070,10 @@ public final class TokenInterpreter {
     public ImmutableList<Statement> interpret() throws IOException, SyntaxErrorException, SemanticErrorException, UnexpectedEndOfFileException {
         ImmutableMap<String, Type> knownTypes = new ImmutableHashMap.Builder<String, Type>()
                 .put("Boolean", TypeConstants.booleanType)
-                .put("String", new ArrayType(new IntegerType(new Token("0"), new Token("255"))))
+                .put("String", new ArrayType(new IntegerType(new Token("0"), TypeConstants.unboundToken), new IntegerType(new Token("0"), new Token("255"))))
                 .build();
 
-        ImmutableMap<String, ConstantDefinitionStatement> knownConstants = ImmutableHashMap.empty();
+        ImmutableMap<String, Type> knownConstants = ImmutableHashMap.empty();
 
         final ImmutableList.Builder<Statement> builder = new ImmutableList.Builder<>();
         Token typeKeywordToken = null;
@@ -1078,7 +1102,7 @@ public final class TokenInterpreter {
                         final ExpressionInterpretationResult result = interpretExpression(knownTypes, knownConstants);
                         if (result.closingToken.getText().equals(";")) {
                             final ConstantDefinitionStatement statement = new ConstantDefinitionStatement(assignmentName, result.result);
-                            knownConstants = knownConstants.put(assignmentName.getText(), statement);
+                            knownConstants = knownConstants.put(assignmentName.getText(), statement.getExpression().resultingType());
                             builder.append(statement);
                             assignmentName = null;
                         }

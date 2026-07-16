@@ -14,4 +14,8 @@ public final class TypeConstants {
     public static final String unboundText = "*";
     public static final Token unboundToken = new Token(unboundText);
     public static final IntegerType unboundIntegerType = new IntegerType(unboundToken, unboundToken);
+
+    public static final String zeroText = "0";
+    public static final Token zeroToken = new Token(zeroText);
+    public static final IntegerType unboundLengthType = new IntegerType(zeroToken, unboundToken);
 }

@@ -1,11 +1,13 @@
 package sword.logic.syntax_tree.expressions;
 
 import sword.collections.ImmutableList;
+import sword.logic.compiler.IntegerLiteralOperations;
 import sword.logic.compiler.TypeMismatchException;
 import sword.logic.syntax_tree.Token;
 import sword.logic.syntax_tree.types.ArrayType;
 import sword.logic.syntax_tree.types.IntegerType;
 import sword.logic.syntax_tree.types.Type;
+import sword.logic.syntax_tree.types.TypeConstants;
 import sword.logic.syntax_tree.types.UnknownType;
 
 import static sword.collections.ImmutableListExtensions.mapThrowing;
@@ -36,13 +38,23 @@ public final class ArrayConstructor implements Expression {
                 }
             }
 
-            mResultingType = new ArrayType(itemType);
+            final Token lengthToken = new Token("" + mValues.size());
+            mResultingType = new ArrayType(new IntegerType(lengthToken, lengthToken), itemType);
         }
         else if (values.get(0).resultingType() instanceof ArrayType firstItemType) {
             if (firstItemType.getItemType() instanceof IntegerType firstItemItemType) {
+                String itemLengthMinText = firstItemType.getLengthType().getMin().getText();
+                String itemLengthMaxText = firstItemType.getLengthType().getMax().getText();
                 IntegerType itemItemType = firstItemItemType;
                 for (int i = 1; i < values.size(); i++) {
                     if (values.get(i).resultingType() instanceof ArrayType thisItemType) {
+                        itemLengthMinText = IntegerLiteralOperations.min(itemLengthMinText, thisItemType.getLengthType().getMin().getText());
+                        if (!itemLengthMaxText.equals(TypeConstants.unboundText)) {
+                            final String thisItemLengthMaxText = thisItemType.getLengthType().getMax().getText();
+                            itemLengthMaxText = thisItemLengthMaxText.equals(TypeConstants.unboundText)? TypeConstants.unboundText :
+                                    IntegerLiteralOperations.max(itemLengthMaxText, thisItemLengthMaxText);
+                        }
+
                         if (thisItemType.getItemType() instanceof IntegerType thisItemItemType) {
                             itemItemType = itemItemType.getUnion(thisItemItemType);
                         }
@@ -55,7 +67,10 @@ public final class ArrayConstructor implements Expression {
                     }
                 }
 
-                mResultingType = new ArrayType(new ArrayType(itemItemType));
+                final Token lengthToken = new Token("" + values.size());
+                final Token itemLengthMaxToken = itemLengthMinText.equals(TypeConstants.unboundText)? TypeConstants.unboundToken : new Token(itemLengthMaxText);
+                final IntegerType itemLengthType = new IntegerType(new Token(itemLengthMinText), itemLengthMaxToken);
+                mResultingType = new ArrayType(new IntegerType(lengthToken, lengthToken), new ArrayType(itemLengthType, itemItemType));
             }
             else {
                 throw new UnsupportedOperationException("Unimplemented for array of other types than integers");

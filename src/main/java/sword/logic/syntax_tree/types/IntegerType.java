@@ -4,6 +4,7 @@ import sword.logic.compiler.IntegerLiteralOperations;
 import sword.logic.syntax_tree.Token;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
+import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 
 public final class IntegerType implements Type {
     private final Token mMin;
@@ -11,6 +12,7 @@ public final class IntegerType implements Type {
 
     public IntegerType(Token min, Token max) {
         ensureNonNull(min, max);
+        ensureValidArguments(min.getText().equals(TypeConstants.unboundText) || max.getText().equals(TypeConstants.unboundText) || IntegerLiteralOperations.lowerOrEqualThan(min.getText(), max.getText()));
         mMin = min;
         mMax = max;
     }

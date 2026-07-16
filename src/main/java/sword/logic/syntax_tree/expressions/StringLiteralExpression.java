@@ -10,6 +10,7 @@ import sword.logic.syntax_tree.types.UnknownType;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 
 public final class StringLiteralExpression implements Expression {
+    private ArrayType mResultingType;
     private final Token mLiteral;
 
     public StringLiteralExpression(Token literal) {
@@ -23,7 +24,33 @@ public final class StringLiteralExpression implements Expression {
 
     @Override
     public Type resultingType() {
-        return new ArrayType(new IntegerType(new Token("0"), new Token("127")));
+        if (mResultingType == null) {
+            final String text = mLiteral.getText();
+            final int textLength = text.length();
+            if (textLength > 2) {
+                int min = text.charAt(1);
+                int max = min;
+                for (int i = 2; i < textLength - 1; i++) {
+                    int v = text.charAt(i);
+                    if (v < min) {
+                        min = v;
+                    }
+                    else if (v > max) {
+                        max = v;
+                    }
+                }
+
+                final Token lengthToken = new Token("" + (textLength - 2));
+                mResultingType = new ArrayType(new IntegerType(lengthToken, lengthToken), new IntegerType(new Token("" + min), new Token("" + max)));
+            }
+            else {
+                // Let's leave it as 0 to 127... but in theory it is irrelevant
+                final Token lengthToken = new Token("0");
+                mResultingType = new ArrayType(new IntegerType(lengthToken, lengthToken), new IntegerType(new Token("0"), new Token("127")));
+            }
+        }
+
+        return mResultingType;
     }
 
     @Override
