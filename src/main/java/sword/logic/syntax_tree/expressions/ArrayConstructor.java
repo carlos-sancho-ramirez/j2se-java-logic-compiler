@@ -2,6 +2,7 @@ package sword.logic.syntax_tree.expressions;
 
 import sword.collections.ImmutableList;
 import sword.collections.Map;
+import sword.collections.Procedure;
 import sword.logic.compiler.IntegerLiteralOperations;
 import sword.logic.compiler.TypeMismatchException;
 import sword.logic.compiler.UnresolvedReferenceException;
@@ -110,6 +111,65 @@ public final class ArrayConstructor implements Expression {
     public void resolveReferences(Map<String, ReferenceTarget> knownTargets) throws UnresolvedReferenceException {
         for (Expression value : mValues) {
             value.resolveReferences(knownTargets);
+        }
+    }
+
+    @Override
+    public Type resultingType(Map<String, Type> paramTypes, Procedure<WarningMessage> logger) {
+        if (mValues.isEmpty()) {
+            return new ArrayType(new IntegerType(TypeConstants.zeroToken, TypeConstants.zeroToken), UnknownType.getInstance());
+        }
+        else if (mValues.get(0).resultingType(paramTypes, logger) instanceof IntegerType firstItemType) {
+            IntegerType itemType = firstItemType;
+            for (int i = 1; i < mValues.size(); i++) {
+                if (mValues.get(i).resultingType(paramTypes, logger) instanceof IntegerType thisItemType) {
+                    itemType = itemType.getUnion(thisItemType);
+                }
+                else {
+                    throw new UnsupportedOperationException("Unable to mix integers and " + mValues.get(i).resultingType(paramTypes, logger).getClass().getName() + " in a single array");
+                }
+            }
+
+            final Token lengthToken = new Token("" + mValues.size());
+            return new ArrayType(new IntegerType(lengthToken, lengthToken), itemType);
+        }
+        else if (mValues.get(0).resultingType(paramTypes, logger) instanceof ArrayType firstItemType) {
+            if (firstItemType.getItemType() instanceof IntegerType firstItemItemType) {
+                String itemLengthMinText = firstItemType.getLengthType().getMin().getText();
+                String itemLengthMaxText = firstItemType.getLengthType().getMax().getText();
+                IntegerType itemItemType = firstItemItemType;
+                for (int i = 1; i < mValues.size(); i++) {
+                    if (mValues.get(i).resultingType(paramTypes, logger) instanceof ArrayType thisItemType) {
+                        itemLengthMinText = IntegerLiteralOperations.min(itemLengthMinText, thisItemType.getLengthType().getMin().getText());
+                        if (!itemLengthMaxText.equals(TypeConstants.unboundText)) {
+                            final String thisItemLengthMaxText = thisItemType.getLengthType().getMax().getText();
+                            itemLengthMaxText = thisItemLengthMaxText.equals(TypeConstants.unboundText)? TypeConstants.unboundText :
+                                    IntegerLiteralOperations.max(itemLengthMaxText, thisItemLengthMaxText);
+                        }
+
+                        if (thisItemType.getItemType() instanceof IntegerType thisItemItemType) {
+                            itemItemType = itemItemType.getUnion(thisItemItemType);
+                        }
+                        else {
+                            throw new UnsupportedOperationException("Unable to mix arrays of of different types within an array");
+                        }
+                    }
+                    else {
+                        throw new UnsupportedOperationException("Unable to mix arrays and " + mValues.get(i).resultingType(paramTypes, logger).getClass().getName() + " in a single array");
+                    }
+                }
+
+                final Token lengthToken = new Token("" + mValues.size());
+                final Token itemLengthMaxToken = itemLengthMinText.equals(TypeConstants.unboundText)? TypeConstants.unboundToken : new Token(itemLengthMaxText);
+                final IntegerType itemLengthType = new IntegerType(new Token(itemLengthMinText), itemLengthMaxToken);
+                return new ArrayType(new IntegerType(lengthToken, lengthToken), new ArrayType(itemLengthType, itemItemType));
+            }
+            else {
+                throw new UnsupportedOperationException("Unimplemented for array of other types than integers");
+            }
+        }
+        else {
+            throw new UnsupportedOperationException("Unimplemented for items of type " + mValues.get(0).resultingType(paramTypes, logger) + " at " + mType.getLine() + ":" + mType.getColumn());
         }
     }
 }

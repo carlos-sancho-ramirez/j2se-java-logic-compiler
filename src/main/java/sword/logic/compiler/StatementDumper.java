@@ -1,5 +1,6 @@
 package sword.logic.compiler;
 
+import sword.collections.ImmutableHashMap;
 import sword.collections.ImmutableMap;
 import sword.logic.syntax_tree.Token;
 import sword.logic.syntax_tree.expressions.AdditionExpression;
@@ -36,6 +37,7 @@ import sword.logic.syntax_tree.statements.Statement;
 import sword.logic.syntax_tree.statements.TypeAliasStatement;
 import sword.logic.syntax_tree.types.ArrayType;
 import sword.logic.syntax_tree.types.EnumType;
+import sword.logic.syntax_tree.types.FunctionType;
 import sword.logic.syntax_tree.types.IntegerType;
 import sword.logic.syntax_tree.types.RegisterType;
 import sword.logic.syntax_tree.types.Type;
@@ -45,7 +47,9 @@ public final class StatementDumper {
 
     private void dumpType(Type type, StringBuilder sb, String indentation) {
         if (type instanceof ArrayType arrayType) {
-            sb.append("Array[");
+            sb.append("Array[length=");
+            dumpType(arrayType.getLengthType(), sb, indentation);
+            sb.append("; item=");
             dumpType(arrayType.getItemType(), sb, indentation);
             sb.append("]");
         }
@@ -72,6 +76,20 @@ public final class StatementDumper {
         }
         else if (type instanceof EnumType enumType) {
             sb.append(enumType.getName().getText());
+        }
+        else if (type instanceof FunctionType funcType) {
+            sb.append("(");
+            boolean separatorRequired = false;
+            for (Type paramType : funcType.getParameterTypes()) {
+                if (separatorRequired) {
+                    sb.append(", ");
+                }
+
+                dumpType(paramType, sb, indentation);
+                separatorRequired = true;
+            }
+            sb.append(") -> ");
+            dumpType(funcType.getResultType(), sb, indentation);
         }
         else {
             throw new UnsupportedOperationException("Unknown type " + type.getClass().getName());
@@ -318,7 +336,10 @@ public final class StatementDumper {
             sb.append(";\n");
         }
         else if (statement instanceof ConstantDefinitionStatement constant) {
-            sb.append(constant.getName().getText()).append(" = ");
+            sb.append(constant.getName().getText())
+                    .append(": ");
+            dumpType(constant.getExpression().resultingType(ImmutableHashMap.empty(), msg -> {}), sb, indentation);
+            sb.append(" = ");
             dumpExpression(constant.getExpression(), sb, indentation);
             sb.append(";\n");
         }

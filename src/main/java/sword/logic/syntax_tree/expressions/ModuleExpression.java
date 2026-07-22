@@ -1,12 +1,14 @@
 package sword.logic.syntax_tree.expressions;
 
 import sword.collections.Map;
+import sword.collections.Procedure;
 import sword.logic.compiler.IntegerLiteralOperations;
 import sword.logic.compiler.TypeMismatchException;
 import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.syntax_tree.Token;
 import sword.logic.syntax_tree.types.IntegerType;
 import sword.logic.syntax_tree.types.Type;
+import sword.logic.syntax_tree.types.TypeConstants;
 import sword.logic.syntax_tree.types.UnknownType;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
@@ -28,7 +30,7 @@ public final class ModuleExpression implements Expression {
         ensureValidArguments(IntegerLiteralOperations.greaterThan(rightType.getMin().getText(), "0"));
         final String newMax = IntegerLiteralOperations.subtraction(rightType.getMax().getText(), "1");
         ensureValidArguments(newMax.charAt(0) != '-');
-        mRequiredType = new IntegerType(new Token("0"), new Token(newMax));
+        mRequiredType = new IntegerType(TypeConstants.zeroToken, new Token(newMax));
     }
 
     public Expression getLeftExpression() {
@@ -58,5 +60,14 @@ public final class ModuleExpression implements Expression {
     public void resolveReferences(Map<String, ReferenceTarget> knownTargets) throws UnresolvedReferenceException {
         mLeft.resolveReferences(knownTargets);
         mRight.resolveReferences(knownTargets);
+    }
+
+    @Override
+    public Type resultingType(Map<String, Type> paramTypes, Procedure<WarningMessage> logger) {
+        final IntegerType rightType = (IntegerType) mRight.resultingType(paramTypes, logger);
+        ensureValidArguments(IntegerLiteralOperations.greaterThan(rightType.getMin().getText(), "0"));
+        final String newMax = IntegerLiteralOperations.subtraction(rightType.getMax().getText(), "1");
+        ensureValidArguments(newMax.charAt(0) != '-');
+        return new IntegerType(TypeConstants.zeroToken, new Token(newMax));
     }
 }

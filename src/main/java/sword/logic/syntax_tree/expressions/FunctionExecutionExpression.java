@@ -2,8 +2,12 @@ package sword.logic.syntax_tree.expressions;
 
 import sword.collections.ImmutableList;
 import sword.collections.Map;
+import sword.collections.MutableHashMap;
+import sword.collections.MutableMap;
+import sword.collections.Procedure;
 import sword.logic.compiler.TypeMismatchException;
 import sword.logic.compiler.UnresolvedReferenceException;
+import sword.logic.syntax_tree.statements.ConstantDefinitionStatement;
 import sword.logic.syntax_tree.types.FunctionType;
 import sword.logic.syntax_tree.types.Type;
 import sword.logic.syntax_tree.types.UnknownType;
@@ -59,6 +63,25 @@ public final class FunctionExecutionExpression implements Expression {
         mFunction.resolveReferences(knownTargets);
         for (Expression param : mParameters) {
             param.resolveReferences(knownTargets);
+        }
+    }
+
+    @Override
+    public Type resultingType(Map<String, Type> paramTypes, Procedure<WarningMessage> logger) {
+        if (mFunction instanceof ReferenceExpression refExp &&
+                refExp.getTarget() instanceof ConstantDefinitionStatement refTarget &&
+                refTarget.getExpression() instanceof FunctionExpression refFunc) {
+            final ImmutableList<FunctionParameter> funcParams = refFunc.getParameters();
+            final int paramSize = funcParams.size();
+            final MutableMap<String, Type> newParamTypes = MutableHashMap.empty();
+            for (int i = 0; i < paramSize; i++) {
+                newParamTypes.put(funcParams.valueAt(i).getName().getText(), mParameters.valueAt(i).resultingType(paramTypes, logger));
+            }
+
+            return refFunc.getBody().resultingType(newParamTypes, logger);
+        }
+        else {
+            throw new UnsupportedOperationException("Unimplemented");
         }
     }
 }

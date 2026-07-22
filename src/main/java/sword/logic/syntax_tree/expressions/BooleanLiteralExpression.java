@@ -1,9 +1,11 @@
 package sword.logic.syntax_tree.expressions;
 
 import sword.collections.Map;
+import sword.collections.Procedure;
 import sword.logic.compiler.TypeMismatchException;
 import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.syntax_tree.Token;
+import sword.logic.syntax_tree.types.EnumType;
 import sword.logic.syntax_tree.types.Type;
 import sword.logic.syntax_tree.types.TypeConstants;
 import sword.logic.syntax_tree.types.UnknownType;
@@ -42,5 +44,10 @@ public final class BooleanLiteralExpression implements Expression {
     @Override
     public void resolveReferences(Map<String, ReferenceTarget> knownTargets) throws UnresolvedReferenceException {
         // Nothing to resolve
+    }
+
+    @Override
+    public EnumType resultingType(Map<String, Type> paramTypes, Procedure<WarningMessage> logger) {
+        return TypeConstants.booleanType;
     }
 }

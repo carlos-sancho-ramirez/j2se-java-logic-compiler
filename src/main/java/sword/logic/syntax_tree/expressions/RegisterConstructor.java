@@ -1,8 +1,10 @@
 package sword.logic.syntax_tree.expressions;
 
 import sword.collections.ImmutableList;
+import sword.collections.ImmutableMap;
 import sword.collections.Map;
 import sword.collections.MutableMap;
+import sword.collections.Procedure;
 import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.syntax_tree.statements.ConstantDefinitionStatement;
 import sword.logic.syntax_tree.statements.Statement;
@@ -20,10 +22,10 @@ public final class RegisterConstructor implements Expression {
     private final Token mType;
     private final ImmutableList<Statement> mStatements;
 
-    public RegisterConstructor(Type resultingType, Token type, ImmutableList<Statement> statements) {
-        ensureNonNull(resultingType, type, statements);
-        ensureValidArguments(resultingType instanceof RegisterType || resultingType == UnknownType.getInstance());
-        mRequiredType = resultingType;
+    public RegisterConstructor(Type requiredType, Token type, ImmutableList<Statement> statements) {
+        ensureNonNull(requiredType, type, statements);
+        ensureValidArguments(requiredType instanceof RegisterType || requiredType == UnknownType.getInstance());
+        mRequiredType = requiredType;
         mType = type;
         mStatements = statements;
     }
@@ -68,5 +70,27 @@ public final class RegisterConstructor implements Expression {
                 constDef.getExpression().resolveReferences(newTargets);
             }
         }
+    }
+
+    @Override
+    public Type resultingType(Map<String, Type> paramTypes, Procedure<WarningMessage> logger) {
+        ImmutableMap<Token, Type> fieldTypes = ((RegisterType) mRequiredType).getFields();
+        final int fieldCount = fieldTypes.size();
+
+        outer:
+        for (Statement statement : mStatements) {
+            if (statement instanceof ConstantDefinitionStatement constDef) {
+                final String defText = constDef.getName().getText();
+                for (int i = 0; i < fieldCount; i++) {
+                    final Token key = fieldTypes.keyAt(i);
+                    if (key.getText().equals(defText)) {
+                        fieldTypes = fieldTypes.put(key, constDef.getExpression().resultingType(paramTypes, logger));
+                        continue outer;
+                    }
+                }
+            }
+        }
+
+        return new RegisterType(fieldTypes);
     }
 }

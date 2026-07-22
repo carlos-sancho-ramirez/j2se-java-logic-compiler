@@ -1,9 +1,11 @@
 package sword.logic.syntax_tree.expressions;
 
 import sword.collections.Map;
+import sword.collections.Procedure;
 import sword.logic.compiler.TypeMismatchException;
 import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.syntax_tree.Token;
+import sword.logic.syntax_tree.statements.ConstantDefinitionStatement;
 import sword.logic.syntax_tree.types.ArrayType;
 import sword.logic.syntax_tree.types.FunctionType;
 import sword.logic.syntax_tree.types.IntegerType;
@@ -73,6 +75,17 @@ public final class ReferenceExpression implements Expression {
             else {
                 mTarget = target;
             }
+        }
+    }
+
+    @Override
+    public Type resultingType(Map<String, Type> paramTypes, Procedure<WarningMessage> logger) {
+        if (mTarget instanceof FunctionParameter funcParam) {
+            return paramTypes.get(funcParam.getName().getText(), funcParam.getType());
+        }
+        else {
+            final ConstantDefinitionStatement constDef = (ConstantDefinitionStatement) mTarget;
+            return constDef.getExpression().resultingType(paramTypes, logger);
         }
     }
 }

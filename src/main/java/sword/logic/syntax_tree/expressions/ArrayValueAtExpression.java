@@ -1,6 +1,7 @@
 package sword.logic.syntax_tree.expressions;
 
 import sword.collections.Map;
+import sword.collections.Procedure;
 import sword.logic.compiler.IntegerLiteralOperations;
 import sword.logic.compiler.TypeMismatchException;
 import sword.logic.compiler.UnresolvedReferenceException;
@@ -53,5 +54,10 @@ public final class ArrayValueAtExpression implements Expression {
     public void resolveReferences(Map<String, ReferenceTarget> knownTargets) throws UnresolvedReferenceException {
         mArray.resolveReferences(knownTargets);
         mIndex.resolveReferences(knownTargets);
+    }
+
+    @Override
+    public Type resultingType(Map<String, Type> paramTypes, Procedure<WarningMessage> logger) {
+        return ((ArrayType) mArray.resultingType(paramTypes, logger)).getItemType();
     }
 }

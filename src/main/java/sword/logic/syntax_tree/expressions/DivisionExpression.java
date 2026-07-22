@@ -1,6 +1,7 @@
 package sword.logic.syntax_tree.expressions;
 
 import sword.collections.Map;
+import sword.collections.Procedure;
 import sword.logic.compiler.IntegerLiteralOperations;
 import sword.logic.compiler.TypeMismatchException;
 import sword.logic.compiler.UnresolvedReferenceException;
@@ -117,5 +118,73 @@ public final class DivisionExpression implements Expression {
     public void resolveReferences(Map<String, ReferenceTarget> knownTargets) throws UnresolvedReferenceException {
         mLeft.resolveReferences(knownTargets);
         mRight.resolveReferences(knownTargets);
+    }
+
+    @Override
+    public Type resultingType(Map<String, Type> paramTypes, Procedure<WarningMessage> logger) {
+        final IntegerType leftType = (IntegerType) mLeft.resultingType(paramTypes, logger);
+        final IntegerType rightType = (IntegerType) mRight.resultingType(paramTypes, logger);
+        final String leftMin = leftType.getMin().getText();
+        final String leftMax = leftType.getMax().getText();
+        final String rightMin = rightType.getMin().getText();
+        final String rightMax = rightType.getMax().getText();
+
+        final String newMin;
+        final String newMax;
+        if (leftMin.equals("*") || leftMax.equals("*") || rightMin.equals("*") || rightMax.equals("*")) {
+            newMin = "*";
+            newMax = "*";
+        }
+        else {
+            final boolean leftMinIsNegative = leftMin.charAt(0) == '-';
+            final boolean leftMaxIsNegative = leftMax.charAt(0) == '-';
+            final boolean rightMinIsNegative = rightMin.charAt(0) == '-';
+            final boolean rightMaxIsNegative = rightMax.charAt(0) == '-';
+
+            if (leftMaxIsNegative) {
+                if (rightMaxIsNegative) {
+                    newMin = IntegerLiteralOperations.division(leftMax, rightMin);
+                    newMax = IntegerLiteralOperations.division(leftMin, rightMax);
+                }
+                else if (rightMinIsNegative) {
+                    newMin = leftMin;
+                    newMax = rightMin;
+                }
+                else {
+                    newMin = IntegerLiteralOperations.division(leftMin, rightMin);
+                    newMax = IntegerLiteralOperations.division(leftMax, rightMax);
+                }
+            }
+            else if (leftMinIsNegative) {
+                if (rightMaxIsNegative) {
+                    newMin = IntegerLiteralOperations.division(leftMax, rightMax);
+                    newMax = IntegerLiteralOperations.division(leftMin, rightMax);
+                }
+                else if (rightMinIsNegative) {
+                    newMin = IntegerLiteralOperations.min(leftMin, "-" + leftMax);
+                    newMax = IntegerLiteralOperations.max("-" + leftMin, leftMax);
+                }
+                else {
+                    newMin = IntegerLiteralOperations.division(leftMin, rightMin);
+                    newMax = IntegerLiteralOperations.division(leftMax, rightMin);
+                }
+            }
+            else {
+                if (rightMaxIsNegative) {
+                    newMin = IntegerLiteralOperations.division(leftMax, rightMax);
+                    newMax = IntegerLiteralOperations.division(leftMin, rightMax);
+                }
+                else if (rightMinIsNegative) {
+                    newMin = "-" + leftMax;
+                    newMax = leftMax;
+                }
+                else {
+                    newMin = IntegerLiteralOperations.division(leftMin, rightMax);
+                    newMax = IntegerLiteralOperations.division(leftMax, rightMin);
+                }
+            }
+        }
+
+        return new IntegerType(new Token(newMin), new Token(newMax));
     }
 }

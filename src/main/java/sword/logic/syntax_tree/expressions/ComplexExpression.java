@@ -3,6 +3,7 @@ package sword.logic.syntax_tree.expressions;
 import sword.collections.ImmutableList;
 import sword.collections.Map;
 import sword.collections.MutableMap;
+import sword.collections.Procedure;
 import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.syntax_tree.statements.ConstantDefinitionStatement;
 import sword.logic.syntax_tree.statements.Statement;
@@ -56,5 +57,10 @@ public final class ComplexExpression implements Expression {
         }
 
         mExpression.resolveReferences(newTargets);
+    }
+
+    @Override
+    public Type resultingType(Map<String, Type> paramTypes, Procedure<WarningMessage> logger) {
+        return mExpression.resultingType(paramTypes, logger);
     }
 }

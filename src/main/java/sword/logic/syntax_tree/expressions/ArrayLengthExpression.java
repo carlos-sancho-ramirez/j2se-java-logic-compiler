@@ -1,9 +1,11 @@
 package sword.logic.syntax_tree.expressions;
 
 import sword.collections.Map;
+import sword.collections.Procedure;
 import sword.logic.compiler.TypeMismatchException;
 import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.syntax_tree.Token;
+import sword.logic.syntax_tree.types.ArrayType;
 import sword.logic.syntax_tree.types.IntegerType;
 import sword.logic.syntax_tree.types.Type;
 import sword.logic.syntax_tree.types.TypeConstants;
@@ -43,5 +45,10 @@ public final class ArrayLengthExpression implements Expression {
     @Override
     public void resolveReferences(Map<String, ReferenceTarget> knownTargets) throws UnresolvedReferenceException {
         mArray.resolveReferences(knownTargets);
+    }
+
+    @Override
+    public Type resultingType(Map<String, Type> paramTypes, Procedure<WarningMessage> logger) {
+        return ((ArrayType) mArray.resultingType(paramTypes, logger)).getLengthType();
     }
 }

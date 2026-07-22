@@ -1,6 +1,7 @@
 package sword.logic.syntax_tree.expressions;
 
 import sword.collections.Map;
+import sword.collections.Procedure;
 import sword.logic.compiler.IntegerLiteralOperations;
 import sword.logic.compiler.TypeMismatchException;
 import sword.logic.compiler.UnresolvedReferenceException;
@@ -74,5 +75,29 @@ public final class SubtractionExpression implements Expression {
     public void resolveReferences(Map<String, ReferenceTarget> knownTargets) throws UnresolvedReferenceException {
         mLeft.resolveReferences(knownTargets);
         mRight.resolveReferences(knownTargets);
+    }
+
+    @Override
+    public IntegerType resultingType(Map<String, Type> paramTypes, Procedure<WarningMessage> logger) {
+        final IntegerType leftType = (IntegerType) mLeft.resultingType(paramTypes, logger);
+        final IntegerType rightType = (IntegerType) mRight.resultingType(paramTypes, logger);
+        final String leftMinText = leftType.getMin().getText();
+        final String leftMaxText = leftType.getMax().getText();
+        final String rightMinText = rightType.getMin().getText();
+        final String rightMaxText = rightType.getMax().getText();
+        final boolean leftMinUnbound = leftMinText.equals(TypeConstants.unboundText);
+        final boolean leftMaxUnbound = leftMaxText.equals(TypeConstants.unboundText);
+        final boolean rightMinUnbound = rightMinText.equals(TypeConstants.unboundText);
+        final boolean rightMaxUnbound = rightMaxText.equals(TypeConstants.unboundText);
+
+        // TODO: Improve this logic to delimit integer ranges
+        if (leftMinUnbound || leftMaxUnbound || rightMinUnbound || rightMaxUnbound) {
+            return TypeConstants.unboundIntegerType;
+        }
+        else {
+            return new IntegerType(
+                    new Token(IntegerLiteralOperations.subtraction(leftMinText, rightMaxText)),
+                    new Token(IntegerLiteralOperations.subtraction(leftMaxText, rightMinText)));
+        }
     }
 }

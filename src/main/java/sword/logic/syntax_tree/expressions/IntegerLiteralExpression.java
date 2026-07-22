@@ -1,6 +1,8 @@
 package sword.logic.syntax_tree.expressions;
 
 import sword.collections.Map;
+import sword.collections.Procedure;
+import sword.logic.compiler.IntegerLiteralOperations;
 import sword.logic.compiler.TypeMismatchException;
 import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.syntax_tree.Token;
@@ -8,6 +10,7 @@ import sword.logic.syntax_tree.types.IntegerType;
 import sword.logic.syntax_tree.types.Type;
 import sword.logic.syntax_tree.types.UnknownType;
 
+import static sword.logic.compiler.IntegerLiteralOperations.validIntegerLiteral;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 
 public final class IntegerLiteralExpression implements Expression {
@@ -15,7 +18,7 @@ public final class IntegerLiteralExpression implements Expression {
     private final Token mLiteral;
 
     public IntegerLiteralExpression(Token literal) {
-        ensureValidArguments(literal.getText().charAt(0) >= '0' && literal.getText().charAt(0) <= '9');
+        ensureValidArguments(validIntegerLiteral(literal.getText()));
         mLiteral = literal;
     }
 
@@ -45,5 +48,10 @@ public final class IntegerLiteralExpression implements Expression {
     @Override
     public void resolveReferences(Map<String, ReferenceTarget> knownTargets) throws UnresolvedReferenceException {
         // Nothing to resolve
+    }
+
+    @Override
+    public IntegerType resultingType(Map<String, Type> paramTypes, Procedure<WarningMessage> logger) {
+        return new IntegerType(mLiteral, mLiteral);
     }
 }

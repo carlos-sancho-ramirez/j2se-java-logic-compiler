@@ -1,6 +1,16 @@
 package sword.logic.compiler;
 
 public final class IntegerLiteralOperations {
+    public static boolean validIntegerLiteral(String literal) {
+        try {
+            toDecimal(literal);
+            return true;
+        }
+        catch (UnsupportedOperationException e) {
+            return false;
+        }
+    }
+
     private static String toDecimal(String value) {
         final char first = value.charAt(0);
         if (first >= '1' && first <= '9' || first == '0' && value.length() == 1) {

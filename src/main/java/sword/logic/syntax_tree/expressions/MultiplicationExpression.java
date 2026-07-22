@@ -1,6 +1,7 @@
 package sword.logic.syntax_tree.expressions;
 
 import sword.collections.Map;
+import sword.collections.Procedure;
 import sword.logic.compiler.IntegerLiteralOperations;
 import sword.logic.compiler.TypeMismatchException;
 import sword.logic.compiler.UnresolvedReferenceException;
@@ -123,5 +124,78 @@ public final class MultiplicationExpression implements Expression {
     public void resolveReferences(Map<String, ReferenceTarget> knownTargets) throws UnresolvedReferenceException {
         mLeft.resolveReferences(knownTargets);
         mRight.resolveReferences(knownTargets);
+    }
+
+    @Override
+    public Type resultingType(Map<String, Type> paramTypes, Procedure<WarningMessage> logger) {
+        final IntegerType leftType = (IntegerType) mLeft.resultingType(paramTypes, logger);
+        final IntegerType rightType = (IntegerType) mRight.resultingType(paramTypes, logger);
+        final String leftMin = leftType.getMin().getText();
+        final boolean leftMinIsNegative = leftMin.charAt(0) == '-';
+        final String leftMax = leftType.getMax().getText();
+        final boolean leftMaxIsNegative = leftMax.charAt(0) == '-';
+        final String rightMin = rightType.getMin().getText();
+        final boolean rightMinIsNegative = rightMin.charAt(0) == '-';
+        final String rightMax = rightType.getMax().getText();
+        final boolean rightMaxIsNegative = rightMax.charAt(0) == '-';
+
+        // TODO: We should improve this logic when unbound integers are present. We should be able to delimit this further.
+        if (leftMin.equals(TypeConstants.unboundText) || leftMax.equals(TypeConstants.unboundText) ||
+                rightMin.equals(TypeConstants.unboundText) || rightMax.equals(TypeConstants.unboundText)) {
+            return TypeConstants.unboundIntegerType;
+        }
+        else {
+            final String newMin;
+            final String newMax;
+
+            if (leftMaxIsNegative) {
+                if (rightMaxIsNegative) {
+                    newMin = IntegerLiteralOperations.multiplication(leftMax, rightMax);
+                    newMax = IntegerLiteralOperations.multiplication(leftMin, rightMin);
+                }
+                else if (rightMinIsNegative) {
+                    newMin = IntegerLiteralOperations.multiplication(leftMin, rightMax);
+                    newMax = IntegerLiteralOperations.multiplication(leftMin, rightMin);
+                }
+                else {
+                    newMin = IntegerLiteralOperations.multiplication(leftMin, rightMax);
+                    newMax = IntegerLiteralOperations.multiplication(leftMax, rightMin);
+                }
+            }
+            else if (leftMinIsNegative) {
+                if (rightMaxIsNegative) {
+                    newMin = IntegerLiteralOperations.multiplication(leftMax, rightMin);
+                    newMax = IntegerLiteralOperations.multiplication(leftMin, rightMin);
+                }
+                else if (rightMinIsNegative) {
+                    newMin = IntegerLiteralOperations.min(
+                            IntegerLiteralOperations.multiplication(leftMin, rightMax),
+                            IntegerLiteralOperations.multiplication(leftMax, rightMin));
+                    newMax = IntegerLiteralOperations.max(
+                            IntegerLiteralOperations.multiplication(leftMin, rightMin),
+                            IntegerLiteralOperations.multiplication(leftMax, rightMax));
+                }
+                else {
+                    newMin = IntegerLiteralOperations.multiplication(leftMin, rightMax);
+                    newMax = IntegerLiteralOperations.multiplication(leftMax, rightMax);
+                }
+            }
+            else {
+                if (rightMaxIsNegative) {
+                    newMin = IntegerLiteralOperations.multiplication(leftMax, rightMin);
+                    newMax = IntegerLiteralOperations.multiplication(leftMin, rightMax);
+                }
+                else if (rightMinIsNegative) {
+                    newMin = IntegerLiteralOperations.multiplication(leftMax, rightMin);
+                    newMax = IntegerLiteralOperations.multiplication(leftMax, rightMax);
+                }
+                else {
+                    newMin = IntegerLiteralOperations.multiplication(leftMin, rightMin);
+                    newMax = IntegerLiteralOperations.multiplication(leftMax, rightMax);
+                }
+            }
+
+            return new IntegerType(new Token(newMin), new Token(newMax));
+        }
     }
 }

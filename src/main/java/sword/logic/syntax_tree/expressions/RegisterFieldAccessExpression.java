@@ -1,9 +1,12 @@
 package sword.logic.syntax_tree.expressions;
 
+import sword.collections.ImmutableMap;
 import sword.collections.Map;
+import sword.collections.Procedure;
 import sword.logic.compiler.TypeMismatchException;
 import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.syntax_tree.Token;
+import sword.logic.syntax_tree.types.RegisterType;
 import sword.logic.syntax_tree.types.Type;
 import sword.logic.syntax_tree.types.UnknownType;
 
@@ -53,5 +56,18 @@ public final class RegisterFieldAccessExpression implements Expression {
     @Override
     public void resolveReferences(Map<String, ReferenceTarget> knownTargets) throws UnresolvedReferenceException {
         mRegister.resolveReferences(knownTargets);
+    }
+
+    @Override
+    public Type resultingType(Map<String, Type> paramTypes, Procedure<WarningMessage> logger) {
+        final ImmutableMap<Token, Type> fields = ((RegisterType) mRegister.resultingType(paramTypes, logger)).getFields();
+        final int fieldCount = fields.size();
+        for (int i = 0; i < fieldCount; i++) {
+            if (fields.keyAt(i).getText().equals(mFieldName.getText())) {
+                return fields.valueAt(i);
+            }
+        }
+
+        throw new RuntimeException("Field not found???");
     }
 }

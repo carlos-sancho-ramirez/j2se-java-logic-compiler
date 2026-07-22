@@ -3,6 +3,7 @@ package sword.logic.syntax_tree.expressions;
 import sword.collections.ImmutableList;
 import sword.collections.Map;
 import sword.collections.MutableMap;
+import sword.collections.Procedure;
 import sword.logic.compiler.TypeMismatchException;
 import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.syntax_tree.types.FunctionType;
@@ -59,5 +60,10 @@ public final class FunctionExpression implements Expression {
         }
 
         mBody.resolveReferences(newTargets);
+    }
+
+    @Override
+    public Type resultingType(Map<String, Type> paramTypes, Procedure<WarningMessage> logger) {
+        return new FunctionType(mParameters.map(FunctionParameter::getType), mBody.resultingType(paramTypes, logger));
     }
 }
