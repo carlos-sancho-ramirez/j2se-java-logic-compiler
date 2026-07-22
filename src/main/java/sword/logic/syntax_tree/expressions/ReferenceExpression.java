@@ -28,7 +28,7 @@ public final class ReferenceExpression implements Expression {
     }
 
     @Override
-    public Type resultingType() {
+    public Type requiredType() {
         return mResultingType;
     }
 
@@ -59,7 +59,7 @@ public final class ReferenceExpression implements Expression {
     }
 
     @Override
-    public Expression resultTo(Type type) throws TypeMismatchException {
+    public Expression requiresType(Type type) throws TypeMismatchException {
         return resultToType(mResultingType, type, type);
     }
 

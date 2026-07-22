@@ -17,8 +17,8 @@ public final class GreaterOrEqualThanExpression implements Expression {
 
     public GreaterOrEqualThanExpression(Expression left, Expression right) {
         ensureNonNull(left, right);
-        ensureValidArguments(left.resultingType() instanceof IntegerType);
-        ensureValidArguments(right.resultingType() instanceof IntegerType);
+        ensureValidArguments(left.requiredType() instanceof IntegerType);
+        ensureValidArguments(right.requiredType() instanceof IntegerType);
         mLeft = left;
         mRight = right;
     }
@@ -32,12 +32,12 @@ public final class GreaterOrEqualThanExpression implements Expression {
     }
 
     @Override
-    public Type resultingType() {
+    public Type requiredType() {
         return TypeConstants.booleanType;
     }
 
     @Override
-    public Expression resultTo(Type type) throws TypeMismatchException {
+    public Expression requiresType(Type type) throws TypeMismatchException {
         if (type == UnknownType.getInstance() || type == TypeConstants.booleanType) {
             return this;
         }

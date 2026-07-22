@@ -13,19 +13,19 @@ import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 
 public final class DivisionExpression implements Expression {
-    private final IntegerType mResultingType;
+    private final IntegerType mRequiredType;
     private final Expression mLeft;
     private final Expression mRight;
 
     public DivisionExpression(Expression left, Expression right) {
         ensureNonNull(left, right);
-        ensureValidArguments(left.resultingType() instanceof IntegerType);
-        ensureValidArguments(right.resultingType() instanceof IntegerType);
+        ensureValidArguments(left.requiredType() instanceof IntegerType);
+        ensureValidArguments(right.requiredType() instanceof IntegerType);
         mLeft = left;
         mRight = right;
 
-        final IntegerType leftType = (IntegerType) left.resultingType();
-        final IntegerType rightType = (IntegerType) right.resultingType();
+        final IntegerType leftType = (IntegerType) left.requiredType();
+        final IntegerType rightType = (IntegerType) right.requiredType();
         final String leftMin = leftType.getMin().getText();
         final String leftMax = leftType.getMax().getText();
         final String rightMin = rightType.getMin().getText();
@@ -87,7 +87,7 @@ public final class DivisionExpression implements Expression {
             }
         }
 
-        mResultingType = new IntegerType(new Token(newMin), new Token(newMax));
+        mRequiredType = new IntegerType(new Token(newMin), new Token(newMax));
     }
 
     public Expression getLeftExpression() {
@@ -99,12 +99,12 @@ public final class DivisionExpression implements Expression {
     }
 
     @Override
-    public IntegerType resultingType() {
-        return mResultingType;
+    public IntegerType requiredType() {
+        return mRequiredType;
     }
 
     @Override
-    public Expression resultTo(Type type) throws TypeMismatchException {
+    public Expression requiresType(Type type) throws TypeMismatchException {
         if (type == UnknownType.getInstance() || type instanceof IntegerType) {
             return this;
         }

@@ -25,7 +25,7 @@ public final class StringLiteralExpression implements Expression {
     }
 
     @Override
-    public Type resultingType() {
+    public Type requiredType() {
         if (mResultingType == null) {
             final String text = mLiteral.getText();
             final int textLength = text.length();
@@ -56,7 +56,7 @@ public final class StringLiteralExpression implements Expression {
     }
 
     @Override
-    public Expression resultTo(Type type) throws TypeMismatchException {
+    public Expression requiresType(Type type) throws TypeMismatchException {
         if (type == UnknownType.getInstance()) {
             return this;
         }

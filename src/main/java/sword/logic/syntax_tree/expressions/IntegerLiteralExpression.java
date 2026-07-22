@@ -24,7 +24,7 @@ public final class IntegerLiteralExpression implements Expression {
     }
 
     @Override
-    public IntegerType resultingType() {
+    public IntegerType requiredType() {
         if (mResultingType == null) {
             mResultingType = new IntegerType(new Token(mLiteral.getText()), new Token(mLiteral.getText()));
         }
@@ -33,7 +33,7 @@ public final class IntegerLiteralExpression implements Expression {
     }
 
     @Override
-    public Expression resultTo(Type type) throws TypeMismatchException {
+    public Expression requiresType(Type type) throws TypeMismatchException {
         if (type == UnknownType.getInstance() || type instanceof IntegerType) {
             return this;
         }

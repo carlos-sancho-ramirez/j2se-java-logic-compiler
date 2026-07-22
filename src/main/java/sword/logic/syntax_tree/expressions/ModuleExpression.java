@@ -13,22 +13,22 @@ import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 
 public final class ModuleExpression implements Expression {
-    private final IntegerType mResultingType;
+    private final IntegerType mRequiredType;
     private final Expression mLeft;
     private final Expression mRight;
 
     public ModuleExpression(Expression left, Expression right) {
         ensureNonNull(left, right);
-        ensureValidArguments(left.resultingType() instanceof IntegerType);
-        ensureValidArguments(right.resultingType() instanceof IntegerType);
+        ensureValidArguments(left.requiredType() instanceof IntegerType);
+        ensureValidArguments(right.requiredType() instanceof IntegerType);
         mLeft = left;
         mRight = right;
 
-        final IntegerType rightType = (IntegerType) right.resultingType();
+        final IntegerType rightType = (IntegerType) right.requiredType();
         ensureValidArguments(IntegerLiteralOperations.greaterThan(rightType.getMin().getText(), "0"));
         final String newMax = IntegerLiteralOperations.subtraction(rightType.getMax().getText(), "1");
         ensureValidArguments(newMax.charAt(0) != '-');
-        mResultingType = new IntegerType(new Token("0"), new Token(newMax));
+        mRequiredType = new IntegerType(new Token("0"), new Token(newMax));
     }
 
     public Expression getLeftExpression() {
@@ -40,12 +40,12 @@ public final class ModuleExpression implements Expression {
     }
 
     @Override
-    public Type resultingType() {
-        return mResultingType;
+    public Type requiredType() {
+        return mRequiredType;
     }
 
     @Override
-    public Expression resultTo(Type type) throws TypeMismatchException {
+    public Expression requiresType(Type type) throws TypeMismatchException {
         if (type == UnknownType.getInstance() || type instanceof IntegerType) {
             return this;
         }

@@ -12,13 +12,13 @@ import sword.logic.syntax_tree.types.UnknownType;
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 
 public final class ArrayLengthExpression implements Expression {
-    private final IntegerType mResultingType;
+    private final IntegerType mRequiredType;
     private final Expression mArray;
 
     public ArrayLengthExpression(Expression array) {
         ensureNonNull(array);
         mArray = array;
-        mResultingType = new IntegerType(new Token("0"), TypeConstants.unboundToken);
+        mRequiredType = new IntegerType(new Token("0"), TypeConstants.unboundToken);
     }
 
     public Expression getArray() {
@@ -26,12 +26,12 @@ public final class ArrayLengthExpression implements Expression {
     }
 
     @Override
-    public Type resultingType() {
-        return mResultingType;
+    public Type requiredType() {
+        return mRequiredType;
     }
 
     @Override
-    public Expression resultTo(Type type) throws TypeMismatchException {
+    public Expression requiresType(Type type) throws TypeMismatchException {
         if (type == UnknownType.getInstance() || type instanceof IntegerType) {
             return this;
         }

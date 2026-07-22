@@ -12,7 +12,7 @@ import sword.logic.syntax_tree.types.UnknownType;
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 
 public final class FunctionExpression implements Expression {
-    private final FunctionType mResultingType;
+    private final FunctionType mRequiredType;
     private final ImmutableList<FunctionParameter> mParameters;
     private final Expression mBody;
 
@@ -20,7 +20,7 @@ public final class FunctionExpression implements Expression {
         ensureNonNull(parameters, body);
         mParameters = parameters;
         mBody = body;
-        mResultingType = new FunctionType(parameters.map(FunctionParameter::getType), body.resultingType());
+        mRequiredType = new FunctionType(parameters.map(FunctionParameter::getType), body.requiredType());
     }
 
     public ImmutableList<FunctionParameter> getParameters() {
@@ -32,18 +32,18 @@ public final class FunctionExpression implements Expression {
     }
 
     @Override
-    public FunctionType resultingType() {
-        return mResultingType;
+    public FunctionType requiredType() {
+        return mRequiredType;
     }
 
     @Override
-    public Expression resultTo(Type type) throws TypeMismatchException {
+    public Expression requiresType(Type type) throws TypeMismatchException {
         if (type == UnknownType.getInstance()) {
             return this;
         }
         else if (type instanceof FunctionType funcType) {
             // TODO: We should handle the function parameters as well
-            final Expression newBody = mBody.resultTo(funcType.getResultType());
+            final Expression newBody = mBody.requiresType(funcType.getResultType());
             return (newBody == mBody)? this : new FunctionExpression(mParameters, newBody);
         }
         else {

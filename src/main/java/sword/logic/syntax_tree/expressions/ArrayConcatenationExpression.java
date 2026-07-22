@@ -14,20 +14,20 @@ import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 
 public final class ArrayConcatenationExpression implements Expression {
-    private final ArrayType mResultingType;
+    private final ArrayType mRequiredType;
     private final Expression mLeft;
     private final Expression mRight;
 
     public ArrayConcatenationExpression(Expression left, Expression right) {
         ensureNonNull(left, right);
-        ensureValidArguments(left.resultingType() instanceof ArrayType);
-        ensureValidArguments(right.resultingType() instanceof ArrayType);
+        ensureValidArguments(left.requiredType() instanceof ArrayType);
+        ensureValidArguments(right.requiredType() instanceof ArrayType);
         mLeft = left;
         mRight = right;
 
-        final ArrayType leftType = (ArrayType) left.resultingType();
+        final ArrayType leftType = (ArrayType) left.requiredType();
         final IntegerType leftLengthType = leftType.getLengthType();
-        final ArrayType rightType = (ArrayType) right.resultingType();
+        final ArrayType rightType = (ArrayType) right.requiredType();
         final IntegerType rightLengthType = rightType.getLengthType();
         final String resultLengthMinText = IntegerLiteralOperations.sum(leftLengthType.getMin().getText(), rightLengthType.getMin().getText());
 
@@ -46,11 +46,11 @@ public final class ArrayConcatenationExpression implements Expression {
             final IntegerType leftItemType = (IntegerType) leftType.getItemType();
             final IntegerType rightItemType = (IntegerType) rightType.getItemType();
             final IntegerType resultingItemType = leftItemType.getUnion(rightItemType);
-            mResultingType = (resultingItemType == leftItemType && leftLengthType.equals(resultLengthType))? leftType :
+            mRequiredType = (resultingItemType == leftItemType && leftLengthType.equals(resultLengthType))? leftType :
                     (resultingItemType == rightItemType && rightLengthType.equals(resultLengthType))? rightType : new ArrayType(resultLengthType, resultingItemType);
         }
         else if (leftItemIsInteger && !rightItemIsArray || rightItemIsInteger && !leftItemIsArray) {
-            mResultingType = new ArrayType(resultLengthType, TypeConstants.unboundIntegerType);
+            mRequiredType = new ArrayType(resultLengthType, TypeConstants.unboundIntegerType);
         }
         else {
             throw new UnsupportedOperationException("Incompatible types");
@@ -66,14 +66,14 @@ public final class ArrayConcatenationExpression implements Expression {
     }
 
     @Override
-    public ArrayType resultingType() {
-        return mResultingType;
+    public ArrayType requiredType() {
+        return mRequiredType;
     }
 
     @Override
-    public Expression resultTo(Type type) throws TypeMismatchException {
-        final Expression newLeft = mLeft.resultTo(type);
-        final Expression newRight = mRight.resultTo(type);
+    public Expression requiresType(Type type) throws TypeMismatchException {
+        final Expression newLeft = mLeft.requiresType(type);
+        final Expression newRight = mRight.requiresType(type);
         return (newLeft == mLeft && newRight == mRight)? this : new ArrayConcatenationExpression(newLeft, newRight);
     }
 

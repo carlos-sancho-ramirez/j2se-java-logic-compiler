@@ -27,6 +27,6 @@ public final class ConstantDefinitionStatement implements Statement, ReferenceTa
 
     @Override
     public Type getType() {
-        return mExpression.resultingType();
+        return mExpression.requiredType();
     }
 }

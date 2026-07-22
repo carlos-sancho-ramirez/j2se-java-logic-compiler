@@ -28,12 +28,12 @@ public final class DifferentFromExpression implements Expression {
     }
 
     @Override
-    public Type resultingType() {
+    public Type requiredType() {
         return TypeConstants.booleanType;
     }
 
     @Override
-    public Expression resultTo(Type type) throws TypeMismatchException {
+    public Expression requiresType(Type type) throws TypeMismatchException {
         if (type == UnknownType.getInstance() || type == TypeConstants.booleanType) {
             return this;
         }

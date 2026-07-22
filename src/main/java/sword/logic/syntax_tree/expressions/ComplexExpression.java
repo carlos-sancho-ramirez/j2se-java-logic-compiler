@@ -30,13 +30,13 @@ public final class ComplexExpression implements Expression {
     }
 
     @Override
-    public Type resultingType() {
-        return mExpression.resultingType();
+    public Type requiredType() {
+        return mExpression.requiredType();
     }
 
     @Override
-    public Expression resultTo(Type type) throws TypeMismatchException {
-        final Expression newExpression = mExpression.resultTo(type);
+    public Expression requiresType(Type type) throws TypeMismatchException {
+        final Expression newExpression = mExpression.requiresType(type);
         return (newExpression == mExpression)? this : new ComplexExpression(mStatements, newExpression);
     }
 

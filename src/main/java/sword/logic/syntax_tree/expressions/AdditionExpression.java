@@ -14,19 +14,19 @@ import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 
 public final class AdditionExpression implements Expression {
-    private final Type mResultingType;
+    private final Type mRequiredType;
     private final Expression mLeft;
     private final Expression mRight;
 
     public AdditionExpression(Expression left, Expression right) {
         ensureNonNull(left, right);
-        ensureValidArguments(left.resultingType() instanceof IntegerType);
-        ensureValidArguments(right.resultingType() instanceof IntegerType);
+        ensureValidArguments(left.requiredType() instanceof IntegerType);
+        ensureValidArguments(right.requiredType() instanceof IntegerType);
         mLeft = left;
         mRight = right;
 
-        final IntegerType leftType = (IntegerType) left.resultingType();
-        final IntegerType rightType = (IntegerType) right.resultingType();
+        final IntegerType leftType = (IntegerType) left.requiredType();
+        final IntegerType rightType = (IntegerType) right.requiredType();
         final String leftMinText = leftType.getMin().getText();
         final String leftMaxText = leftType.getMax().getText();
         final String rightMinText = rightType.getMin().getText();
@@ -36,10 +36,10 @@ public final class AdditionExpression implements Expression {
         final boolean rightMinUnbound = rightMinText.equals(TypeConstants.unboundText);
         final boolean rightMaxUnbound = rightMaxText.equals(TypeConstants.unboundText);
         if ((leftMinUnbound || rightMinUnbound) && (leftMaxUnbound || rightMaxUnbound)) {
-            mResultingType = TypeConstants.unboundIntegerType;
+            mRequiredType = TypeConstants.unboundIntegerType;
         }
         else if (leftMinUnbound || rightMinUnbound) {
-            mResultingType = new IntegerType(
+            mRequiredType = new IntegerType(
                     TypeConstants.unboundToken,
                     new Token(IntegerLiteralOperations.sum(leftMaxText, rightMaxText)));
         }
@@ -48,17 +48,17 @@ public final class AdditionExpression implements Expression {
             final Token resultingMaxBound = (leftMaxUnbound || rightMaxUnbound)? TypeConstants.unboundToken :
                     new Token(IntegerLiteralOperations.sum(leftMaxText, rightMaxText));
 
-            mResultingType = new IntegerType(resultingMinBound, resultingMaxBound);
+            mRequiredType = new IntegerType(resultingMinBound, resultingMaxBound);
         }
     }
 
     @Override
-    public Type resultingType() {
-        return mResultingType;
+    public Type requiredType() {
+        return mRequiredType;
     }
 
     @Override
-    public Expression resultTo(Type type) throws TypeMismatchException {
+    public Expression requiresType(Type type) throws TypeMismatchException {
         if (type == UnknownType.getInstance() || type instanceof IntegerType) {
             return this;
         }

@@ -12,7 +12,7 @@ import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 
 public final class IfExpression implements Expression {
-    private final Type mResultingType;
+    private final Type mRequiredType;
     private final Expression mCondition;
     private final Expression mThenClause;
     private final Expression mElseClause;
@@ -34,17 +34,17 @@ public final class IfExpression implements Expression {
 
     public IfExpression(Expression condition, Expression thenClause, Expression elseClause) {
         ensureNonNull(condition, thenClause, elseClause);
-        ensureValidArguments(condition.resultingType() == TypeConstants.booleanType);
-        ensureValidArguments(compatibleTypes(thenClause.resultingType(), elseClause.resultingType()));
+        ensureValidArguments(condition.requiredType() == TypeConstants.booleanType);
+        ensureValidArguments(compatibleTypes(thenClause.requiredType(), elseClause.requiredType()));
         mCondition = condition;
         mThenClause = thenClause;
         mElseClause = elseClause;
 
-        if (thenClause.resultingType() instanceof IntegerType leftType) {
-            mResultingType = leftType.getUnion((IntegerType) elseClause.resultingType());
+        if (thenClause.requiredType() instanceof IntegerType leftType) {
+            mRequiredType = leftType.getUnion((IntegerType) elseClause.requiredType());
         }
         else {
-            mResultingType = thenClause.resultingType();
+            mRequiredType = thenClause.requiredType();
         }
     }
 
@@ -61,14 +61,14 @@ public final class IfExpression implements Expression {
     }
 
     @Override
-    public Type resultingType() {
-        return mResultingType;
+    public Type requiredType() {
+        return mRequiredType;
     }
 
     @Override
-    public Expression resultTo(Type type) throws TypeMismatchException {
-        final Expression newThenClause = mThenClause.resultTo(type);
-        final Expression newElseClause = mElseClause.resultTo(type);
+    public Expression requiresType(Type type) throws TypeMismatchException {
+        final Expression newThenClause = mThenClause.requiresType(type);
+        final Expression newElseClause = mElseClause.requiresType(type);
         return (newThenClause == mThenClause && newElseClause == mElseClause)? this :
                 new IfExpression(mCondition, newThenClause, newElseClause);
     }

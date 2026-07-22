@@ -19,7 +19,7 @@ public final class FunctionExecutionExpression implements Expression {
         ensureNonNull(function, parameters);
         ensureValidArguments(!(function instanceof FunctionExpression funcExp) ||
                 funcExp.getParameters().size() == parameters.size() &&
-                parameters.indexes().allMatch(i -> funcExp.getParameters().valueAt(i).equals(parameters.valueAt(i).resultingType())));
+                parameters.indexes().allMatch(i -> funcExp.getParameters().valueAt(i).equals(parameters.valueAt(i).requiredType())));
 
         mFunction = function;
         mParameters = parameters;
@@ -34,22 +34,22 @@ public final class FunctionExecutionExpression implements Expression {
     }
 
     @Override
-    public Type resultingType() {
-        return (mFunction.resultingType() instanceof FunctionType funcType)?
+    public Type requiredType() {
+        return (mFunction.requiredType() instanceof FunctionType funcType)?
                 funcType.getResultType() : UnknownType.getInstance();
     }
 
     @Override
-    public Expression resultTo(Type type) throws TypeMismatchException {
+    public Expression requiresType(Type type) throws TypeMismatchException {
         if (type == UnknownType.getInstance()) {
             return this;
         }
         else if (mFunction instanceof FunctionExpression funcExp) {
-            final Expression newFunction = mFunction.resultTo(new FunctionType(funcExp.resultingType().getParameterTypes(), type));
+            final Expression newFunction = mFunction.requiresType(new FunctionType(funcExp.requiredType().getParameterTypes(), type));
             return (newFunction == mFunction)? this : new FunctionExecutionExpression(newFunction, mParameters);
         }
         else {
-            final Expression newFunction = mFunction.resultTo(new FunctionType(mParameters.map(Expression::resultingType), type));
+            final Expression newFunction = mFunction.requiresType(new FunctionType(mParameters.map(Expression::requiredType), type));
             return (newFunction == mFunction)? this : new FunctionExecutionExpression(newFunction, mParameters);
         }
     }

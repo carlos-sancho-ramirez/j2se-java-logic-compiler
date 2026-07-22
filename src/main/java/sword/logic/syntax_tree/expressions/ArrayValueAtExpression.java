@@ -14,17 +14,17 @@ import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 
 public final class ArrayValueAtExpression implements Expression {
-    private final Type mResultingType;
+    private final Type mRequiredType;
     private final Expression mArray;
     private final Expression mIndex;
 
     public ArrayValueAtExpression(Expression array, Expression index) {
         ensureNonNull(array, index);
-        ensureValidArguments(array.resultingType() instanceof ArrayType);
-        ensureValidArguments(index.resultingType() instanceof IntegerType indexType && !indexType.getMin().getText().equals("*") && !indexType.getMin().getText().startsWith("-"));
+        ensureValidArguments(array.requiredType() instanceof ArrayType);
+        ensureValidArguments(index.requiredType() instanceof IntegerType indexType && !indexType.getMin().getText().equals("*") && !indexType.getMin().getText().startsWith("-"));
         mArray = array;
         mIndex = index;
-        mResultingType = ((ArrayType) array.resultingType()).getItemType();
+        mRequiredType = ((ArrayType) array.requiredType()).getItemType();
     }
 
     public Expression getArray() {
@@ -36,16 +36,16 @@ public final class ArrayValueAtExpression implements Expression {
     }
 
     @Override
-    public Type resultingType() {
-        return mResultingType;
+    public Type requiredType() {
+        return mRequiredType;
     }
 
     @Override
-    public Expression resultTo(Type type) throws TypeMismatchException {
-        final IntegerType indexType = (IntegerType) mIndex.resultingType();
+    public Expression requiresType(Type type) throws TypeMismatchException {
+        final IntegerType indexType = (IntegerType) mIndex.requiredType();
         final IntegerType lengthType = new IntegerType(new Token(IntegerLiteralOperations.sum(indexType.getMin().getText(), "1")),
                 indexType.getMax().getText().equals(TypeConstants.unboundText)? TypeConstants.unboundToken : new Token(IntegerLiteralOperations.sum(indexType.getMax().getText(), "1")));
-        final Expression newArray = mArray.resultTo(new ArrayType(lengthType, type));
+        final Expression newArray = mArray.requiresType(new ArrayType(lengthType, type));
         return (newArray == mArray)? this : new ArrayValueAtExpression(newArray, mIndex);
     }
 

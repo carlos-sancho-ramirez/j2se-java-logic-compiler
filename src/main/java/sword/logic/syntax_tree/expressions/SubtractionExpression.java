@@ -14,19 +14,19 @@ import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 
 public final class SubtractionExpression implements Expression {
-    private final IntegerType mResultingType;
+    private final IntegerType mRequiredType;
     private final Expression mLeft;
     private final Expression mRight;
 
     public SubtractionExpression(Expression left, Expression right) {
         ensureNonNull(left, right);
-        ensureValidArguments(left.resultingType() instanceof IntegerType);
-        ensureValidArguments(right.resultingType() instanceof IntegerType);
+        ensureValidArguments(left.requiredType() instanceof IntegerType);
+        ensureValidArguments(right.requiredType() instanceof IntegerType);
         mLeft = left;
         mRight = right;
 
-        final IntegerType leftType = (IntegerType) left.resultingType();
-        final IntegerType rightType = (IntegerType) right.resultingType();
+        final IntegerType leftType = (IntegerType) left.requiredType();
+        final IntegerType rightType = (IntegerType) right.requiredType();
         final String leftMinText = leftType.getMin().getText();
         final String leftMaxText = leftType.getMax().getText();
         final String rightMinText = rightType.getMin().getText();
@@ -38,10 +38,10 @@ public final class SubtractionExpression implements Expression {
 
         // TODO: Improve this logic to delimit integer ranges
         if (leftMinUnbound || leftMaxUnbound || rightMinUnbound || rightMaxUnbound) {
-            mResultingType = TypeConstants.unboundIntegerType;
+            mRequiredType = TypeConstants.unboundIntegerType;
         }
         else {
-            mResultingType = new IntegerType(
+            mRequiredType = new IntegerType(
                     new Token(IntegerLiteralOperations.subtraction(leftMinText, rightMaxText)),
                     new Token(IntegerLiteralOperations.subtraction(leftMaxText, rightMinText)));
         }
@@ -56,12 +56,12 @@ public final class SubtractionExpression implements Expression {
     }
 
     @Override
-    public Type resultingType() {
-        return mResultingType;
+    public Type requiredType() {
+        return mRequiredType;
     }
 
     @Override
-    public Expression resultTo(Type type) throws TypeMismatchException {
+    public Expression requiresType(Type type) throws TypeMismatchException {
         if (type == UnknownType.getInstance() || type instanceof IntegerType) {
             return this;
         }

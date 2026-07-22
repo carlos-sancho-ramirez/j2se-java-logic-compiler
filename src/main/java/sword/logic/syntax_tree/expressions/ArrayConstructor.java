@@ -16,7 +16,7 @@ import static sword.collections.ImmutableListExtensions.mapThrowing;
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 
 public final class ArrayConstructor implements Expression {
-    private final Type mResultingType;
+    private final Type mRequiredType;
     private final Token mType;
     private final ImmutableList<Expression> mValues;
 
@@ -29,27 +29,27 @@ public final class ArrayConstructor implements Expression {
             // TODO: Deal with the possibility of having no values... should be UnknownType then???
             throw new UnsupportedOperationException("Unimplemented");
         }
-        else if (values.get(0).resultingType() instanceof IntegerType firstItemType) {
+        else if (values.get(0).requiredType() instanceof IntegerType firstItemType) {
             IntegerType itemType = firstItemType;
             for (int i = 1; i < values.size(); i++) {
-                if (values.get(i).resultingType() instanceof IntegerType thisItemType) {
+                if (values.get(i).requiredType() instanceof IntegerType thisItemType) {
                     itemType = itemType.getUnion(thisItemType);
                 }
                 else {
-                    throw new UnsupportedOperationException("Unable to mix integers and " + values.get(i).resultingType().getClass().getName() + " in a single array");
+                    throw new UnsupportedOperationException("Unable to mix integers and " + values.get(i).requiredType().getClass().getName() + " in a single array");
                 }
             }
 
             final Token lengthToken = new Token("" + mValues.size());
-            mResultingType = new ArrayType(new IntegerType(lengthToken, lengthToken), itemType);
+            mRequiredType = new ArrayType(new IntegerType(lengthToken, lengthToken), itemType);
         }
-        else if (values.get(0).resultingType() instanceof ArrayType firstItemType) {
+        else if (values.get(0).requiredType() instanceof ArrayType firstItemType) {
             if (firstItemType.getItemType() instanceof IntegerType firstItemItemType) {
                 String itemLengthMinText = firstItemType.getLengthType().getMin().getText();
                 String itemLengthMaxText = firstItemType.getLengthType().getMax().getText();
                 IntegerType itemItemType = firstItemItemType;
                 for (int i = 1; i < values.size(); i++) {
-                    if (values.get(i).resultingType() instanceof ArrayType thisItemType) {
+                    if (values.get(i).requiredType() instanceof ArrayType thisItemType) {
                         itemLengthMinText = IntegerLiteralOperations.min(itemLengthMinText, thisItemType.getLengthType().getMin().getText());
                         if (!itemLengthMaxText.equals(TypeConstants.unboundText)) {
                             final String thisItemLengthMaxText = thisItemType.getLengthType().getMax().getText();
@@ -65,21 +65,21 @@ public final class ArrayConstructor implements Expression {
                         }
                     }
                     else {
-                        throw new UnsupportedOperationException("Unable to mix arrays and " + values.get(i).resultingType().getClass().getName() + " in a single array");
+                        throw new UnsupportedOperationException("Unable to mix arrays and " + values.get(i).requiredType().getClass().getName() + " in a single array");
                     }
                 }
 
                 final Token lengthToken = new Token("" + values.size());
                 final Token itemLengthMaxToken = itemLengthMinText.equals(TypeConstants.unboundText)? TypeConstants.unboundToken : new Token(itemLengthMaxText);
                 final IntegerType itemLengthType = new IntegerType(new Token(itemLengthMinText), itemLengthMaxToken);
-                mResultingType = new ArrayType(new IntegerType(lengthToken, lengthToken), new ArrayType(itemLengthType, itemItemType));
+                mRequiredType = new ArrayType(new IntegerType(lengthToken, lengthToken), new ArrayType(itemLengthType, itemItemType));
             }
             else {
                 throw new UnsupportedOperationException("Unimplemented for array of other types than integers");
             }
         }
         else {
-            throw new UnsupportedOperationException("Unimplemented for items of type " + values.get(0).resultingType() + " at " + type.getLine() + ":" + type.getColumn());
+            throw new UnsupportedOperationException("Unimplemented for items of type " + values.get(0).requiredType() + " at " + type.getLine() + ":" + type.getColumn());
         }
     }
 
@@ -88,17 +88,17 @@ public final class ArrayConstructor implements Expression {
     }
 
     @Override
-    public Type resultingType() {
-        return mResultingType;
+    public Type requiredType() {
+        return mRequiredType;
     }
 
     @Override
-    public Expression resultTo(Type type) throws TypeMismatchException {
+    public Expression requiresType(Type type) throws TypeMismatchException {
         if (type == UnknownType.getInstance()) {
             return this;
         }
         else if (type instanceof ArrayType arrayType) {
-            final ImmutableList<Expression> newValues = mapThrowing(mValues, v -> v.resultTo(arrayType.getItemType()));
+            final ImmutableList<Expression> newValues = mapThrowing(mValues, v -> v.requiresType(arrayType.getItemType()));
             return (newValues == mValues)? this : new ArrayConstructor(mType, newValues);
         }
         else {

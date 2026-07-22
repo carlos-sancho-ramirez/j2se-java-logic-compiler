@@ -30,12 +30,12 @@ public final class RegisterFieldAccessExpression implements Expression {
     }
 
     @Override
-    public Type resultingType() {
+    public Type requiredType() {
         return mFieldType;
     }
 
     @Override
-    public Expression resultTo(Type type) throws TypeMismatchException {
+    public Expression requiresType(Type type) throws TypeMismatchException {
         if (type == UnknownType.getInstance()) {
             return this;
         }

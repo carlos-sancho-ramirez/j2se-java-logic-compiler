@@ -14,19 +14,19 @@ import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 
 public final class MultiplicationExpression implements Expression {
-    private final IntegerType mResultingType;
+    private final IntegerType mRequiredType;
     private final Expression mLeft;
     private final Expression mRight;
 
     public MultiplicationExpression(Expression left, Expression right) {
         ensureNonNull(left, right);
-        ensureValidArguments(left.resultingType() instanceof IntegerType);
-        ensureValidArguments(right.resultingType() instanceof IntegerType);
+        ensureValidArguments(left.requiredType() instanceof IntegerType);
+        ensureValidArguments(right.requiredType() instanceof IntegerType);
         mLeft = left;
         mRight = right;
 
-        final IntegerType leftType = (IntegerType) left.resultingType();
-        final IntegerType rightType = (IntegerType) right.resultingType();
+        final IntegerType leftType = (IntegerType) left.requiredType();
+        final IntegerType rightType = (IntegerType) right.requiredType();
         final String leftMin = leftType.getMin().getText();
         final boolean leftMinIsNegative = leftMin.charAt(0) == '-';
         final String leftMax = leftType.getMax().getText();
@@ -39,7 +39,7 @@ public final class MultiplicationExpression implements Expression {
         // TODO: We should improve this logic when unbound integers are present. We should be able to delimit this further.
         if (leftMin.equals(TypeConstants.unboundText) || leftMax.equals(TypeConstants.unboundText) ||
                 rightMin.equals(TypeConstants.unboundText) || rightMax.equals(TypeConstants.unboundText)) {
-            mResultingType = TypeConstants.unboundIntegerType;
+            mRequiredType = TypeConstants.unboundIntegerType;
         }
         else {
             final String newMin;
@@ -92,7 +92,7 @@ public final class MultiplicationExpression implements Expression {
                 }
             }
 
-            mResultingType = new IntegerType(new Token(newMin), new Token(newMax));
+            mRequiredType = new IntegerType(new Token(newMin), new Token(newMax));
         }
     }
 
@@ -105,12 +105,12 @@ public final class MultiplicationExpression implements Expression {
     }
 
     @Override
-    public Type resultingType() {
-        return mResultingType;
+    public Type requiredType() {
+        return mRequiredType;
     }
 
     @Override
-    public Expression resultTo(Type type) throws TypeMismatchException {
+    public Expression requiresType(Type type) throws TypeMismatchException {
         if (type == UnknownType.getInstance() || type instanceof IntegerType) {
             return this;
         }

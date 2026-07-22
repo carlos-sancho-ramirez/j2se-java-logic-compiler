@@ -16,14 +16,14 @@ import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 
 public final class RegisterConstructor implements Expression {
-    private final Type mResultingType;
+    private final Type mRequiredType;
     private final Token mType;
     private final ImmutableList<Statement> mStatements;
 
     public RegisterConstructor(Type resultingType, Token type, ImmutableList<Statement> statements) {
         ensureNonNull(resultingType, type, statements);
         ensureValidArguments(resultingType instanceof RegisterType || resultingType == UnknownType.getInstance());
-        mResultingType = resultingType;
+        mRequiredType = resultingType;
         mType = type;
         mStatements = statements;
     }
@@ -37,16 +37,16 @@ public final class RegisterConstructor implements Expression {
     }
 
     @Override
-    public Type resultingType() {
-        return mResultingType;
+    public Type requiredType() {
+        return mRequiredType;
     }
 
     @Override
-    public Expression resultTo(Type type) throws TypeMismatchException {
-        if (type == UnknownType.getInstance() || type instanceof RegisterType regType && mResultingType instanceof RegisterType resType && regType.getFields().equals(resType.getFields())) {
+    public Expression requiresType(Type type) throws TypeMismatchException {
+        if (type == UnknownType.getInstance() || type instanceof RegisterType regType && mRequiredType instanceof RegisterType resType && regType.getFields().equals(resType.getFields())) {
             return this;
         }
-        else if (mResultingType == UnknownType.getInstance() && type instanceof RegisterType regType) {
+        else if (mRequiredType == UnknownType.getInstance() && type instanceof RegisterType regType) {
             return new RegisterConstructor(regType, mType, mStatements);
         }
         else {

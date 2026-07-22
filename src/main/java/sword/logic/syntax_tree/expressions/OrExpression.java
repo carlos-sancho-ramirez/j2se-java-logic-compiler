@@ -16,8 +16,8 @@ public final class OrExpression implements Expression {
 
     public OrExpression(Expression left, Expression right) {
         ensureNonNull(left, right);
-        ensureValidArguments(left.resultingType() == TypeConstants.booleanType);
-        ensureValidArguments(right.resultingType() == TypeConstants.booleanType);
+        ensureValidArguments(left.requiredType() == TypeConstants.booleanType);
+        ensureValidArguments(right.requiredType() == TypeConstants.booleanType);
         mLeft = left;
         mRight = right;
     }
@@ -31,12 +31,12 @@ public final class OrExpression implements Expression {
     }
 
     @Override
-    public Type resultingType() {
+    public Type requiredType() {
         return TypeConstants.booleanType;
     }
 
     @Override
-    public Expression resultTo(Type type) throws TypeMismatchException {
+    public Expression requiresType(Type type) throws TypeMismatchException {
         if (type == UnknownType.getInstance() || type == TypeConstants.booleanType) {
             return this;
         }
