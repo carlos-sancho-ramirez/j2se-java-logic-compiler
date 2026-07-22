@@ -1,6 +1,8 @@
 package sword.logic.syntax_tree.expressions;
 
+import sword.collections.Map;
 import sword.logic.compiler.TypeMismatchException;
+import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.syntax_tree.types.IntegerType;
 import sword.logic.syntax_tree.types.Type;
 import sword.logic.syntax_tree.types.TypeConstants;
@@ -42,5 +44,11 @@ public final class GreaterOrEqualThanExpression implements Expression {
         else {
             throw new TypeMismatchException("Unable to resolve this expression to " + type.getClass().getSimpleName() + ". It is already a Boolean");
         }
+    }
+
+    @Override
+    public void resolveReferences(Map<String, ReferenceTarget> knownTargets) throws UnresolvedReferenceException {
+        mLeft.resolveReferences(knownTargets);
+        mRight.resolveReferences(knownTargets);
     }
 }

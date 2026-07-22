@@ -1,6 +1,8 @@
 package sword.logic.syntax_tree.expressions;
 
+import sword.collections.Map;
 import sword.logic.compiler.TypeMismatchException;
+import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.syntax_tree.Token;
 import sword.logic.syntax_tree.types.ArrayType;
 import sword.logic.syntax_tree.types.IntegerType;
@@ -69,5 +71,10 @@ public final class StringLiteralExpression implements Expression {
         else {
             throw new TypeMismatchException("Unable to resolve this expression to " + type + ". It is already an Array[Int]");
         }
+    }
+
+    @Override
+    public void resolveReferences(Map<String, ReferenceTarget> knownTargets) throws UnresolvedReferenceException {
+        // Nothing to resolve
     }
 }

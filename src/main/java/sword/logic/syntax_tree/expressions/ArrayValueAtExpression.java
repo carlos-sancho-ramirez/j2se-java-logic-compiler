@@ -1,7 +1,9 @@
 package sword.logic.syntax_tree.expressions;
 
+import sword.collections.Map;
 import sword.logic.compiler.IntegerLiteralOperations;
 import sword.logic.compiler.TypeMismatchException;
+import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.syntax_tree.Token;
 import sword.logic.syntax_tree.types.ArrayType;
 import sword.logic.syntax_tree.types.IntegerType;
@@ -45,5 +47,11 @@ public final class ArrayValueAtExpression implements Expression {
                 indexType.getMax().getText().equals(TypeConstants.unboundText)? TypeConstants.unboundToken : new Token(IntegerLiteralOperations.sum(indexType.getMax().getText(), "1")));
         final Expression newArray = mArray.resultTo(new ArrayType(lengthType, type));
         return (newArray == mArray)? this : new ArrayValueAtExpression(newArray, mIndex);
+    }
+
+    @Override
+    public void resolveReferences(Map<String, ReferenceTarget> knownTargets) throws UnresolvedReferenceException {
+        mArray.resolveReferences(knownTargets);
+        mIndex.resolveReferences(knownTargets);
     }
 }

@@ -2,10 +2,12 @@ package sword.logic.syntax_tree.statements;
 
 import sword.logic.syntax_tree.Token;
 import sword.logic.syntax_tree.expressions.Expression;
+import sword.logic.syntax_tree.expressions.ReferenceTarget;
+import sword.logic.syntax_tree.types.Type;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 
-public final class ConstantDefinitionStatement implements Statement {
+public final class ConstantDefinitionStatement implements Statement, ReferenceTarget {
     private final Token mName;
     private final Expression mExpression;
 
@@ -21,5 +23,10 @@ public final class ConstantDefinitionStatement implements Statement {
 
     public Expression getExpression() {
         return mExpression;
+    }
+
+    @Override
+    public Type getType() {
+        return mExpression.resultingType();
     }
 }

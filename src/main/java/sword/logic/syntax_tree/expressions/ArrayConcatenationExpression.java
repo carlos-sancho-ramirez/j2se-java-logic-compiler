@@ -1,7 +1,9 @@
 package sword.logic.syntax_tree.expressions;
 
+import sword.collections.Map;
 import sword.logic.compiler.IntegerLiteralOperations;
 import sword.logic.compiler.TypeMismatchException;
+import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.syntax_tree.Token;
 import sword.logic.syntax_tree.types.ArrayType;
 import sword.logic.syntax_tree.types.IntegerType;
@@ -73,5 +75,11 @@ public final class ArrayConcatenationExpression implements Expression {
         final Expression newLeft = mLeft.resultTo(type);
         final Expression newRight = mRight.resultTo(type);
         return (newLeft == mLeft && newRight == mRight)? this : new ArrayConcatenationExpression(newLeft, newRight);
+    }
+
+    @Override
+    public void resolveReferences(Map<String, ReferenceTarget> knownTargets) throws UnresolvedReferenceException {
+        mLeft.resolveReferences(knownTargets);
+        mRight.resolveReferences(knownTargets);
     }
 }

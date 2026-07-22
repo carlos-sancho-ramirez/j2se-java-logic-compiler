@@ -1,8 +1,10 @@
 package sword.logic.syntax_tree.expressions;
 
 import sword.collections.ImmutableList;
+import sword.collections.Map;
 import sword.logic.compiler.IntegerLiteralOperations;
 import sword.logic.compiler.TypeMismatchException;
+import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.syntax_tree.Token;
 import sword.logic.syntax_tree.types.ArrayType;
 import sword.logic.syntax_tree.types.IntegerType;
@@ -101,6 +103,13 @@ public final class ArrayConstructor implements Expression {
         }
         else {
             throw new TypeMismatchException("Unable to resolve this expression to an Integer. It is already an Array");
+        }
+    }
+
+    @Override
+    public void resolveReferences(Map<String, ReferenceTarget> knownTargets) throws UnresolvedReferenceException {
+        for (Expression value : mValues) {
+            value.resolveReferences(knownTargets);
         }
     }
 }

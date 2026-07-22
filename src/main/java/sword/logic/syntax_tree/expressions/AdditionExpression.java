@@ -1,7 +1,9 @@
 package sword.logic.syntax_tree.expressions;
 
+import sword.collections.Map;
 import sword.logic.compiler.IntegerLiteralOperations;
 import sword.logic.compiler.TypeMismatchException;
+import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.syntax_tree.Token;
 import sword.logic.syntax_tree.types.IntegerType;
 import sword.logic.syntax_tree.types.Type;
@@ -71,5 +73,11 @@ public final class AdditionExpression implements Expression {
 
     public Expression getRightExpression() {
         return mRight;
+    }
+
+    @Override
+    public void resolveReferences(Map<String, ReferenceTarget> knownTargets) throws UnresolvedReferenceException {
+        mLeft.resolveReferences(knownTargets);
+        mRight.resolveReferences(knownTargets);
     }
 }

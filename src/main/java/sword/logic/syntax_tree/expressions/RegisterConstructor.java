@@ -1,6 +1,10 @@
 package sword.logic.syntax_tree.expressions;
 
 import sword.collections.ImmutableList;
+import sword.collections.Map;
+import sword.collections.MutableMap;
+import sword.logic.compiler.UnresolvedReferenceException;
+import sword.logic.syntax_tree.statements.ConstantDefinitionStatement;
 import sword.logic.syntax_tree.statements.Statement;
 import sword.logic.compiler.TypeMismatchException;
 import sword.logic.syntax_tree.Token;
@@ -47,6 +51,22 @@ public final class RegisterConstructor implements Expression {
         }
         else {
             throw new TypeMismatchException("Unable to resolve this expression to " + type.getClass().getSimpleName() + ".");
+        }
+    }
+
+    @Override
+    public void resolveReferences(Map<String, ReferenceTarget> knownTargets) throws UnresolvedReferenceException {
+        final MutableMap<String, ReferenceTarget> newTargets = knownTargets.mutate();
+        for (Statement statement : mStatements) {
+            if (statement instanceof ConstantDefinitionStatement constDef) {
+                newTargets.put(constDef.getName().getText(), constDef);
+            }
+        }
+
+        for (Statement statement : mStatements) {
+            if (statement instanceof ConstantDefinitionStatement constDef) {
+                constDef.getExpression().resolveReferences(newTargets);
+            }
         }
     }
 }

@@ -5,7 +5,7 @@ import sword.logic.syntax_tree.types.Type;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 
-public final class FunctionParameter {
+public final class FunctionParameter implements ReferenceTarget {
     private final Token mName;
     private final Type mType;
 
@@ -19,6 +19,7 @@ public final class FunctionParameter {
         return mName;
     }
 
+    @Override
     public Type getType() {
         return mType;
     }

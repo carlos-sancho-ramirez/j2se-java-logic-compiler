@@ -1,6 +1,8 @@
 package sword.logic.syntax_tree.expressions;
 
+import sword.collections.Map;
 import sword.logic.compiler.TypeMismatchException;
+import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.syntax_tree.Token;
 import sword.logic.syntax_tree.types.ArrayType;
 import sword.logic.syntax_tree.types.FunctionType;
@@ -13,11 +15,16 @@ import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 public final class ReferenceExpression implements Expression {
     private final Type mResultingType;
     private final Token mReference;
+    private ReferenceTarget mTarget;
 
     public ReferenceExpression(Type resultingType, Token reference) {
         ensureNonNull(resultingType, reference);
         mResultingType = resultingType;
         mReference = reference;
+    }
+
+    public ReferenceTarget getTarget() {
+        return mTarget;
     }
 
     @Override
@@ -54,5 +61,18 @@ public final class ReferenceExpression implements Expression {
     @Override
     public Expression resultTo(Type type) throws TypeMismatchException {
         return resultToType(mResultingType, type, type);
+    }
+
+    @Override
+    public void resolveReferences(Map<String, ReferenceTarget> knownTargets) throws UnresolvedReferenceException {
+        if (mTarget == null) {
+            final ReferenceTarget target = knownTargets.get(mReference.getText(), null);
+            if (target == null) {
+                throw new UnresolvedReferenceException(mReference);
+            }
+            else {
+                mTarget = target;
+            }
+        }
     }
 }

@@ -13,6 +13,7 @@ import sword.logic.syntax_tree.expressions.DifferentFromExpression;
 import sword.logic.syntax_tree.expressions.DivisionExpression;
 import sword.logic.syntax_tree.expressions.EqualThanExpression;
 import sword.logic.syntax_tree.expressions.Expression;
+import sword.logic.syntax_tree.expressions.ReferenceTarget;
 import sword.logic.syntax_tree.types.TypeConstants;
 import sword.logic.syntax_tree.expressions.FunctionExecutionExpression;
 import sword.logic.syntax_tree.expressions.FunctionExpression;
@@ -1067,7 +1068,22 @@ public final class TokenInterpreter {
         while (true);
     }
 
-    public ImmutableList<Statement> interpret() throws IOException, SyntaxErrorException, SemanticErrorException, UnexpectedEndOfFileException {
+    private void resolveReferences(ImmutableList<Statement> statements) throws UnresolvedReferenceException {
+        final MutableMap<String, ReferenceTarget> knownTargets = MutableHashMap.empty();
+        for (Statement statement : statements) {
+            if (statement instanceof ConstantDefinitionStatement constDef) {
+                knownTargets.put(constDef.getName().getText(), constDef);
+            }
+        }
+
+        for (Statement statement : statements) {
+            if (statement instanceof ConstantDefinitionStatement constDef) {
+                constDef.getExpression().resolveReferences(knownTargets);
+            }
+        }
+    }
+
+    public ImmutableList<Statement> interpret() throws IOException, SyntaxErrorException, SemanticErrorException, UnexpectedEndOfFileException, UnresolvedReferenceException {
         ImmutableMap<String, Type> knownTypes = new ImmutableHashMap.Builder<String, Type>()
                 .put("Boolean", TypeConstants.booleanType)
                 .put("String", new ArrayType(new IntegerType(new Token("0"), TypeConstants.unboundToken), new IntegerType(new Token("0"), new Token("255"))))
@@ -1154,6 +1170,8 @@ public final class TokenInterpreter {
             throw new UnexpectedEndOfFileException("Expected type definition");
         }
 
-        return builder.build();
+        final ImmutableList<Statement> result = builder.build();
+        resolveReferences(result);
+        return result;
     }
 }

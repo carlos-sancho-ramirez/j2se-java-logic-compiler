@@ -1,7 +1,9 @@
 package sword.logic.syntax_tree.expressions;
 
 import sword.collections.ImmutableList;
+import sword.collections.Map;
 import sword.logic.compiler.TypeMismatchException;
+import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.syntax_tree.types.FunctionType;
 import sword.logic.syntax_tree.types.Type;
 import sword.logic.syntax_tree.types.UnknownType;
@@ -49,6 +51,14 @@ public final class FunctionExecutionExpression implements Expression {
         else {
             final Expression newFunction = mFunction.resultTo(new FunctionType(mParameters.map(Expression::resultingType), type));
             return (newFunction == mFunction)? this : new FunctionExecutionExpression(newFunction, mParameters);
+        }
+    }
+
+    @Override
+    public void resolveReferences(Map<String, ReferenceTarget> knownTargets) throws UnresolvedReferenceException {
+        mFunction.resolveReferences(knownTargets);
+        for (Expression param : mParameters) {
+            param.resolveReferences(knownTargets);
         }
     }
 }

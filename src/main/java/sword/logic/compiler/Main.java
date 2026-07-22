@@ -35,7 +35,9 @@ public final class Main {
             }
             catch (SemanticErrorException e) {
                 System.err.println(e.getMessage() + " at " + fileName + " " + e.getLine() + ":" + e.getColumn());
-                e.printStackTrace();
+            }
+            catch (UnresolvedReferenceException e) {
+                System.err.println(e.getMessage() + " at " + fileName + " " + e.getLine() + ":" + e.getColumn());
             }
             catch (IOException e) {
                 System.err.println("Unable to read file " + fileName);

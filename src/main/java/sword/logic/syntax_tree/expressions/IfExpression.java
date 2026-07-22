@@ -1,6 +1,8 @@
 package sword.logic.syntax_tree.expressions;
 
+import sword.collections.Map;
 import sword.logic.compiler.TypeMismatchException;
+import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.syntax_tree.types.ArrayType;
 import sword.logic.syntax_tree.types.IntegerType;
 import sword.logic.syntax_tree.types.Type;
@@ -69,5 +71,12 @@ public final class IfExpression implements Expression {
         final Expression newElseClause = mElseClause.resultTo(type);
         return (newThenClause == mThenClause && newElseClause == mElseClause)? this :
                 new IfExpression(mCondition, newThenClause, newElseClause);
+    }
+
+    @Override
+    public void resolveReferences(Map<String, ReferenceTarget> knownTargets) throws UnresolvedReferenceException {
+        mCondition.resolveReferences(knownTargets);
+        mThenClause.resolveReferences(knownTargets);
+        mElseClause.resolveReferences(knownTargets);
     }
 }
