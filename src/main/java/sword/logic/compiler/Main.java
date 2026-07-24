@@ -3,6 +3,7 @@ package sword.logic.compiler;
 import sword.collections.ImmutableList;
 import sword.logic.syntax_tree.statements.Statement;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -26,6 +27,9 @@ public final class Main {
                     dumper.dump(statement, sb, "");
                     System.out.print(sb);
                 }
+
+                final CodeGenerator codeGenerator = new CodeGenerator();
+                codeGenerator.generate(statements, "build" + File.separator + "output");
             }
             catch (UnexpectedEndOfFileException e) {
                 System.err.println("Unexpected end of file " + fileName + ". " + e.getMessage());
@@ -41,6 +45,9 @@ public final class Main {
             }
             catch (IOException e) {
                 System.err.println("Unable to read file " + fileName);
+            }
+            catch (Throwable t) {
+                t.printStackTrace();
             }
         }
     }

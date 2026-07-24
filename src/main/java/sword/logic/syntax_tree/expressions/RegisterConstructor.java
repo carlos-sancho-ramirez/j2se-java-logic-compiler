@@ -19,19 +19,19 @@ import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 
 public final class RegisterConstructor implements Expression {
     private final Type mRequiredType;
-    private final Token mType;
+    private final Token mRegisterName;
     private final ImmutableList<Statement> mStatements;
 
-    public RegisterConstructor(Type requiredType, Token type, ImmutableList<Statement> statements) {
-        ensureNonNull(requiredType, type, statements);
+    public RegisterConstructor(Type requiredType, Token registerName, ImmutableList<Statement> statements) {
+        ensureNonNull(requiredType, registerName, statements);
         ensureValidArguments(requiredType instanceof RegisterType || requiredType == UnknownType.getInstance());
         mRequiredType = requiredType;
-        mType = type;
+        mRegisterName = registerName;
         mStatements = statements;
     }
 
-    public Token getType() {
-        return mType;
+    public Token getRegisterName() {
+        return mRegisterName;
     }
 
     public ImmutableList<Statement> getStatements() {
@@ -49,7 +49,7 @@ public final class RegisterConstructor implements Expression {
             return this;
         }
         else if (mRequiredType == UnknownType.getInstance() && type instanceof RegisterType regType) {
-            return new RegisterConstructor(regType, mType, mStatements);
+            return new RegisterConstructor(regType, mRegisterName, mStatements);
         }
         else {
             throw new TypeMismatchException("Unable to resolve this expression to " + type.getClass().getSimpleName() + ".");

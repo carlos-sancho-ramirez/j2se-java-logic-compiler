@@ -8,6 +8,7 @@ import sword.logic.compiler.TypeMismatchException;
 import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.syntax_tree.Token;
 import sword.logic.syntax_tree.types.ArrayType;
+import sword.logic.syntax_tree.types.EnumType;
 import sword.logic.syntax_tree.types.IntegerType;
 import sword.logic.syntax_tree.types.RegisterType;
 import sword.logic.syntax_tree.types.Type;
@@ -15,6 +16,7 @@ import sword.logic.syntax_tree.types.TypeConstants;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
+import static sword.logic.compiler.PreconditionUtils.ensureValidState;
 
 public final class IfExpression implements Expression {
     private final Type mRequiredType;
@@ -32,6 +34,9 @@ public final class IfExpression implements Expression {
         else if (a instanceof ArrayType aCasted) {
             return b instanceof ArrayType bCasted && compatibleTypes(aCasted.getItemType(), bCasted.getItemType());
         }
+        else if (a instanceof RegisterType aRegType) {
+            return b instanceof RegisterType bRegType && aRegType.getFields().equalMap(bRegType.getFields());
+        }
         else {
             return false;
         }
@@ -44,13 +49,7 @@ public final class IfExpression implements Expression {
         mCondition = condition;
         mThenClause = thenClause;
         mElseClause = elseClause;
-
-        if (thenClause.requiredType() instanceof IntegerType leftType) {
-            mRequiredType = leftType.getUnion((IntegerType) elseClause.requiredType());
-        }
-        else {
-            mRequiredType = thenClause.requiredType();
-        }
+        mRequiredType = resultingTypeRecursive(thenClause.requiredType(), elseClause.requiredType());
     }
 
     public Expression getCondition() {
@@ -98,6 +97,7 @@ public final class IfExpression implements Expression {
         }
         else if (thenType instanceof RegisterType leftType) {
             final RegisterType rightType = (RegisterType) elseType;
+            ensureValidState(leftType.getName() == rightType.getName());
             final ImmutableMap<Token, Type> rightFields = rightType.getFields();
             ImmutableMap<String, Type> easyRightFields = ImmutableHashMap.empty();
             for (int i = 0; i < rightFields.size(); i++) {

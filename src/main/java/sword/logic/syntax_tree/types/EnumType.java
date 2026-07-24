@@ -35,4 +35,16 @@ public final class EnumType implements Type {
         mName = name;
         mPossibleValues = possibleValues;
     }
+
+    @Override
+    public int hashCode() {
+        return mName.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return this == obj || obj instanceof EnumType that &&
+                mName.equals(that.mName) &&
+                mPossibleValues.equalSet(that.mPossibleValues);
+    }
 }

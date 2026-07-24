@@ -292,7 +292,7 @@ public final class StatementDumper {
             sb.append(exp.getReference().getText());
         }
         else if (expression instanceof RegisterConstructor exp) {
-            sb.append(exp.getType().getText());
+            sb.append(exp.getRegisterName().getText());
             sb.append(" {\n");
             final String newIndentation = indentation + INDENTATION;
             for (Statement statement : exp.getStatements()) {
