@@ -2,7 +2,6 @@ package sword.logic.syntax_tree.expressions;
 
 import sword.collections.Map;
 import sword.collections.Procedure;
-import sword.logic.compiler.IntegerLiteralOperations;
 import sword.logic.compiler.TypeMismatchException;
 import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.syntax_tree.Token;
