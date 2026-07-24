@@ -7,7 +7,6 @@ import sword.logic.syntax_tree.expressions.AdditionExpression;
 import sword.logic.syntax_tree.expressions.AndExpression;
 import sword.logic.syntax_tree.expressions.ArrayConcatenationExpression;
 import sword.logic.syntax_tree.expressions.ArrayConstructor;
-import sword.logic.syntax_tree.expressions.ArrayLengthExpression;
 import sword.logic.syntax_tree.expressions.ArrayValueAtExpression;
 import sword.logic.syntax_tree.expressions.BooleanLiteralExpression;
 import sword.logic.syntax_tree.expressions.ComplexExpression;
@@ -130,11 +129,6 @@ public final class StatementDumper {
                 separatorRequired = true;
             }
             sb.append(")");
-        }
-        else if (expression instanceof ArrayLengthExpression exp) {
-            sb.append("(");
-            dumpExpression(exp.getArray(), sb, indentation);
-            sb.append(").length");
         }
         else if (expression instanceof ArrayValueAtExpression exp) {
             sb.append("(");
