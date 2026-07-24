@@ -74,7 +74,7 @@ public final class TokenInterpreter {
         }
     }
 
-    private Type interpretType(ImmutableMap<String, Type> knownTypes) throws IOException, SyntaxErrorException, SemanticErrorException, UnexpectedEndOfFileException {
+    private Type interpretType(Token alias, ImmutableMap<String, Type> knownTypes) throws IOException, SyntaxErrorException, SemanticErrorException, UnexpectedEndOfFileException {
         final Token typeToken = nextTokenOrThrow("Expected type");
         final String typeTokenText = typeToken.getText();
         if (knownTypes.containsKey(typeTokenText)) {
@@ -90,11 +90,15 @@ public final class TokenInterpreter {
         }
         else if (typeTokenText.equals("Array")) {
             validateNextToken("[", "Expected '[' after 'Array'");
-            final Type itemType = interpretType(knownTypes);
+            final Type itemType = interpretType(null, knownTypes);
             validateNextToken("]", "Expected ']'");
             return new ArrayType(new IntegerType(new Token("0"), TypeConstants.unboundToken), itemType);
         }
         else if (typeTokenText.equals("{")) {
+            if (alias == null) {
+                throwSemanticError("Registers must have a name", typeToken);
+            }
+
             final ImmutableMap.Builder<Token, Type> map = new ImmutableHashMap.Builder<>();
             Token nameToken = nextTokenOrThrow("Expected property name for register");
             if (nameToken.getText().equals("}")) {
@@ -103,12 +107,12 @@ public final class TokenInterpreter {
             else {
                 while (!nameToken.getText().equals("}")) {
                     validateNextToken(":", "Expected ':' after name");
-                    map.put(nameToken, interpretType(knownTypes));
+                    map.put(nameToken, interpretType(null, knownTypes));
                     validateNextToken(";", "Expected ';' after type definition");
                     nameToken = nextTokenOrThrow("Expected property name for register, or '}'");
                 }
 
-                return new RegisterType(map.build());
+                return new RegisterType(alias, map.build());
             }
         }
         else {
@@ -361,12 +365,12 @@ public final class TokenInterpreter {
                     final ExpressionInterpretationResult result = interpretExpression(knownTypes, mergeKnownConstants(outerKnownConstants, assignments));
                     if (result.result instanceof ReferenceExpression refExp && result.closingToken.getText().equals(":")) {
                         final ImmutableList.Builder<FunctionParameter> parametersBuilder = new ImmutableList.Builder<>();
-                        parametersBuilder.append(new FunctionParameter(refExp.getReference(), interpretType(knownTypes)));
+                        parametersBuilder.append(new FunctionParameter(refExp.getReference(), interpretType(null, knownTypes)));
                         Token separatorToken;
                         while ((separatorToken = nextTokenOrThrow("Expected ',' or ')")).getText().equals(",")) {
                             final Token paramNameToken = nextTokenOrThrow("Expected function parameter name");
                             validateNextToken(":", "Expected ':'");
-                            parametersBuilder.append(new FunctionParameter(paramNameToken, interpretType(knownTypes)));
+                            parametersBuilder.append(new FunctionParameter(paramNameToken, interpretType(null, knownTypes)));
                         }
 
                         if (separatorToken.getText().equals(")")) {
@@ -1142,7 +1146,7 @@ public final class TokenInterpreter {
                 }
                 else {
                     if (tokenText.equals("=")) {
-                        final Type newType = interpretType(knownTypes);
+                        final Type newType = interpretType(assignmentName, knownTypes);
                         builder.append(new TypeAliasStatement(assignmentName, newType));
                         knownTypes = knownTypes.put(assignmentName.getText(), newType);
                         final Token semicolonToken = nextTokenOrThrow("Expected ';' after type definition");

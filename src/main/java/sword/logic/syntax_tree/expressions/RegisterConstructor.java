@@ -74,7 +74,8 @@ public final class RegisterConstructor implements Expression {
 
     @Override
     public Type resultingType(Map<String, Type> paramTypes, Procedure<WarningMessage> logger) {
-        ImmutableMap<Token, Type> fieldTypes = ((RegisterType) mRequiredType).getFields();
+        final RegisterType regType = (RegisterType) mRequiredType;
+        ImmutableMap<Token, Type> fieldTypes = regType.getFields();
         final int fieldCount = fieldTypes.size();
 
         outer:
@@ -91,6 +92,6 @@ public final class RegisterConstructor implements Expression {
             }
         }
 
-        return new RegisterType(fieldTypes);
+        return new RegisterType(regType.getName(), fieldTypes);
     }
 }

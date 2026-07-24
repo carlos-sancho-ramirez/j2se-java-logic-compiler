@@ -111,7 +111,7 @@ public final class IfExpression implements Expression {
                 newFields = newFields.put(token, resultingTypeRecursive(leftType.getFields().valueAt(i), easyRightFields.get(token.getText())));
             }
 
-            return new RegisterType(newFields);
+            return new RegisterType(leftType.getName(), newFields);
         }
         else {
             throw new UnsupportedOperationException("Unimplemented");
