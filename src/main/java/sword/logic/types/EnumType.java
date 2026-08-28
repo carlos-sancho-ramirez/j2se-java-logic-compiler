@@ -3,6 +3,7 @@ package sword.logic.types;
 import sword.collections.ImmutableSet;
 import sword.logic.syntax_tree.types.TypeConstants;
 
+import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 
 public final class EnumType implements Type {
@@ -27,11 +28,14 @@ public final class EnumType implements Type {
         return true;
     }
 
+    private final Definition mDefinition;
     private final ImmutableSet<String> mValues;
 
-    public EnumType(ImmutableSet<String> values) {
+    public EnumType(Definition definition, ImmutableSet<String> values) {
+        ensureNonNull(definition);
         ensureValidArguments(!values.isEmpty() &&
-                values.allMatch(EnumType::validEnumValueName));
+                values.allMatch(definition.getPossibleValues()::contains));
+        mDefinition = definition;
         mValues = values;
     }
 
@@ -46,12 +50,12 @@ public final class EnumType implements Type {
 
     @Override
     public Type getIntersection(Type other) {
-        if (other instanceof EnumType that) {
+        if (other instanceof EnumType that && mDefinition == that.mDefinition) {
             final ImmutableSet<String> newValues = mValues.filter(that.getValues()::contains);
             return newValues.isEmpty()? null :
                     newValues.equals(mValues)? this :
                     newValues.equals(that.getValues())? that :
-                    new EnumType(newValues);
+                    new EnumType(mDefinition, newValues);
         }
         else {
             return null;
@@ -60,12 +64,11 @@ public final class EnumType implements Type {
 
     @Override
     public Type getUnion(Type other) {
-        // TODO: Improve this logic once the definition is hold in this type and we can distinguish between enum types
-        if (other instanceof EnumType that) {
+        if (other instanceof EnumType that && mDefinition == that.mDefinition) {
             final ImmutableSet<String> newValues = mValues.addAll(that.mValues);
             return (newValues == mValues)? this :
                     (newValues == that.mValues)? that :
-                    new EnumType(newValues);
+                    new EnumType(mDefinition, newValues);
         }
         else {
             return null;
@@ -75,6 +78,7 @@ public final class EnumType implements Type {
     @Override
     public boolean canFit(Type type) {
         return type instanceof EnumType newType &&
+                mDefinition == newType.mDefinition &&
                 newType.getValues().allMatch(mValues::contains);
     }
 
@@ -86,6 +90,27 @@ public final class EnumType implements Type {
     @Override
     public boolean equals(Object obj) {
         return this == obj || obj instanceof EnumType that &&
+                mDefinition == that.mDefinition &&
                 mValues.equalSet(that.mValues);
+    }
+
+    public Definition getDefinition() {
+        return mDefinition;
+    }
+
+    /**
+     * Allow to distinguish among enums.
+     */
+    public static final class Definition {
+        private final ImmutableSet<String> mPossibleValues;
+
+        public Definition(ImmutableSet<String> possibleValues) {
+            ensureValidArguments(possibleValues.size() >= 2 && possibleValues.allMatch(EnumType::validEnumValueName));
+            mPossibleValues = possibleValues;
+        }
+
+        public ImmutableSet<String> getPossibleValues() {
+            return mPossibleValues;
+        }
     }
 }

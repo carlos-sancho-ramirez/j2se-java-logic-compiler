@@ -5,6 +5,7 @@ import sword.collections.ImmutableMap;
 import sword.collections.Map;
 import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.interpreter.ImpossibleSituationException;
+import sword.logic.interpreter.UnresolvedEnumValueException;
 import sword.logic.interpreter.UnresolvedTypeReferenceException;
 import sword.logic.interpreter.expressions.Expression;
 import sword.logic.syntax_tree.Token;
@@ -31,6 +32,11 @@ public final class WhenFalseScope extends AbstractScope {
     @Override
     public boolean knowsConstantName(String constantName) {
         return mParent.knowsConstantName(constantName);
+    }
+
+    @Override
+    public EnumType resolveEnumValue(Token value) throws UnresolvedEnumValueException {
+        return mParent.resolveEnumValue(value);
     }
 
     @Override

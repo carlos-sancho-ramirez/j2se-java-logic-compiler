@@ -924,7 +924,7 @@ public final class LogicInterpreter {
         return scopeMap.toImmutable();
     }
 
-    private ImmutableMap<Expression, Type> obtainTypeExpressions(ImmutableMap<Expression, Scope> scopeMap) throws UnresolvedTypeReferenceException, UnresolvedReferenceException, SemanticErrorException {
+    private ImmutableMap<Expression, Type> obtainTypeExpressions(ImmutableMap<Expression, Scope> scopeMap) throws UnresolvedTypeReferenceException, UnresolvedReferenceException, UnresolvedEnumValueException, SemanticErrorException {
         final MutableMap<Expression, Type> typedExpressions = MutableHashMap.empty();
 
         int lastResolved;
@@ -947,7 +947,7 @@ public final class LogicInterpreter {
         return typedExpressions.toImmutable();
     }
 
-    public void interpret() throws IOException, SyntaxErrorException, SemanticErrorException, UnexpectedEndOfFileException, UnresolvedTypeReferenceException, UnresolvedReferenceException {
+    public void interpret() throws IOException, SyntaxErrorException, SemanticErrorException, UnexpectedEndOfFileException, UnresolvedTypeReferenceException, UnresolvedReferenceException, UnresolvedEnumValueException {
         final ImmutableList<Statement> statements = obtainSyntaxTree();
         final ImmutableMap<Expression, Scope> scopeMap = obtainScopeMap(statements);
         final ImmutableMap<Expression, Type> typedExpressions = obtainTypeExpressions(scopeMap);

@@ -3,12 +3,14 @@ package sword.logic.interpreter.scopes;
 import sword.collections.ImmutableTransformable;
 import sword.collections.Map;
 import sword.logic.compiler.UnresolvedReferenceException;
+import sword.logic.interpreter.UnresolvedEnumValueException;
 import sword.logic.interpreter.UnresolvedTypeReferenceException;
 import sword.logic.interpreter.expressions.Expression;
 import sword.logic.interpreter.statements.Statement;
 import sword.logic.interpreter.type.definitions.FunctionParameter;
 import sword.logic.interpreter.type.definitions.TypeAliasResolver;
 import sword.logic.syntax_tree.Token;
+import sword.logic.types.EnumType;
 import sword.logic.types.Type;
 
 public interface Scope extends TypeAliasResolver {
@@ -18,6 +20,14 @@ public interface Scope extends TypeAliasResolver {
      * @return Whether the constant name is defined in this scope.
      */
     boolean knowsConstantName(String constantName);
+
+    /**
+     * Finds the enum type where this value belongs to.
+     * @param value Value to be found among the defined enums.
+     * @return The enum type that holds the value.
+     * @throws UnresolvedEnumValueException If the value does not belong to any existing enum.
+     */
+    EnumType resolveEnumValue(Token value) throws UnresolvedEnumValueException;
 
     /**
      * Resolves the type of the given constant name.

@@ -8,12 +8,14 @@ import sword.collections.Map;
 import sword.collections.MutableHashMap;
 import sword.collections.MutableMap;
 import sword.logic.compiler.UnresolvedReferenceException;
+import sword.logic.interpreter.UnresolvedEnumValueException;
 import sword.logic.interpreter.UnresolvedTypeReferenceException;
 import sword.logic.interpreter.expressions.Expression;
 import sword.logic.interpreter.statements.ConstantDefinitionStatement;
 import sword.logic.interpreter.statements.Statement;
 import sword.logic.interpreter.statements.TypeDefinitionStatement;
 import sword.logic.syntax_tree.Token;
+import sword.logic.types.EnumType;
 import sword.logic.types.Type;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
@@ -39,6 +41,12 @@ public final class StatementsHolderScope extends AbstractScope {
     public boolean knowsConstantName(String constantName) {
         return mStatements.anyMatch(st -> st instanceof ConstantDefinitionStatement constDef && constDef.getName().getText().equals(constantName)) ||
                 mParent.knowsConstantName(constantName);
+    }
+
+    @Override
+    public EnumType resolveEnumValue(Token value) throws UnresolvedEnumValueException {
+        // TODO: Check if there is any enum at this level holding the given value
+        return mParent.resolveEnumValue(value);
     }
 
     @Override

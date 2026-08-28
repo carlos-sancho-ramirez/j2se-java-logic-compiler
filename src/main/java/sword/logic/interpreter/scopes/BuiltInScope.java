@@ -2,9 +2,11 @@ package sword.logic.interpreter.scopes;
 
 import sword.collections.ImmutableHashSet;
 import sword.collections.ImmutableMap;
+import sword.collections.ImmutableSet;
 import sword.collections.ImmutableTransformable;
 import sword.collections.Map;
 import sword.logic.compiler.UnresolvedReferenceException;
+import sword.logic.interpreter.UnresolvedEnumValueException;
 import sword.logic.interpreter.UnresolvedTypeReferenceException;
 import sword.logic.interpreter.expressions.Expression;
 import sword.logic.interpreter.statements.Statement;
@@ -31,20 +33,22 @@ public final class BuiltInScope extends AbstractScope {
         return mInstance;
     }
 
-    private final EnumType mBooleanType = new EnumType(new ImmutableHashSet.Builder<String>()
+    private final ImmutableSet<String> mBooleanTypeValues = new ImmutableHashSet.Builder<String>()
             .add(TypeConstants.BOOLEAN_VALUE_TRUE)
             .add(TypeConstants.BOOLEAN_VALUE_FALSE)
-            .build());
+            .build();
+
+    private final EnumType mBooleanType = new EnumType(new EnumType.Definition(mBooleanTypeValues), mBooleanTypeValues);
 
     private final ArrayType mStringType = new ArrayType(
             new IntType(TypeConstants.zeroText, TypeConstants.unboundText),
             new IntType(TypeConstants.zeroText, "255"));
 
-    private final EnumType mAlwaysTrueType = new EnumType(new ImmutableHashSet.Builder<String>()
+    private final EnumType mAlwaysTrueType = new EnumType(mBooleanType.getDefinition(), new ImmutableHashSet.Builder<String>()
             .add(TypeConstants.BOOLEAN_VALUE_TRUE)
             .build());
 
-    private final EnumType mAlwaysFalseType = new EnumType(new ImmutableHashSet.Builder<String>()
+    private final EnumType mAlwaysFalseType = new EnumType(mBooleanType.getDefinition(), new ImmutableHashSet.Builder<String>()
             .add(TypeConstants.BOOLEAN_VALUE_FALSE)
             .build());
 
@@ -67,6 +71,16 @@ public final class BuiltInScope extends AbstractScope {
     @Override
     public boolean knowsConstantName(String constantName) {
         return false;
+    }
+
+    @Override
+    public EnumType resolveEnumValue(Token value) throws UnresolvedEnumValueException {
+        if (value.getText().equals(TypeConstants.BOOLEAN_VALUE_TRUE) || value.getText().equals(TypeConstants.BOOLEAN_VALUE_FALSE)) {
+            return mBooleanType;
+        }
+        else {
+            throw new UnresolvedEnumValueException(value);
+        }
     }
 
     @Override

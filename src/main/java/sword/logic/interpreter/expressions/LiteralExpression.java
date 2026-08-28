@@ -7,6 +7,8 @@ import sword.collections.ImmutableSet;
 import sword.collections.Map;
 import sword.collections.MutableMap;
 import sword.logic.compiler.IntegerLiteralOperations;
+import sword.logic.interpreter.UnresolvedEnumValueException;
+import sword.logic.interpreter.scopes.BuiltInScope;
 import sword.logic.interpreter.scopes.Scope;
 import sword.logic.syntax_tree.Token;
 import sword.logic.types.ArrayType;
@@ -16,13 +18,14 @@ import sword.logic.types.IntType;
 import sword.logic.types.Type;
 
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
+import static sword.logic.types.EnumType.validEnumValueName;
 
 public final class LiteralExpression implements Expression {
     private final Token mLiteral;
 
     public LiteralExpression(Token literal) {
         // TODO: Check all valid literals
-        ensureValidArguments(literal.getText().charAt(0) >= 'A' && literal.getText().charAt(0) <= 'Z' ||
+        ensureValidArguments(validEnumValueName(literal.getText()) ||
                 literal.getText().charAt(0) == '"' && literal.getText().charAt(literal.getText().length() - 1) == '"' ||
                 IntegerLiteralOperations.validIntegerLiteral(literal.getText()));
         mLiteral = literal;
@@ -38,7 +41,7 @@ public final class LiteralExpression implements Expression {
         return ImmutableHashSet.empty();
     }
 
-    private Type resolveTypeInternal() {
+    private Type resolveTypeInternal(Scope scope) throws UnresolvedEnumValueException {
         final String literalText = mLiteral.getText();
         if (literalText.charAt(0) == '"') {
             final int literalTextLength = literalText.length();
@@ -67,8 +70,9 @@ public final class LiteralExpression implements Expression {
                 return EmptyArrayType.getInstance();
             }
         }
-        else if (literalText.charAt(0) >= 'A' && literalText.charAt(0) <= 'Z') {
-            return new EnumType(new ImmutableHashSet.Builder<String>()
+        else if (validEnumValueName(literalText)) {
+            final EnumType enumType = scope.resolveEnumValue(mLiteral);
+            return new EnumType(enumType.getDefinition(), new ImmutableHashSet.Builder<String>()
                     .add(literalText)
                     .build());
         }
@@ -79,13 +83,20 @@ public final class LiteralExpression implements Expression {
     }
 
     @Override
-    public Type resolveType(Scope scope, Map<Expression, Type> resolvedExpressions) {
-        return resolveTypeInternal();
+    public Type resolveType(Scope scope, Map<Expression, Type> resolvedExpressions) throws UnresolvedEnumValueException {
+        return resolveTypeInternal(scope);
     }
 
     @Override
     public Type resolveType(ImmutableMap<String, Type> restrictionMap) {
-        return resolveTypeInternal();
+        // This is fine for now because the developer cannot define custom enum types, so the only ones existing are in the BuiltInScope
+        // TODO: This should not depend on the BuiltInScope in order to resolve other enum types than Boolean
+        try {
+            return resolveTypeInternal(BuiltInScope.getInstance());
+        }
+        catch (UnresolvedEnumValueException e) {
+            throw new RuntimeException("Unable to resolve type", e);
+        }
     }
 
     @Override

@@ -5,10 +5,12 @@ import sword.collections.ImmutableMap;
 import sword.collections.ImmutableSet;
 import sword.collections.Map;
 import sword.logic.compiler.UnresolvedReferenceException;
+import sword.logic.interpreter.UnresolvedEnumValueException;
 import sword.logic.interpreter.UnresolvedTypeReferenceException;
 import sword.logic.interpreter.expressions.Expression;
 import sword.logic.interpreter.type.definitions.FunctionParameter;
 import sword.logic.syntax_tree.Token;
+import sword.logic.types.EnumType;
 import sword.logic.types.Type;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
@@ -33,6 +35,11 @@ public final class FunctionParametersHolderScope extends AbstractScope {
     public boolean knowsConstantName(String constantName) {
         return mParameters.anyMatch(param -> param.getName().getText().equals(constantName)) ||
                 mParent.knowsConstantName(constantName);
+    }
+
+    @Override
+    public EnumType resolveEnumValue(Token value) throws UnresolvedEnumValueException {
+        return mParent.resolveEnumValue(value);
     }
 
     @Override

@@ -2,6 +2,7 @@ package sword.logic.compiler;
 
 import sword.collections.ImmutableList;
 import sword.logic.interpreter.LogicInterpreter;
+import sword.logic.interpreter.UnresolvedEnumValueException;
 import sword.logic.interpreter.UnresolvedTypeReferenceException;
 import sword.logic.syntax_tree.statements.Statement;
 
@@ -64,6 +65,9 @@ public final class Main {
                 System.err.println(e.getMessage() + " at " + fileName + " " + e.getLine() + ":" + e.getColumn());
             }
             catch (UnresolvedReferenceException e) {
+                System.err.println(e.getMessage() + " at " + fileName + " " + e.getLine() + ":" + e.getColumn());
+            }
+            catch (UnresolvedEnumValueException e) {
                 System.err.println(e.getMessage() + " at " + fileName + " " + e.getLine() + ":" + e.getColumn());
             }
             catch (IOException e) {

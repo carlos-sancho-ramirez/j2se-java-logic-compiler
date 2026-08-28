@@ -8,6 +8,7 @@ import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.interpreter.Finder;
 import sword.logic.interpreter.ImpossibleSituationException;
 import sword.logic.interpreter.Interpretation;
+import sword.logic.interpreter.UnresolvedEnumValueException;
 import sword.logic.interpreter.UnresolvedTypeReferenceException;
 import sword.logic.interpreter.scopes.Scope;
 import sword.logic.types.Type;
@@ -36,9 +37,10 @@ public interface Expression extends Finder, Interpretation {
      * @return The resolved type if it can be worked out, or null if it requires other expressions to be resolved first.
      * @throws UnresolvedTypeReferenceException In case there is a type mentioned but no definition for it.
      * @throws UnresolvedReferenceException In case there is a constant reference but no definition is found for it.
+     * @throws UnresolvedEnumValueException In case a literal enum value is found, but no declared enum holds that value.
      * @throws SemanticErrorException In case the expression make no sense.
      */
-    Type resolveType(Scope scope, Map<Expression, Type> resolvedExpressions) throws UnresolvedTypeReferenceException, UnresolvedReferenceException, SemanticErrorException;
+    Type resolveType(Scope scope, Map<Expression, Type> resolvedExpressions) throws UnresolvedTypeReferenceException, UnresolvedReferenceException, UnresolvedEnumValueException, SemanticErrorException;
 
     /**
      * Alternative way to retrieve the type.
