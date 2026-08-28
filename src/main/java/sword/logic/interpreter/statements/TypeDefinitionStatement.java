@@ -9,7 +9,7 @@ import sword.logic.interpreter.expressions.Expression;
 import sword.logic.interpreter.scopes.Scope;
 import sword.logic.interpreter.type.definitions.TypeAliasResolver;
 import sword.logic.interpreter.type.definitions.TypeDefinition;
-import sword.logic.syntax_tree.Token;
+import sword.logic.interpreter.Token;
 import sword.logic.types.Type;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;

@@ -8,7 +8,7 @@ import sword.logic.interpreter.ImpossibleSituationException;
 import sword.logic.interpreter.UnresolvedEnumValueException;
 import sword.logic.interpreter.UnresolvedTypeReferenceException;
 import sword.logic.interpreter.expressions.Expression;
-import sword.logic.syntax_tree.Token;
+import sword.logic.interpreter.Token;
 import sword.logic.types.EnumType;
 import sword.logic.types.Type;
 

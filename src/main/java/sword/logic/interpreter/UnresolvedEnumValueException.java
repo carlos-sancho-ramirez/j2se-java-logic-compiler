@@ -1,7 +1,5 @@
 package sword.logic.interpreter;
 
-import sword.logic.syntax_tree.Token;
-
 public final class UnresolvedEnumValueException extends Exception {
     private final int mLine;
     private final int mColumn;

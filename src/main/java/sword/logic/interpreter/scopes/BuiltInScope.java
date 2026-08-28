@@ -10,12 +10,12 @@ import sword.logic.interpreter.UnresolvedEnumValueException;
 import sword.logic.interpreter.UnresolvedTypeReferenceException;
 import sword.logic.interpreter.expressions.Expression;
 import sword.logic.interpreter.statements.Statement;
-import sword.logic.syntax_tree.Token;
-import sword.logic.syntax_tree.types.TypeConstants;
+import sword.logic.interpreter.Token;
 import sword.logic.types.ArrayType;
 import sword.logic.types.EnumType;
 import sword.logic.types.IntType;
 import sword.logic.types.Type;
+import sword.logic.types.TypeConstants;
 
 /**
  * Base scope that any program witten in this language will use.

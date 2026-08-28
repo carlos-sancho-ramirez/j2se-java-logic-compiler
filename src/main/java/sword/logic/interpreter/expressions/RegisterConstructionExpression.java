@@ -16,7 +16,7 @@ import sword.logic.interpreter.scopes.Scope;
 import sword.logic.interpreter.statements.ConstantDefinitionStatement;
 import sword.logic.interpreter.statements.Statement;
 import sword.logic.interpreter.type.definitions.TypeAliasResolver;
-import sword.logic.syntax_tree.Token;
+import sword.logic.interpreter.Token;
 import sword.logic.types.RegisterType;
 import sword.logic.types.Type;
 

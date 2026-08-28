@@ -2,7 +2,7 @@ package sword.logic.interpreter.type.definitions;
 
 import sword.collections.ImmutableList;
 import sword.collections.ImmutableSet;
-import sword.logic.syntax_tree.Token;
+import sword.logic.interpreter.Token;
 import sword.logic.types.EnumType;
 
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;

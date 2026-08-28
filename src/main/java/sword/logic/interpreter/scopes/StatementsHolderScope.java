@@ -14,7 +14,7 @@ import sword.logic.interpreter.expressions.Expression;
 import sword.logic.interpreter.statements.ConstantDefinitionStatement;
 import sword.logic.interpreter.statements.Statement;
 import sword.logic.interpreter.statements.TypeDefinitionStatement;
-import sword.logic.syntax_tree.Token;
+import sword.logic.interpreter.Token;
 import sword.logic.types.EnumType;
 import sword.logic.types.Type;
 

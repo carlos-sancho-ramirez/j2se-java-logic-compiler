@@ -8,7 +8,7 @@ import sword.logic.interpreter.UnresolvedTypeReferenceException;
 import sword.logic.interpreter.expressions.Expression;
 import sword.logic.interpreter.statements.Statement;
 import sword.logic.interpreter.type.definitions.FunctionParameter;
-import sword.logic.syntax_tree.Token;
+import sword.logic.interpreter.Token;
 import sword.logic.types.Type;
 
 abstract class AbstractScope implements Scope {

@@ -1,6 +1,6 @@
 package sword.logic.compiler;
 
-import sword.logic.syntax_tree.Token;
+import sword.logic.interpreter.Token;
 
 public final class UnresolvedReferenceException extends Exception {
     private final int mLine;

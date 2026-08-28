@@ -15,7 +15,7 @@ import sword.logic.interpreter.UnresolvedEnumValueException;
 import sword.logic.interpreter.scopes.BuiltInScope;
 import sword.logic.interpreter.scopes.Scope;
 import sword.logic.interpreter.type.definitions.TypeAliasResolver;
-import sword.logic.syntax_tree.Token;
+import sword.logic.interpreter.Token;
 import sword.logic.types.ArrayType;
 import sword.logic.types.EmptyArrayType;
 import sword.logic.types.EnumType;

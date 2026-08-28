@@ -37,9 +37,8 @@ import sword.logic.interpreter.type.definitions.ReferenceTypeDefinition;
 import sword.logic.interpreter.type.definitions.RegisterTypeDefinition;
 import sword.logic.interpreter.type.definitions.TypeDefinition;
 import sword.logic.interpreter.type.definitions.TypeMention;
-import sword.logic.syntax_tree.Token;
-import sword.logic.syntax_tree.types.TypeConstants;
 import sword.logic.types.Type;
+import sword.logic.types.TypeConstants;
 
 import java.io.IOException;
 

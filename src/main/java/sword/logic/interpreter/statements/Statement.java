@@ -6,7 +6,7 @@ import sword.collections.MutableMap;
 import sword.logic.interpreter.Finder;
 import sword.logic.interpreter.expressions.Expression;
 import sword.logic.interpreter.type.definitions.TypeAliasResolver;
-import sword.logic.syntax_tree.Token;
+import sword.logic.interpreter.Token;
 import sword.logic.types.Type;
 
 public interface Statement extends Finder {

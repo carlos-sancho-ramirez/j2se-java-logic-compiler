@@ -1,7 +1,7 @@
 package sword.logic.interpreter.type.definitions;
 
 import sword.logic.interpreter.UnresolvedTypeReferenceException;
-import sword.logic.syntax_tree.Token;
+import sword.logic.interpreter.Token;
 import sword.logic.types.Type;
 
 public interface TypeAliasResolver {

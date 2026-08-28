@@ -28,13 +28,13 @@ import sword.logic.interpreter.UnresolvedTypeReferenceException;
 import sword.logic.interpreter.scopes.BuiltInScope;
 import sword.logic.interpreter.scopes.Scope;
 import sword.logic.interpreter.type.definitions.TypeAliasResolver;
-import sword.logic.syntax_tree.Token;
-import sword.logic.syntax_tree.types.TypeConstants;
+import sword.logic.interpreter.Token;
 import sword.logic.types.ArrayType;
 import sword.logic.types.EnumType;
 import sword.logic.types.FunctionType;
 import sword.logic.types.IntType;
 import sword.logic.types.Type;
+import sword.logic.types.TypeConstants;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;

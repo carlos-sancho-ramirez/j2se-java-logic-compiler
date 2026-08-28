@@ -1,9 +1,9 @@
 package sword.logic.interpreter.type.definitions;
 
 import sword.logic.compiler.IntegerLiteralOperations;
-import sword.logic.syntax_tree.Token;
-import sword.logic.syntax_tree.types.TypeConstants;
+import sword.logic.interpreter.Token;
 import sword.logic.types.IntType;
+import sword.logic.types.TypeConstants;
 
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 

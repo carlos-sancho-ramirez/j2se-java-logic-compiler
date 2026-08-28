@@ -1,6 +1,6 @@
 package sword.logic.compiler;
 
-import sword.logic.syntax_tree.Token;
+import sword.logic.interpreter.Token;
 
 import java.io.IOException;
 import java.io.InputStream;

@@ -3,7 +3,6 @@ package sword.logic.types;
 import sword.collections.ImmutableList;
 import sword.collections.ImmutableListExtensions;
 import sword.logic.compiler.IntegerLiteralOperations;
-import sword.logic.syntax_tree.types.TypeConstants;
 
 import java.util.Iterator;
 

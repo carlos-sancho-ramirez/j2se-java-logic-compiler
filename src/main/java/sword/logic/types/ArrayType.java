@@ -1,7 +1,5 @@
 package sword.logic.types;
 
-import sword.logic.syntax_tree.types.TypeConstants;
-
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 

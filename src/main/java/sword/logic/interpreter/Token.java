@@ -1,4 +1,4 @@
-package sword.logic.syntax_tree;
+package sword.logic.interpreter;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
