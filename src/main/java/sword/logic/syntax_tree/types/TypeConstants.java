@@ -2,10 +2,11 @@ package sword.logic.syntax_tree.types;
 
 import sword.collections.ImmutableHashSet;
 import sword.logic.syntax_tree.Token;
-import sword.logic.syntax_tree.types.EnumType;
-import sword.logic.syntax_tree.types.IntegerType;
 
 public final class TypeConstants {
+    public static final String ARRAY_TYPE_TEXT = "Array";
+    public static final String INTEGER_TYPE_TEXT = "Int";
+
     public static final EnumType booleanType = new EnumType(new Token("Boolean"), new ImmutableHashSet.Builder<Token>()
             .add(new Token("TRUE"))
             .add(new Token("FALSE"))

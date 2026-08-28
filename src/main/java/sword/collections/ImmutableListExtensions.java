@@ -14,6 +14,10 @@ public final class ImmutableListExtensions {
         return somethingChanged? new ImmutableList<>(newValues) : (ImmutableList<U>) list;
     }
 
+    public static boolean noneRepeated(ImmutableList<?> list) {
+        return list.toSet().size() == list.size();
+    }
+
     private ImmutableListExtensions() {
     }
 }
