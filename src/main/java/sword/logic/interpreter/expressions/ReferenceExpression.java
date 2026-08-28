@@ -6,15 +6,17 @@ import sword.collections.ImmutableSet;
 import sword.collections.Map;
 import sword.collections.MutableMap;
 import sword.logic.compiler.UnresolvedReferenceException;
+import sword.logic.interpreter.Finder;
 import sword.logic.interpreter.ImpossibleSituationException;
 import sword.logic.interpreter.UnresolvedTypeReferenceException;
 import sword.logic.interpreter.scopes.Scope;
+import sword.logic.interpreter.type.definitions.TypeAliasResolver;
 import sword.logic.syntax_tree.Token;
 import sword.logic.types.Type;
 
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 import static sword.logic.compiler.PreconditionUtils.ensureValidState;
-import static sword.logic.interpreter.statements.ConstantDefinitionStatement.validConstantName;
+import static sword.logic.statements.ConstantDefinitionStatement.validConstantName;
 
 public final class ReferenceExpression implements Expression {
     private final Token mReference;
@@ -29,7 +31,7 @@ public final class ReferenceExpression implements Expression {
     }
 
     @Override
-    public void findAllExpressions(MutableMap<Expression, Scope> outMap, Scope scope) {
+    public void findAllFinders(MutableMap<Finder, Scope> outMap, Scope scope) {
         outMap.put(this, scope);
     }
 
@@ -64,5 +66,10 @@ public final class ReferenceExpression implements Expression {
 
             return restrictionMap.put(mReference.getText(), newType);
         }
+    }
+
+    @Override
+    public sword.logic.expressions.ReferenceExpression untokenize(ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap, Map<Expression, Type> resolvedExpressions) {
+        return new sword.logic.expressions.ReferenceExpression(mReference.getText());
     }
 }

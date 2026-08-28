@@ -2,7 +2,7 @@ package sword.logic.types;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
-import static sword.logic.interpreter.statements.ConstantDefinitionStatement.validConstantName;
+import static sword.logic.statements.ConstantDefinitionStatement.validConstantName;
 
 public final class FunctionParameter {
     private final String mName;

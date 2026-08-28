@@ -11,6 +11,7 @@ import sword.logic.interpreter.Interpretation;
 import sword.logic.interpreter.UnresolvedEnumValueException;
 import sword.logic.interpreter.UnresolvedTypeReferenceException;
 import sword.logic.interpreter.scopes.Scope;
+import sword.logic.interpreter.type.definitions.TypeAliasResolver;
 import sword.logic.types.Type;
 
 public interface Expression extends Finder, Interpretation {
@@ -76,4 +77,15 @@ public interface Expression extends Finder, Interpretation {
      * @throws ImpossibleSituationException if it is not possible to reach the given value with the given restrictions.
      */
     ImmutableMap<String, Type> restrictionMap(Type resultType, Map<Expression, Type> resolvedExpressions, ImmutableMap<String, Type> restrictionMap) throws ImpossibleSituationException;
+
+    /**
+     * Returns the equivalent expression in the untokenized tree.
+     * @param typeAliasResolverMap Map holding the typeAliasResolver that should be used for each expression, if required.
+     * @param resolvedExpressions Map for all expressions already resolved.
+     *                            This will be used in some expressions to determine which expression should be created.
+     * @return The equivalent expression in the untokenized tree.
+     */
+    sword.logic.expressions.Expression untokenize(
+            ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap,
+            Map<Expression, Type> resolvedExpressions);
 }

@@ -8,8 +8,10 @@ import sword.collections.MutableMap;
 import sword.logic.compiler.IntegerLiteralOperations;
 import sword.logic.compiler.SemanticErrorException;
 import sword.logic.compiler.UnresolvedReferenceException;
+import sword.logic.interpreter.Finder;
 import sword.logic.interpreter.UnresolvedTypeReferenceException;
 import sword.logic.interpreter.scopes.Scope;
+import sword.logic.interpreter.type.definitions.TypeAliasResolver;
 import sword.logic.syntax_tree.Token;
 import sword.logic.syntax_tree.types.TypeConstants;
 import sword.logic.types.ArrayType;
@@ -33,10 +35,10 @@ public final class ArrayValueAtExpression implements Expression {
     }
 
     @Override
-    public void findAllExpressions(MutableMap<Expression, Scope> outMap, Scope scope) {
+    public void findAllFinders(MutableMap<Finder, Scope> outMap, Scope scope) {
         outMap.put(this, scope);
-        mArray.findAllExpressions(outMap, scope);
-        mIndex.findAllExpressions(outMap, scope);
+        mArray.findAllFinders(outMap, scope);
+        mIndex.findAllFinders(outMap, scope);
     }
 
     @Override
@@ -112,5 +114,10 @@ public final class ArrayValueAtExpression implements Expression {
     @Override
     public ImmutableMap<String, Type> restrictionMap(Type resultType, Map<Expression, Type> resolvedExpressions, ImmutableMap<String, Type> restrictionMap) {
         throw new UnsupportedOperationException("Unimplemented");
+    }
+
+    @Override
+    public sword.logic.expressions.Expression untokenize(ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap, Map<Expression, Type> resolvedExpressions) {
+        return new sword.logic.expressions.ArrayValueAtExpression(mArray.untokenize(typeAliasResolverMap, resolvedExpressions), mIndex.untokenize(typeAliasResolverMap, resolvedExpressions));
     }
 }

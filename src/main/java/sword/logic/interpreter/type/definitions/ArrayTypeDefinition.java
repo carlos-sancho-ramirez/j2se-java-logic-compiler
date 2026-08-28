@@ -24,4 +24,8 @@ public final class ArrayTypeDefinition implements TypeMention {
     public ArrayType resolve(TypeAliasResolver resolver) throws UnresolvedTypeReferenceException {
         return new ArrayType(new IntType(TypeConstants.zeroText, TypeConstants.unboundText), mItemType.resolve(resolver));
     }
+
+    public ArrayType untokenize() {
+        return new ArrayType(new IntType(TypeConstants.zeroText, TypeConstants.unboundText), mItemType.untokenize());
+    }
 }

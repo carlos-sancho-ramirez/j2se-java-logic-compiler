@@ -43,8 +43,8 @@ import sword.logic.types.Type;
 import java.io.IOException;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
-import static sword.logic.interpreter.statements.ConstantDefinitionStatement.validConstantName;
-import static sword.logic.interpreter.statements.TypeDefinitionStatement.validTypeName;
+import static sword.logic.statements.ConstantDefinitionStatement.validConstantName;
+import static sword.logic.statements.TypeDefinitionStatement.validTypeName;
 
 public final class LogicInterpreter {
 
@@ -911,27 +911,28 @@ public final class LogicInterpreter {
         return builder.build();
     }
 
-    private ImmutableMap<Expression, Scope> obtainScopeMap(ImmutableList<Statement> statements) {
-        final MutableMap<Expression, Scope> scopeMap = MutableHashMap.empty();
+    private ImmutableMap<Finder, Scope> obtainScopeMap(ImmutableList<Statement> statements) {
+        final MutableMap<Finder, Scope> scopeMap = MutableHashMap.empty();
 
         // TODO: All these built in types uses Token that points to nothing... we should rethink this
         final BuiltInScope builtInScope = BuiltInScope.getInstance();
         final Scope rootScope = builtInScope.createWithStatements(statements);
         for (Statement statement : statements) {
-            statement.findAllExpressions(scopeMap, rootScope);
+            statement.findAllFinders(scopeMap, rootScope);
         }
 
         return scopeMap.toImmutable();
     }
 
-    private ImmutableMap<Expression, Type> obtainTypeExpressions(ImmutableMap<Expression, Scope> scopeMap) throws UnresolvedTypeReferenceException, UnresolvedReferenceException, UnresolvedEnumValueException, SemanticErrorException {
+    private ImmutableMap<Expression, Type> obtainTypeExpressions(ImmutableMap<Finder, Scope> scopeMap) throws UnresolvedTypeReferenceException, UnresolvedReferenceException, UnresolvedEnumValueException, SemanticErrorException {
+        final ImmutableSet<Expression> allExpressions = scopeMap.keySet().filter(k -> k instanceof Expression).map(k -> (Expression) k).toSet();
         final MutableMap<Expression, Type> typedExpressions = MutableHashMap.empty();
 
         int lastResolved;
         do {
             lastResolved = typedExpressions.size();
 
-            for (Expression expression : scopeMap.keySet().filterNot(typedExpressions::containsKey).toImmutable()) {
+            for (Expression expression : allExpressions.filterNot(typedExpressions::containsKey).toImmutable()) {
                 final Type type = expression.resolveType(scopeMap.get(expression), typedExpressions);
                 if (type != null) {
                     typedExpressions.put(expression, type);
@@ -942,15 +943,15 @@ public final class LogicInterpreter {
                 throw new RuntimeException("Unable to resolve the type for " + (scopeMap.size() - typedExpressions.size()) + " out of " + typedExpressions.size());
             }
         }
-        while (typedExpressions.size() < scopeMap.size());
+        while (typedExpressions.size() < allExpressions.size());
 
         return typedExpressions.toImmutable();
     }
 
-    public void interpret() throws IOException, SyntaxErrorException, SemanticErrorException, UnexpectedEndOfFileException, UnresolvedTypeReferenceException, UnresolvedReferenceException, UnresolvedEnumValueException {
+    public ImmutableList<sword.logic.statements.Statement> interpret() throws IOException, SyntaxErrorException, SemanticErrorException, UnexpectedEndOfFileException, UnresolvedTypeReferenceException, UnresolvedReferenceException, UnresolvedEnumValueException {
         final ImmutableList<Statement> statements = obtainSyntaxTree();
-        final ImmutableMap<Expression, Scope> scopeMap = obtainScopeMap(statements);
-        final ImmutableMap<Expression, Type> typedExpressions = obtainTypeExpressions(scopeMap);
-        // TODO: Implement the rest of the logic
+        final ImmutableMap<Finder, Scope> scopeMap = obtainScopeMap(statements);
+        final ImmutableMap<Expression, Type> resolvedExpressions = obtainTypeExpressions(scopeMap);
+        return statements.map(st -> st.untokenize(scopeMap, resolvedExpressions));
     }
 }

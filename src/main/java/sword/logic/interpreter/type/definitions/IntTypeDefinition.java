@@ -24,4 +24,8 @@ public final class IntTypeDefinition implements TypeMention {
     public IntType resolve(TypeAliasResolver resolver) {
         return new IntType(mMin.getText(), mMax.getText());
     }
+
+    public IntType untokenize() {
+        return new IntType(mMin.getText(), mMax.getText());
+    }
 }

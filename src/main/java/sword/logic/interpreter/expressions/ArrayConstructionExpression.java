@@ -7,7 +7,9 @@ import sword.collections.ImmutableSet;
 import sword.collections.Map;
 import sword.collections.MutableMap;
 import sword.logic.compiler.SemanticErrorException;
+import sword.logic.interpreter.Finder;
 import sword.logic.interpreter.scopes.Scope;
+import sword.logic.interpreter.type.definitions.TypeAliasResolver;
 import sword.logic.syntax_tree.Token;
 import sword.logic.syntax_tree.types.TypeConstants;
 import sword.logic.types.ArrayType;
@@ -30,10 +32,10 @@ public final class ArrayConstructionExpression implements Expression {
     }
 
     @Override
-    public void findAllExpressions(MutableMap<Expression, Scope> outMap, Scope scope) {
+    public void findAllFinders(MutableMap<Finder, Scope> outMap, Scope scope) {
         outMap.put(this, scope);
         for (Expression param : mParameters) {
-            param.findAllExpressions(outMap, scope);
+            param.findAllFinders(outMap, scope);
         }
     }
 
@@ -78,5 +80,10 @@ public final class ArrayConstructionExpression implements Expression {
     @Override
     public ImmutableMap<String, Type> restrictionMap(Type resultType, Map<Expression, Type> resolvedExpressions, ImmutableMap<String, Type> restrictionMap) {
         throw new UnsupportedOperationException("Unimplemented");
+    }
+
+    @Override
+    public sword.logic.expressions.Expression untokenize(ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap, Map<Expression, Type> resolvedExpressions) {
+        return new sword.logic.expressions.ArrayConstructionExpression(mParameters.map(param -> param.untokenize(typeAliasResolverMap, resolvedExpressions)));
     }
 }

@@ -7,9 +7,14 @@ import sword.collections.ImmutableSet;
 import sword.collections.Map;
 import sword.collections.MutableMap;
 import sword.logic.compiler.IntegerLiteralOperations;
+import sword.logic.expressions.EnumValueLiteralExpression;
+import sword.logic.expressions.IntegerLiteralExpression;
+import sword.logic.expressions.StringLiteralExpression;
+import sword.logic.interpreter.Finder;
 import sword.logic.interpreter.UnresolvedEnumValueException;
 import sword.logic.interpreter.scopes.BuiltInScope;
 import sword.logic.interpreter.scopes.Scope;
+import sword.logic.interpreter.type.definitions.TypeAliasResolver;
 import sword.logic.syntax_tree.Token;
 import sword.logic.types.ArrayType;
 import sword.logic.types.EmptyArrayType;
@@ -32,7 +37,7 @@ public final class LiteralExpression implements Expression {
     }
 
     @Override
-    public void findAllExpressions(MutableMap<Expression, Scope> outMap, Scope scope) {
+    public void findAllFinders(MutableMap<Finder, Scope> outMap, Scope scope) {
         outMap.put(this, scope);
     }
 
@@ -102,5 +107,13 @@ public final class LiteralExpression implements Expression {
     @Override
     public ImmutableMap<String, Type> restrictionMap(Type resultType, Map<Expression, Type> resolvedExpressions, ImmutableMap<String, Type> restrictionMap) {
         return ImmutableHashMap.empty();
+    }
+
+    @Override
+    public sword.logic.expressions.Expression untokenize(ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap, Map<Expression, Type> resolvedExpressions) {
+        final String text = mLiteral.getText();
+        return IntegerLiteralOperations.validIntegerLiteral(text)? new IntegerLiteralExpression(text) :
+                (text.charAt(0) == '"' && text.charAt(text.length() - 1) == '"')? new StringLiteralExpression(text) :
+                new EnumValueLiteralExpression(text);
     }
 }

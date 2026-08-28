@@ -8,10 +8,26 @@ import sword.collections.MutableMap;
 import sword.logic.compiler.IntegerLiteralOperations;
 import sword.logic.compiler.SemanticErrorException;
 import sword.logic.compiler.UnresolvedReferenceException;
+import sword.logic.expressions.AdditionExpression;
+import sword.logic.expressions.AndExpression;
+import sword.logic.expressions.ArrayConcatenationExpression;
+import sword.logic.expressions.DifferentFromExpression;
+import sword.logic.expressions.DivisionExpression;
+import sword.logic.expressions.EqualThanExpression;
+import sword.logic.expressions.GreaterOrEqualThanExpression;
+import sword.logic.expressions.GreaterThanExpression;
+import sword.logic.expressions.LowerOrEqualThanExpression;
+import sword.logic.expressions.LowerThanExpression;
+import sword.logic.expressions.ModuleExpression;
+import sword.logic.expressions.MultiplicationExpression;
+import sword.logic.expressions.OrExpression;
+import sword.logic.expressions.SubtractionExpression;
+import sword.logic.interpreter.Finder;
 import sword.logic.interpreter.ImpossibleSituationException;
 import sword.logic.interpreter.UnresolvedTypeReferenceException;
 import sword.logic.interpreter.scopes.BuiltInScope;
 import sword.logic.interpreter.scopes.Scope;
+import sword.logic.interpreter.type.definitions.TypeAliasResolver;
 import sword.logic.syntax_tree.Token;
 import sword.logic.syntax_tree.types.TypeConstants;
 import sword.logic.types.ArrayType;
@@ -51,17 +67,17 @@ public final class LeftRightExpression implements Expression {
     }
 
     @Override
-    public void findAllExpressions(MutableMap<Expression, Scope> outMap, Scope scope) {
+    public void findAllFinders(MutableMap<Finder, Scope> outMap, Scope scope) {
         outMap.put(this, scope);
-        mLeft.findAllExpressions(outMap, scope);
+        mLeft.findAllFinders(outMap, scope);
         if (mOperator.getText().equals("&")) {
-            mRight.findAllExpressions(outMap, scope.whenTrue(mLeft));
+            mRight.findAllFinders(outMap, scope.whenTrue(mLeft));
         }
         else if (mOperator.getText().equals("|")) {
-            mRight.findAllExpressions(outMap, scope.whenFalse(mLeft));
+            mRight.findAllFinders(outMap, scope.whenFalse(mLeft));
         }
         else {
-            mRight.findAllExpressions(outMap, scope);
+            mRight.findAllFinders(outMap, scope);
         }
     }
 
@@ -1081,5 +1097,36 @@ public final class LeftRightExpression implements Expression {
                 throw new UnsupportedOperationException("Unimplemented");
             }
         }
+    }
+
+    @Override
+    public sword.logic.expressions.Expression untokenize(ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap, Map<Expression, Type> resolvedExpressions) {
+        final String operatorText = mOperator.getText();
+        final sword.logic.expressions.Expression left = mLeft.untokenize(typeAliasResolverMap, resolvedExpressions);
+        final sword.logic.expressions.Expression right = mRight.untokenize(typeAliasResolverMap, resolvedExpressions);
+
+        if (operatorText.equals("+")) {
+            final Type resultType = resolvedExpressions.get(this);
+            if (resultType instanceof ArrayType) {
+                return new ArrayConcatenationExpression(left, right);
+            }
+            else {
+                ensureValidState(resultType instanceof IntType);
+                return new AdditionExpression(left, right);
+            }
+        }
+
+        return operatorText.equals("*")? new MultiplicationExpression(left, right) :
+                operatorText.equals("/")? new DivisionExpression(left, right) :
+                operatorText.equals("%")? new ModuleExpression(left, right) :
+                operatorText.equals("-")? new SubtractionExpression(left, right) :
+                operatorText.equals("==")? new EqualThanExpression(left, right) :
+                operatorText.equals("!=")? new DifferentFromExpression(left, right) :
+                operatorText.equals(">")? new GreaterThanExpression(left, right) :
+                operatorText.equals("<")? new LowerThanExpression(left, right) :
+                operatorText.equals(">=")? new GreaterOrEqualThanExpression(left, right) :
+                operatorText.equals("<=")? new LowerOrEqualThanExpression(left, right) :
+                operatorText.equals("&")? new AndExpression(left, right) :
+                new OrExpression(left, right);
     }
 }

@@ -10,10 +10,12 @@ import sword.collections.Map;
 import sword.collections.MutableMap;
 import sword.logic.compiler.SemanticErrorException;
 import sword.logic.compiler.UnresolvedReferenceException;
+import sword.logic.interpreter.Finder;
 import sword.logic.interpreter.UnresolvedTypeReferenceException;
 import sword.logic.interpreter.scopes.Scope;
 import sword.logic.interpreter.statements.ConstantDefinitionStatement;
 import sword.logic.interpreter.statements.Statement;
+import sword.logic.interpreter.type.definitions.TypeAliasResolver;
 import sword.logic.syntax_tree.Token;
 import sword.logic.types.RegisterType;
 import sword.logic.types.Type;
@@ -42,11 +44,11 @@ public final class RegisterConstructionExpression implements Expression {
     }
 
     @Override
-    public void findAllExpressions(MutableMap<Expression, Scope> outMap, Scope scope) {
+    public void findAllFinders(MutableMap<Finder, Scope> outMap, Scope scope) {
         outMap.put(this, scope);
         final Scope newScope = scope.createSubscopeWithStatements(mStatements);
         for (Statement statement : mStatements) {
-            statement.findAllExpressions(outMap, newScope);
+            statement.findAllFinders(outMap, newScope);
         }
     }
 
@@ -112,5 +114,10 @@ public final class RegisterConstructionExpression implements Expression {
     @Override
     public ImmutableMap<String, Type> restrictionMap(Type resultType, Map<Expression, Type> resolvedExpressions, ImmutableMap<String, Type> restrictionMap) {
         throw new UnsupportedOperationException("Unimplemented");
+    }
+
+    @Override
+    public sword.logic.expressions.RegisterConstructionExpression untokenize(ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap, Map<Expression, Type> resolvedExpressions) {
+        return new sword.logic.expressions.RegisterConstructionExpression(mType.getText(), mStatements.map(st -> st.untokenize(typeAliasResolverMap, resolvedExpressions)));
     }
 }

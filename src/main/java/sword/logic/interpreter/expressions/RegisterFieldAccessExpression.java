@@ -6,9 +6,11 @@ import sword.collections.Map;
 import sword.collections.MutableMap;
 import sword.logic.compiler.SemanticErrorException;
 import sword.logic.compiler.UnresolvedReferenceException;
+import sword.logic.interpreter.Finder;
 import sword.logic.interpreter.ImpossibleSituationException;
 import sword.logic.interpreter.UnresolvedTypeReferenceException;
 import sword.logic.interpreter.scopes.Scope;
+import sword.logic.interpreter.type.definitions.TypeAliasResolver;
 import sword.logic.syntax_tree.Token;
 import sword.logic.syntax_tree.types.TypeConstants;
 import sword.logic.types.ArrayType;
@@ -20,11 +22,10 @@ import sword.logic.types.Type;
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 import static sword.logic.compiler.PreconditionUtils.ensureValidState;
-import static sword.logic.interpreter.statements.ConstantDefinitionStatement.validConstantName;
+import static sword.logic.expressions.RegisterFieldAccessExpression.ARRAY_FIELD_LENGTH;
+import static sword.logic.statements.ConstantDefinitionStatement.validConstantName;
 
 public final class RegisterFieldAccessExpression implements Expression {
-    private static final String ARRAY_FIELD_LENGTH = "length";
-
     private final Token mDotOperator;
     private final Expression mRegister;
     private final Token mFieldName;
@@ -39,9 +40,9 @@ public final class RegisterFieldAccessExpression implements Expression {
     }
 
     @Override
-    public void findAllExpressions(MutableMap<Expression, Scope> outMap, Scope scope) {
+    public void findAllFinders(MutableMap<Finder, Scope> outMap, Scope scope) {
         outMap.put(this, scope);
-        mRegister.findAllExpressions(outMap, scope);
+        mRegister.findAllFinders(outMap, scope);
     }
 
     @Override
@@ -116,5 +117,10 @@ public final class RegisterFieldAccessExpression implements Expression {
         else {
             throw new UnsupportedOperationException("Unimplemented");
         }
+    }
+
+    @Override
+    public sword.logic.expressions.RegisterFieldAccessExpression untokenize(ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap, Map<Expression, Type> resolvedExpressions) {
+        return new sword.logic.expressions.RegisterFieldAccessExpression(mRegister.untokenize(typeAliasResolverMap, resolvedExpressions), mFieldName.getText());
     }
 }

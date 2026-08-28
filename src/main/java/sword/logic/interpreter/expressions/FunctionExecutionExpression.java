@@ -7,8 +7,10 @@ import sword.collections.Map;
 import sword.collections.MutableMap;
 import sword.logic.compiler.SemanticErrorException;
 import sword.logic.compiler.UnresolvedReferenceException;
+import sword.logic.interpreter.Finder;
 import sword.logic.interpreter.UnresolvedTypeReferenceException;
 import sword.logic.interpreter.scopes.Scope;
+import sword.logic.interpreter.type.definitions.TypeAliasResolver;
 import sword.logic.syntax_tree.Token;
 import sword.logic.types.FunctionType;
 import sword.logic.types.Type;
@@ -28,11 +30,11 @@ public final class FunctionExecutionExpression implements Expression {
     }
 
     @Override
-    public void findAllExpressions(MutableMap<Expression, Scope> outMap, Scope scope) {
+    public void findAllFinders(MutableMap<Finder, Scope> outMap, Scope scope) {
         outMap.put(this, scope);
-        mFunction.findAllExpressions(outMap, scope);
+        mFunction.findAllFinders(outMap, scope);
         for (Expression parameter : mParameters) {
-            parameter.findAllExpressions(outMap, scope);
+            parameter.findAllFinders(outMap, scope);
         }
     }
 
@@ -68,5 +70,12 @@ public final class FunctionExecutionExpression implements Expression {
     @Override
     public ImmutableMap<String, Type> restrictionMap(Type resultType, Map<Expression, Type> resolvedExpressions, ImmutableMap<String, Type> restrictionMap) {
         throw new UnsupportedOperationException("Unimplemented");
+    }
+
+    @Override
+    public sword.logic.expressions.FunctionExecutionExpression untokenize(ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap, Map<Expression, Type> resolvedExpressions) {
+        return new sword.logic.expressions.FunctionExecutionExpression(
+                mFunction.untokenize(typeAliasResolverMap, resolvedExpressions),
+                mParameters.map(p -> p.untokenize(typeAliasResolverMap, resolvedExpressions)));
     }
 }
