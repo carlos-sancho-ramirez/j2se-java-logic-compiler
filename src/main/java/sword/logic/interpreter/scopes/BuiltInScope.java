@@ -71,7 +71,6 @@ public final class BuiltInScope extends AbstractScope {
 
     @Override
     public Type resolveTypeAlias(Token typeAlias) throws UnresolvedTypeReferenceException {
-        // TODO: Should this also check 'String'???
         if (typeAlias.getText().equals(TypeConstants.BOOLEAN_TYPE_TEXT)) {
             return mBooleanType;
         }

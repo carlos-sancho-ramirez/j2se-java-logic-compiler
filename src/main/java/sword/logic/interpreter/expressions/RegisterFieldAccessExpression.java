@@ -54,9 +54,10 @@ public final class RegisterFieldAccessExpression implements Expression {
         final Type rawType = resolvedExpressions.get(mRegister, null);
         if (rawType != null) {
             if (rawType instanceof RegisterType regType) {
-                final int index = regType.getFields().indexWhere(param -> param.getName().equals(mFieldName.getText()));
-                if (index >= 0) {
-                    return regType.getFields().valueAt(index).getType();
+                final ImmutableMap<String, Type> fields = regType.getFields();
+                final String fieldNameText = mFieldName.getText();
+                if (fields.containsKey(fieldNameText)) {
+                    return fields.get(fieldNameText);
                 }
                 else {
                     throw new SemanticErrorException("Unknown field name", mFieldName.getLine(), mFieldName.getColumn());
@@ -83,8 +84,7 @@ public final class RegisterFieldAccessExpression implements Expression {
     public Type resolveType(ImmutableMap<String, Type> restrictionMap) {
         final Type rawType = mRegister.resolveType(restrictionMap);
         if (rawType instanceof RegisterType regType) {
-            final int index = regType.getFields().indexWhere(param -> param.getName().equals(mFieldName.getText()));
-            return regType.getFields().valueAt(index).getType();
+            return regType.getFields().get(mFieldName.getText());
         }
         else {
             ensureValidState(rawType instanceof ArrayType);

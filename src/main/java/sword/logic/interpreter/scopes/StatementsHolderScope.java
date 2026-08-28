@@ -5,6 +5,8 @@ import sword.collections.ImmutableListExtensions;
 import sword.collections.ImmutableMap;
 import sword.collections.ImmutableSet;
 import sword.collections.Map;
+import sword.collections.MutableHashMap;
+import sword.collections.MutableMap;
 import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.interpreter.UnresolvedTypeReferenceException;
 import sword.logic.interpreter.expressions.Expression;
@@ -24,6 +26,7 @@ import static sword.logic.compiler.PreconditionUtils.ensureValidState;
 public final class StatementsHolderScope extends AbstractScope {
     private final AbstractScope mParent;
     private final ImmutableSet<Statement> mStatements;
+    private final MutableMap<TypeDefinitionStatement, Type> mResolvedTypeAlias = MutableHashMap.empty();
 
     StatementsHolderScope(AbstractScope parent, ImmutableSet<Statement> statements) {
         ensureNonNull(parent);
@@ -43,7 +46,15 @@ public final class StatementsHolderScope extends AbstractScope {
         for (Statement statement : mStatements) {
             if (statement instanceof TypeDefinitionStatement typeDef) {
                 if (typeDef.getName().getText().equals(typeAlias.getText())) {
-                    return typeDef.getDefinition().resolve(this);
+                    final Type cached = mResolvedTypeAlias.get(typeDef, null);
+                    if (cached == null) {
+                        final Type resolved = typeDef.getDefinition().resolve(this);
+                        mResolvedTypeAlias.put(typeDef, resolved);
+                        return resolved;
+                    }
+                    else {
+                        return cached;
+                    }
                 }
             }
         }

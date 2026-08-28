@@ -60,7 +60,16 @@ public final class EnumType implements Type {
 
     @Override
     public Type getUnion(Type other) {
-        throw new UnsupportedOperationException("Unimplemented");
+        // TODO: Improve this logic once the definition is hold in this type and we can distinguish between enum types
+        if (other instanceof EnumType that) {
+            final ImmutableSet<String> newValues = mValues.addAll(that.mValues);
+            return (newValues == mValues)? this :
+                    (newValues == that.mValues)? that :
+                    new EnumType(newValues);
+        }
+        else {
+            return null;
+        }
     }
 
     @Override

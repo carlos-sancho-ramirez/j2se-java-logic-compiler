@@ -1,5 +1,6 @@
 package sword.logic.interpreter.expressions;
 
+import sword.collections.ImmutableHashMap;
 import sword.collections.ImmutableHashSet;
 import sword.collections.ImmutableList;
 import sword.collections.ImmutableListExtensions;
@@ -14,7 +15,6 @@ import sword.logic.interpreter.scopes.Scope;
 import sword.logic.interpreter.statements.ConstantDefinitionStatement;
 import sword.logic.interpreter.statements.Statement;
 import sword.logic.syntax_tree.Token;
-import sword.logic.types.FunctionParameter;
 import sword.logic.types.RegisterType;
 import sword.logic.types.Type;
 
@@ -73,17 +73,27 @@ public final class RegisterConstructionExpression implements Expression {
         if (mStatements.allMatch(st -> !(st instanceof ConstantDefinitionStatement constDef) || resolvedExpressions.containsKey(constDef.getExpression()))) {
             final Type type = scope.resolveTypeAlias(mType);
             if (type instanceof RegisterType regType) {
-                return new RegisterType(regType.getFields().map(param -> {
+                final RegisterType.Definition regDefinition = regType.getDefinition();
+                final ImmutableMap<String, Type> defFields = regDefinition.getFields();
+                final ImmutableMap.Builder<String, Type> builder = new ImmutableHashMap.Builder<>();
+                for (String fieldName : defFields.keySet()) {
                     for (Statement statement : mStatements) {
-                        if (statement instanceof ConstantDefinitionStatement constDef && constDef.getName().getText().equals(param.getName())) {
+                        if (statement instanceof ConstantDefinitionStatement constDef && constDef.getName().getText().equals(fieldName)) {
                             final Type fieldType = resolvedExpressions.get(constDef.getExpression());
-                            // TODO: Check that this field type fits inside the param provided type
-                            return new FunctionParameter(param.getName(), fieldType);
+                            final Type defType = defFields.get(fieldName);
+                            if (defType.canFit(fieldType)) {
+                                if (!defType.equals(fieldType)) {
+                                    builder.put(fieldName, fieldType);
+                                }
+                            }
+                            else {
+                                throw new SemanticErrorException("Unable to assign value for field '" + fieldName + "'. Type mismatch", constDef.getName().getLine(), constDef.getName().getColumn());
+                            }
                         }
                     }
+                }
 
-                    return param;
-                }).toSet());
+                return new RegisterType(regDefinition, builder.build());
             }
             else {
                 throw new SemanticErrorException("Expected register type", mType.getLine(), mType.getColumn());
