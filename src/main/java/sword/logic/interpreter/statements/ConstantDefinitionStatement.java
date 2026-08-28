@@ -1,5 +1,7 @@
 package sword.logic.interpreter.statements;
 
+import sword.collections.MutableMap;
+import sword.logic.interpreter.scopes.Scope;
 import sword.logic.interpreter.expressions.Expression;
 import sword.logic.syntax_tree.Token;
 
@@ -28,5 +30,10 @@ public final class ConstantDefinitionStatement implements Statement {
 
     public Expression getExpression() {
         return mExpression;
+    }
+
+    @Override
+    public void findAllExpressions(MutableMap<Expression, Scope> outMap, Scope scope) {
+        mExpression.findAllExpressions(outMap, scope);
     }
 }

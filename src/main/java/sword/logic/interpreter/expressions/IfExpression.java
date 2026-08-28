@@ -1,7 +1,17 @@
 package sword.logic.interpreter.expressions;
 
+import sword.collections.ImmutableMap;
+import sword.collections.ImmutableSet;
+import sword.collections.Map;
+import sword.collections.MutableMap;
+import sword.logic.compiler.SemanticErrorException;
+import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.interpreter.Keywords;
+import sword.logic.interpreter.UnresolvedTypeReferenceException;
+import sword.logic.interpreter.scopes.Scope;
 import sword.logic.syntax_tree.Token;
+import sword.logic.types.EnumType;
+import sword.logic.types.Type;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
@@ -32,5 +42,55 @@ public final class IfExpression implements Expression {
         mCondition = condition;
         mThenClause = thenClause;
         mElseClause = elseClause;
+    }
+
+    @Override
+    public void findAllExpressions(MutableMap<Expression, Scope> outMap, Scope scope) {
+        outMap.put(this, scope);
+        mCondition.findAllExpressions(outMap, scope);
+        mThenClause.findAllExpressions(outMap, scope.whenTrue(mCondition));
+        mElseClause.findAllExpressions(outMap, scope.whenFalse(mCondition));
+    }
+
+    @Override
+    public ImmutableSet<String> dependencies() {
+        return mCondition.dependencies()
+                .addAll(mThenClause.dependencies())
+                .addAll(mElseClause.dependencies());
+    }
+
+    @Override
+    public Type resolveType(Scope scope, Map<Expression, Type> resolvedExpressions) throws UnresolvedTypeReferenceException, UnresolvedReferenceException, SemanticErrorException {
+        final Type rawConditionType = resolvedExpressions.get(mCondition, null);
+        final Type thenType = resolvedExpressions.get(mThenClause, null);
+        final Type elseType = resolvedExpressions.get(mElseClause, null);
+
+        if (rawConditionType != null && thenType != null && elseType != null) {
+            if (rawConditionType instanceof EnumType conditionType && conditionType.isBooleanType()) {
+                final Type result = thenType.getUnion(elseType);
+                if (result != null) {
+                    return result;
+                }
+                else {
+                    throw new SemanticErrorException("Incompatible types", mThenToken.getLine(), mThenToken.getColumn());
+                }
+            }
+            else {
+                throw new SemanticErrorException("Condition should result in a Boolean expression", mThenToken.getLine(), mThenToken.getColumn());
+            }
+        }
+        else {
+            return null;
+        }
+    }
+
+    @Override
+    public Type resolveType(ImmutableMap<String, Type> restrictionMap) {
+        throw new UnsupportedOperationException("Unimplemented");
+    }
+
+    @Override
+    public ImmutableMap<String, Type> restrictionMap(Type resultType, Map<Expression, Type> resolvedExpressions, ImmutableMap<String, Type> restrictionMap) {
+        throw new UnsupportedOperationException("Unimplemented");
     }
 }

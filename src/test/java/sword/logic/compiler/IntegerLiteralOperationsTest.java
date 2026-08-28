@@ -10,4 +10,9 @@ final class IntegerLiteralOperationsTest {
         assertEquals("11", IntegerLiteralOperations.sum("7", "4"));
         assertEquals("1", IntegerLiteralOperations.sum("-3", "4"));
     }
+
+    @Test
+    void module() {
+        assertEquals("0", IntegerLiteralOperations.module("160", "16"));
+    }
 }

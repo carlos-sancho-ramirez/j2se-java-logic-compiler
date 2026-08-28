@@ -2,12 +2,16 @@ package sword.logic.interpreter;
 
 import sword.collections.ImmutableHashSet;
 import sword.collections.ImmutableList;
+import sword.collections.ImmutableMap;
 import sword.collections.ImmutableSet;
+import sword.collections.MutableHashMap;
 import sword.collections.MutableList;
+import sword.collections.MutableMap;
 import sword.logic.compiler.SemanticErrorException;
 import sword.logic.compiler.SyntaxErrorException;
 import sword.logic.compiler.TokenParser;
 import sword.logic.compiler.UnexpectedEndOfFileException;
+import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.interpreter.expressions.ArrayConstructionExpression;
 import sword.logic.interpreter.expressions.ArrayValueAtExpression;
 import sword.logic.interpreter.expressions.ComplexExpression;
@@ -20,18 +24,21 @@ import sword.logic.interpreter.expressions.LiteralExpression;
 import sword.logic.interpreter.expressions.ReferenceExpression;
 import sword.logic.interpreter.expressions.RegisterConstructionExpression;
 import sword.logic.interpreter.expressions.RegisterFieldAccessExpression;
+import sword.logic.interpreter.scopes.BuiltInScope;
+import sword.logic.interpreter.scopes.Scope;
 import sword.logic.interpreter.statements.ConstantDefinitionStatement;
 import sword.logic.interpreter.statements.Statement;
 import sword.logic.interpreter.statements.TypeDefinitionStatement;
-import sword.logic.interpreter.types.ArrayTypeDefinition;
-import sword.logic.interpreter.types.FunctionParameter;
-import sword.logic.interpreter.types.IntTypeDefinition;
-import sword.logic.interpreter.types.ReferenceTypeDefinition;
-import sword.logic.interpreter.types.RegisterTypeDefinition;
-import sword.logic.interpreter.types.TypeDefinition;
-import sword.logic.interpreter.types.TypeMention;
+import sword.logic.interpreter.type.definitions.ArrayTypeDefinition;
+import sword.logic.interpreter.type.definitions.FunctionParameter;
+import sword.logic.interpreter.type.definitions.IntTypeDefinition;
+import sword.logic.interpreter.type.definitions.ReferenceTypeDefinition;
+import sword.logic.interpreter.type.definitions.RegisterTypeDefinition;
+import sword.logic.interpreter.type.definitions.TypeDefinition;
+import sword.logic.interpreter.type.definitions.TypeMention;
 import sword.logic.syntax_tree.Token;
 import sword.logic.syntax_tree.types.TypeConstants;
+import sword.logic.types.Type;
 
 import java.io.IOException;
 
@@ -398,7 +405,7 @@ public final class LogicInterpreter {
 
                     if (result.result instanceof Expression resultExp) {
                         parametersBuilder.append(resultExp);
-                        expression[accumulated / 2] = new FunctionExecutionExpression(expression[accumulated / 2], parametersBuilder.build());
+                        expression[accumulated / 2] = new FunctionExecutionExpression(token, expression[accumulated / 2], parametersBuilder.build());
                     }
                     else {
                         throwSemanticError("Expression expected as function parameter", result.closingToken);
@@ -416,7 +423,7 @@ public final class LogicInterpreter {
                     final ExpressionInterpretationResult result = interpretExpression();
                     if (result.result instanceof Expression resultExp) {
                         if (result.closingToken.getText().equals("]")) {
-                            expression[accumulated / 2] = new ArrayValueAtExpression(expression[accumulated / 2], resultExp);
+                            expression[accumulated / 2] = new ArrayValueAtExpression(token, result.closingToken, expression[accumulated / 2], resultExp);
                         }
                         else {
                             throwSemanticError("Expected ']'", token);
@@ -904,8 +911,46 @@ public final class LogicInterpreter {
         return builder.build();
     }
 
-    public void interpret() throws IOException, SyntaxErrorException, SemanticErrorException, UnexpectedEndOfFileException {
+    private ImmutableMap<Expression, Scope> obtainScopeMap(ImmutableList<Statement> statements) {
+        final MutableMap<Expression, Scope> scopeMap = MutableHashMap.empty();
+
+        // TODO: All these built in types uses Token that points to nothing... we should rethink this
+        final BuiltInScope builtInScope = BuiltInScope.getInstance();
+        final Scope rootScope = builtInScope.createWithStatements(statements);
+        for (Statement statement : statements) {
+            statement.findAllExpressions(scopeMap, rootScope);
+        }
+
+        return scopeMap.toImmutable();
+    }
+
+    private ImmutableMap<Expression, Type> obtainTypeExpressions(ImmutableMap<Expression, Scope> scopeMap) throws UnresolvedTypeReferenceException, UnresolvedReferenceException, SemanticErrorException {
+        final MutableMap<Expression, Type> typedExpressions = MutableHashMap.empty();
+
+        int lastResolved;
+        do {
+            lastResolved = typedExpressions.size();
+
+            for (Expression expression : scopeMap.keySet().filterNot(typedExpressions::containsKey).toImmutable()) {
+                final Type type = expression.resolveType(scopeMap.get(expression), typedExpressions);
+                if (type != null) {
+                    typedExpressions.put(expression, type);
+                }
+            }
+
+            if (typedExpressions.size() == lastResolved) {
+                throw new RuntimeException("Unable to resolve the type for " + (scopeMap.size() - typedExpressions.size()) + " out of " + typedExpressions.size());
+            }
+        }
+        while (typedExpressions.size() < scopeMap.size());
+
+        return typedExpressions.toImmutable();
+    }
+
+    public void interpret() throws IOException, SyntaxErrorException, SemanticErrorException, UnexpectedEndOfFileException, UnresolvedTypeReferenceException, UnresolvedReferenceException {
         final ImmutableList<Statement> statements = obtainSyntaxTree();
-        // TODO: Obtain the type for each expression
+        final ImmutableMap<Expression, Scope> scopeMap = obtainScopeMap(statements);
+        final ImmutableMap<Expression, Type> typedExpressions = obtainTypeExpressions(scopeMap);
+        // TODO: Implement the rest of the logic
     }
 }

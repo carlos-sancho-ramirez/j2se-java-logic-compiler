@@ -1,8 +1,9 @@
-package sword.logic.interpreter.types;
+package sword.logic.interpreter.type.definitions;
 
 import sword.logic.compiler.IntegerLiteralOperations;
 import sword.logic.syntax_tree.Token;
 import sword.logic.syntax_tree.types.TypeConstants;
+import sword.logic.types.IntType;
 
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 
@@ -17,5 +18,10 @@ public final class IntTypeDefinition implements TypeMention {
         mType = type;
         mMin = min;
         mMax = max;
+    }
+
+    @Override
+    public IntType resolve(TypeAliasResolver resolver) {
+        return new IntType(mMin.getText(), mMax.getText());
     }
 }

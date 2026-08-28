@@ -5,11 +5,16 @@ import sword.logic.syntax_tree.Token;
 
 public final class TypeConstants {
     public static final String ARRAY_TYPE_TEXT = "Array";
+    public static final String BOOLEAN_TYPE_TEXT = "Boolean";
     public static final String INTEGER_TYPE_TEXT = "Int";
+    public static final String STRING_TYPE_TEXT = "String";
 
-    public static final EnumType booleanType = new EnumType(new Token("Boolean"), new ImmutableHashSet.Builder<Token>()
-            .add(new Token("TRUE"))
-            .add(new Token("FALSE"))
+    public static final String BOOLEAN_VALUE_FALSE = "FALSE";
+    public static final String BOOLEAN_VALUE_TRUE = "TRUE";
+
+    public static final EnumType booleanType = new EnumType(new Token(BOOLEAN_TYPE_TEXT), new ImmutableHashSet.Builder<Token>()
+            .add(new Token(BOOLEAN_VALUE_TRUE))
+            .add(new Token(BOOLEAN_VALUE_FALSE))
             .build());
 
     public static final String unboundText = "*";

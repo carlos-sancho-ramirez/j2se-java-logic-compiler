@@ -1,6 +1,9 @@
 package sword.logic.interpreter.statements;
 
-import sword.logic.interpreter.types.TypeDefinition;
+import sword.collections.MutableMap;
+import sword.logic.interpreter.scopes.Scope;
+import sword.logic.interpreter.expressions.Expression;
+import sword.logic.interpreter.type.definitions.TypeDefinition;
 import sword.logic.syntax_tree.Token;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
@@ -29,5 +32,10 @@ public final class TypeDefinitionStatement implements Statement {
 
     public TypeDefinition getDefinition() {
         return mDefinition;
+    }
+
+    @Override
+    public void findAllExpressions(MutableMap<Expression, Scope> outMap, Scope scope) {
+        // Nothing to be done
     }
 }

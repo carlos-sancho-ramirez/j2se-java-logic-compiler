@@ -11,7 +11,7 @@ public final class IntegerLiteralOperations {
         }
     }
 
-    private static String toDecimal(String value) {
+    public static String toDecimal(String value) {
         final char first = value.charAt(0);
         if (first >= '1' && first <= '9' || first == '0' && value.length() == 1) {
             return value;
@@ -312,6 +312,57 @@ public final class IntegerLiteralOperations {
             }
             else {
                 return divisionForPositiveDecimalNumbers(aPositive, b.substring(1));
+            }
+        }
+    }
+
+    private static String moduleForPositiveDecimalNumbers(String a, String b) {
+        String result = "";
+        String dividend = "";
+        boolean somethingSet = false;
+        for (int i = 0; i < a.length(); i++) {
+            dividend = (dividend.equals("0")? "" : dividend) + a.charAt(i);
+            if (!greaterThanForPositiveDecimalNumbers(b, dividend)) {
+                int count = 0;
+                final String lastDividend = dividend;
+                while ((dividend = subtractionForPositiveDecimalNumbers(dividend, b)).charAt(0) != '-') {
+                    count++;
+                }
+
+                final String toSubtract = multiplicationForPositiveDecimalNumbers("" + (char)(count + '0'), b);
+                dividend = subtractionForPositiveDecimalNumbers(lastDividend, toSubtract);
+                result = result + (char)(count + '0');
+                somethingSet = true;
+            }
+            else if (somethingSet) {
+                result += "0";
+            }
+        }
+
+        return somethingSet? dividend : a;
+    }
+
+    public static String module(String a, String b) {
+        a = toDecimal(a);
+        b = toDecimal(b);
+
+        if (a.charAt(0) != '-') {
+            if (b.charAt(0) != '-') {
+                return moduleForPositiveDecimalNumbers(a, b);
+            }
+            else {
+                final String result = moduleForPositiveDecimalNumbers(a, b.substring(1));
+                return result.equals("0")? result : "-" + result;
+            }
+        }
+        else {
+            final String aPositive = a.substring(1);
+            if (b.charAt(0) != '-') {
+                final String result = moduleForPositiveDecimalNumbers(aPositive, b);
+                return result.equals("0")? result : "-" + result;
+            }
+            else {
+                return moduleForPositiveDecimalNumbers(aPositive, b.substring(1));
             }
         }
     }

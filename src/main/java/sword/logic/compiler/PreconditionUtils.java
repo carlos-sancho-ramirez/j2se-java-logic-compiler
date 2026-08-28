@@ -14,4 +14,10 @@ public final class PreconditionUtils {
             throw new IllegalArgumentException();
         }
     }
+
+    public static void ensureValidState(boolean condition) {
+        if (!condition) {
+            throw new RuntimeException();
+        }
+    }
 }

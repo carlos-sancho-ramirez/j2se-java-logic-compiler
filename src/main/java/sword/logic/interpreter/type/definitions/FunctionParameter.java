@@ -1,4 +1,4 @@
-package sword.logic.interpreter.types;
+package sword.logic.interpreter.type.definitions;
 
 import sword.logic.syntax_tree.Token;
 
