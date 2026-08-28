@@ -110,10 +110,15 @@ public final class LiteralExpression implements Expression {
     }
 
     @Override
-    public sword.logic.expressions.Expression untokenize(ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap, Map<Expression, Type> resolvedExpressions) {
+    public sword.logic.expressions.Expression untokenize(
+            ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap,
+            Map<Expression, Type> resolvedExpressions,
+            MutableMap<Expression, sword.logic.expressions.Expression> outExpressionMap) {
         final String text = mLiteral.getText();
-        return IntegerLiteralOperations.validIntegerLiteral(text)? new IntegerLiteralExpression(text) :
+        final sword.logic.expressions.Expression result = IntegerLiteralOperations.validIntegerLiteral(text)? new IntegerLiteralExpression(text) :
                 (text.charAt(0) == '"' && text.charAt(text.length() - 1) == '"')? new StringLiteralExpression(text) :
                 new EnumValueLiteralExpression(text);
+        outExpressionMap.put(this, result);
+        return result;
     }
 }

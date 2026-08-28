@@ -97,10 +97,15 @@ public final class IfExpression implements Expression {
     }
 
     @Override
-    public sword.logic.expressions.IfExpression untokenize(ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap, Map<Expression, Type> resolvedExpressions) {
-        return new sword.logic.expressions.IfExpression(
-                mCondition.untokenize(typeAliasResolverMap, resolvedExpressions),
-                mThenClause.untokenize(typeAliasResolverMap, resolvedExpressions),
-                mElseClause.untokenize(typeAliasResolverMap, resolvedExpressions));
+    public sword.logic.expressions.IfExpression untokenize(
+            ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap,
+            Map<Expression, Type> resolvedExpressions,
+            MutableMap<Expression, sword.logic.expressions.Expression> outExpressionMap) {
+        final sword.logic.expressions.IfExpression result = new sword.logic.expressions.IfExpression(
+                mCondition.untokenize(typeAliasResolverMap, resolvedExpressions, outExpressionMap),
+                mThenClause.untokenize(typeAliasResolverMap, resolvedExpressions, outExpressionMap),
+                mElseClause.untokenize(typeAliasResolverMap, resolvedExpressions, outExpressionMap));
+        outExpressionMap.put(this, result);
+        return result;
     }
 }

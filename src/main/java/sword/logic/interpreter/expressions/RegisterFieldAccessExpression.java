@@ -120,7 +120,12 @@ public final class RegisterFieldAccessExpression implements Expression {
     }
 
     @Override
-    public sword.logic.expressions.RegisterFieldAccessExpression untokenize(ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap, Map<Expression, Type> resolvedExpressions) {
-        return new sword.logic.expressions.RegisterFieldAccessExpression(mRegister.untokenize(typeAliasResolverMap, resolvedExpressions), mFieldName.getText());
+    public sword.logic.expressions.RegisterFieldAccessExpression untokenize(
+            ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap,
+            Map<Expression, Type> resolvedExpressions,
+            MutableMap<Expression, sword.logic.expressions.Expression> outExpressionMap) {
+        final sword.logic.expressions.RegisterFieldAccessExpression result = new sword.logic.expressions.RegisterFieldAccessExpression(mRegister.untokenize(typeAliasResolverMap, resolvedExpressions, outExpressionMap), mFieldName.getText());
+        outExpressionMap.put(this, result);
+        return result;
     }
 }

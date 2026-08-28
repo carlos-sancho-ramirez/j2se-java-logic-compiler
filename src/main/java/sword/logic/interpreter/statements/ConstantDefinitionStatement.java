@@ -31,8 +31,11 @@ public final class ConstantDefinitionStatement implements Statement {
     }
 
     @Override
-    public sword.logic.statements.ConstantDefinitionStatement untokenize(ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap, Map<Expression, Type> resolvedExpressions) {
-        return new sword.logic.statements.ConstantDefinitionStatement(mName.getText(), mExpression.untokenize(typeAliasResolverMap, resolvedExpressions));
+    public sword.logic.statements.ConstantDefinitionStatement untokenize(
+            ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap,
+            Map<Expression, Type> resolvedExpressions,
+            MutableMap<Expression, sword.logic.expressions.Expression> outExpressionMap) {
+        return new sword.logic.statements.ConstantDefinitionStatement(mName.getText(), mExpression.untokenize(typeAliasResolverMap, resolvedExpressions, outExpressionMap));
     }
 
     public Expression getExpression() {

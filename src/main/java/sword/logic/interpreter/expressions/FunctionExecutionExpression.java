@@ -73,9 +73,14 @@ public final class FunctionExecutionExpression implements Expression {
     }
 
     @Override
-    public sword.logic.expressions.FunctionExecutionExpression untokenize(ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap, Map<Expression, Type> resolvedExpressions) {
-        return new sword.logic.expressions.FunctionExecutionExpression(
-                mFunction.untokenize(typeAliasResolverMap, resolvedExpressions),
-                mParameters.map(p -> p.untokenize(typeAliasResolverMap, resolvedExpressions)));
+    public sword.logic.expressions.FunctionExecutionExpression untokenize(
+            ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap,
+            Map<Expression, Type> resolvedExpressions,
+            MutableMap<Expression, sword.logic.expressions.Expression> outExpressionMap) {
+        final sword.logic.expressions.FunctionExecutionExpression result = new sword.logic.expressions.FunctionExecutionExpression(
+                mFunction.untokenize(typeAliasResolverMap, resolvedExpressions, outExpressionMap),
+                mParameters.map(p -> p.untokenize(typeAliasResolverMap, resolvedExpressions, outExpressionMap)));
+        outExpressionMap.put(this, result);
+        return result;
     }
 }

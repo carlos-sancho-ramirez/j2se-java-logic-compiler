@@ -2,6 +2,7 @@ package sword.logic.interpreter.statements;
 
 import sword.collections.ImmutableMap;
 import sword.collections.Map;
+import sword.collections.MutableMap;
 import sword.logic.interpreter.Finder;
 import sword.logic.interpreter.expressions.Expression;
 import sword.logic.interpreter.type.definitions.TypeAliasResolver;
@@ -20,5 +21,6 @@ public interface Statement extends Finder {
      */
     sword.logic.statements.Statement untokenize(
             ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap,
-            Map<Expression, Type> resolvedExpressions);
+            Map<Expression, Type> resolvedExpressions,
+            MutableMap<Expression, sword.logic.expressions.Expression> outExpressionMap);
 }

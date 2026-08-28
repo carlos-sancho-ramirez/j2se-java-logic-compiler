@@ -117,7 +117,12 @@ public final class ArrayValueAtExpression implements Expression {
     }
 
     @Override
-    public sword.logic.expressions.Expression untokenize(ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap, Map<Expression, Type> resolvedExpressions) {
-        return new sword.logic.expressions.ArrayValueAtExpression(mArray.untokenize(typeAliasResolverMap, resolvedExpressions), mIndex.untokenize(typeAliasResolverMap, resolvedExpressions));
+    public sword.logic.expressions.ArrayValueAtExpression untokenize(
+            ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap,
+            Map<Expression, Type> resolvedExpressions,
+            MutableMap<Expression, sword.logic.expressions.Expression> outExpressionMap) {
+        final sword.logic.expressions.ArrayValueAtExpression result = new sword.logic.expressions.ArrayValueAtExpression(mArray.untokenize(typeAliasResolverMap, resolvedExpressions, outExpressionMap), mIndex.untokenize(typeAliasResolverMap, resolvedExpressions, outExpressionMap));
+        outExpressionMap.put(this, result);
+        return result;
     }
 }

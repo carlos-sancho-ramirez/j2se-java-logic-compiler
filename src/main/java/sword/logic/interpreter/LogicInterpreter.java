@@ -1,5 +1,6 @@
 package sword.logic.interpreter;
 
+import sword.collections.ImmutableHashMap;
 import sword.collections.ImmutableHashSet;
 import sword.collections.ImmutableList;
 import sword.collections.ImmutableMap;
@@ -43,6 +44,7 @@ import sword.logic.types.Type;
 import java.io.IOException;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
+import static sword.logic.compiler.PreconditionUtils.ensureValidState;
 import static sword.logic.statements.ConstantDefinitionStatement.validConstantName;
 import static sword.logic.statements.TypeDefinitionStatement.validTypeName;
 
@@ -948,10 +950,39 @@ public final class LogicInterpreter {
         return typedExpressions.toImmutable();
     }
 
-    public ImmutableList<sword.logic.statements.Statement> interpret() throws IOException, SyntaxErrorException, SemanticErrorException, UnexpectedEndOfFileException, UnresolvedTypeReferenceException, UnresolvedReferenceException, UnresolvedEnumValueException {
+    public Result interpret() throws IOException, SyntaxErrorException, SemanticErrorException, UnexpectedEndOfFileException, UnresolvedTypeReferenceException, UnresolvedEnumValueException, UnresolvedReferenceException {
         final ImmutableList<Statement> statements = obtainSyntaxTree();
         final ImmutableMap<Finder, Scope> scopeMap = obtainScopeMap(statements);
         final ImmutableMap<Expression, Type> resolvedExpressions = obtainTypeExpressions(scopeMap);
-        return statements.map(st -> st.untokenize(scopeMap, resolvedExpressions));
+        final MutableMap<Expression, sword.logic.expressions.Expression> expressionMap = MutableHashMap.empty();
+        final ImmutableList<sword.logic.statements.Statement> resultStatements = statements.map(st -> st.untokenize(scopeMap, resolvedExpressions, expressionMap));
+        final ImmutableSet<Expression> allExpressions = resolvedExpressions.keySet();
+        ensureValidState(allExpressions.equalSet(expressionMap.keySet()));
+
+        final ImmutableMap.Builder<sword.logic.expressions.Expression, Type> resultTypeMapBuilder = new ImmutableHashMap.Builder<>();
+        for (Expression exp : allExpressions) {
+            resultTypeMapBuilder.put(expressionMap.get(exp), resolvedExpressions.get(exp));
+        }
+
+        return new Result(resultStatements, resultTypeMapBuilder.build());
+    }
+
+    public static final class Result {
+        private final ImmutableList<sword.logic.statements.Statement> mStatements;
+        private final ImmutableMap<sword.logic.expressions.Expression, Type> mExpressionTypeMap;
+
+        Result(ImmutableList<sword.logic.statements.Statement> statements, ImmutableMap<sword.logic.expressions.Expression, Type> expressionTypeMap) {
+            ensureNonNull(statements, expressionTypeMap);
+            mStatements = statements;
+            mExpressionTypeMap = expressionTypeMap;
+        }
+
+        public ImmutableList<sword.logic.statements.Statement> getStatements() {
+            return mStatements;
+        }
+
+        public ImmutableMap<sword.logic.expressions.Expression, Type> getExpressionTypeMap() {
+            return mExpressionTypeMap;
+        }
     }
 }

@@ -79,7 +79,12 @@ public final class ComplexExpression implements Expression {
     }
 
     @Override
-    public sword.logic.expressions.Expression untokenize(ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap, Map<Expression, Type> resolvedExpressions) {
-        return new sword.logic.expressions.ComplexExpression(mStatements.map(st -> st.untokenize(typeAliasResolverMap, resolvedExpressions)), mExpression.untokenize(typeAliasResolverMap, resolvedExpressions));
+    public sword.logic.expressions.ComplexExpression untokenize(
+            ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap,
+            Map<Expression, Type> resolvedExpressions,
+            MutableMap<Expression, sword.logic.expressions.Expression> outExpressionMap) {
+        final sword.logic.expressions.ComplexExpression result = new sword.logic.expressions.ComplexExpression(mStatements.map(st -> st.untokenize(typeAliasResolverMap, resolvedExpressions, outExpressionMap)), mExpression.untokenize(typeAliasResolverMap, resolvedExpressions, outExpressionMap));
+        outExpressionMap.put(this, result);
+        return result;
     }
 }

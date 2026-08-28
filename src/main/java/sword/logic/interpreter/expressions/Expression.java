@@ -3,6 +3,7 @@ package sword.logic.interpreter.expressions;
 import sword.collections.ImmutableMap;
 import sword.collections.ImmutableSet;
 import sword.collections.Map;
+import sword.collections.MutableMap;
 import sword.logic.compiler.SemanticErrorException;
 import sword.logic.compiler.UnresolvedReferenceException;
 import sword.logic.interpreter.Finder;
@@ -87,5 +88,6 @@ public interface Expression extends Finder, Interpretation {
      */
     sword.logic.expressions.Expression untokenize(
             ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap,
-            Map<Expression, Type> resolvedExpressions);
+            Map<Expression, Type> resolvedExpressions,
+            MutableMap<Expression, sword.logic.expressions.Expression> outExpressionMap);
 }

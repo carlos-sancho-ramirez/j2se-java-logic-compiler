@@ -70,7 +70,12 @@ public final class FunctionDefinitionExpression implements Expression {
     }
 
     @Override
-    public sword.logic.expressions.Expression untokenize(ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap, Map<Expression, Type> resolvedExpressions) {
-        return new sword.logic.expressions.FunctionDefinitionExpression(mParameters.map(p -> p.untokenize(typeAliasResolverMap.get(this))), mBody.untokenize(typeAliasResolverMap, resolvedExpressions));
+    public sword.logic.expressions.FunctionDefinitionExpression untokenize(
+            ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap,
+            Map<Expression, Type> resolvedExpressions,
+            MutableMap<Expression, sword.logic.expressions.Expression> outExpressionMap) {
+        final sword.logic.expressions.FunctionDefinitionExpression result = new sword.logic.expressions.FunctionDefinitionExpression(mParameters.map(p -> p.untokenize(typeAliasResolverMap.get(this))), mBody.untokenize(typeAliasResolverMap, resolvedExpressions, outExpressionMap));
+        outExpressionMap.put(this, result);
+        return result;
     }
 }

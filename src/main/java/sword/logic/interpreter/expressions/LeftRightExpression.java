@@ -1100,23 +1100,30 @@ public final class LeftRightExpression implements Expression {
     }
 
     @Override
-    public sword.logic.expressions.Expression untokenize(ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap, Map<Expression, Type> resolvedExpressions) {
+    public sword.logic.expressions.Expression untokenize(
+            ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap,
+            Map<Expression, Type> resolvedExpressions,
+            MutableMap<Expression, sword.logic.expressions.Expression> outExpressionMap) {
         final String operatorText = mOperator.getText();
-        final sword.logic.expressions.Expression left = mLeft.untokenize(typeAliasResolverMap, resolvedExpressions);
-        final sword.logic.expressions.Expression right = mRight.untokenize(typeAliasResolverMap, resolvedExpressions);
+        final sword.logic.expressions.Expression left = mLeft.untokenize(typeAliasResolverMap, resolvedExpressions, outExpressionMap);
+        final sword.logic.expressions.Expression right = mRight.untokenize(typeAliasResolverMap, resolvedExpressions, outExpressionMap);
 
         if (operatorText.equals("+")) {
             final Type resultType = resolvedExpressions.get(this);
             if (resultType instanceof ArrayType) {
-                return new ArrayConcatenationExpression(left, right);
+                final ArrayConcatenationExpression result = new ArrayConcatenationExpression(left, right);
+                outExpressionMap.put(this, result);
+                return result;
             }
             else {
                 ensureValidState(resultType instanceof IntType);
-                return new AdditionExpression(left, right);
+                final AdditionExpression result = new AdditionExpression(left, right);
+                outExpressionMap.put(this, result);
+                return result;
             }
         }
 
-        return operatorText.equals("*")? new MultiplicationExpression(left, right) :
+        final sword.logic.expressions.Expression result = operatorText.equals("*")? new MultiplicationExpression(left, right) :
                 operatorText.equals("/")? new DivisionExpression(left, right) :
                 operatorText.equals("%")? new ModuleExpression(left, right) :
                 operatorText.equals("-")? new SubtractionExpression(left, right) :
@@ -1128,5 +1135,7 @@ public final class LeftRightExpression implements Expression {
                 operatorText.equals("<=")? new LowerOrEqualThanExpression(left, right) :
                 operatorText.equals("&")? new AndExpression(left, right) :
                 new OrExpression(left, right);
+        outExpressionMap.put(this, result);
+        return result;
     }
 }

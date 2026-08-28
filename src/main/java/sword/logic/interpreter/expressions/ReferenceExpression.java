@@ -69,7 +69,12 @@ public final class ReferenceExpression implements Expression {
     }
 
     @Override
-    public sword.logic.expressions.ReferenceExpression untokenize(ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap, Map<Expression, Type> resolvedExpressions) {
-        return new sword.logic.expressions.ReferenceExpression(mReference.getText());
+    public sword.logic.expressions.ReferenceExpression untokenize(
+            ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap,
+            Map<Expression, Type> resolvedExpressions,
+            MutableMap<Expression, sword.logic.expressions.Expression> outExpressionMap) {
+        final sword.logic.expressions.ReferenceExpression result = new sword.logic.expressions.ReferenceExpression(mReference.getText());
+        outExpressionMap.put(this, result);
+        return result;
     }
 }

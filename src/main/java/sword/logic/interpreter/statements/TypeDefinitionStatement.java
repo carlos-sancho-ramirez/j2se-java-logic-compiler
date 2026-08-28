@@ -34,7 +34,10 @@ public final class TypeDefinitionStatement implements Statement {
     }
 
     @Override
-    public sword.logic.statements.TypeDefinitionStatement untokenize(ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap, Map<Expression, Type> resolvedExpressions) {
+    public sword.logic.statements.TypeDefinitionStatement untokenize(
+            ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap,
+            Map<Expression, Type> resolvedExpressions,
+            MutableMap<Expression, sword.logic.expressions.Expression> outExpressionMap) {
         try {
             return new sword.logic.statements.TypeDefinitionStatement(mName.getText(), mDefinition.resolve(typeAliasResolverMap.get(this)));
         }

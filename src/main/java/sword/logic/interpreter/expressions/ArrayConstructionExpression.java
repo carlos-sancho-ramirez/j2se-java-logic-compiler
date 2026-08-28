@@ -83,7 +83,12 @@ public final class ArrayConstructionExpression implements Expression {
     }
 
     @Override
-    public sword.logic.expressions.Expression untokenize(ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap, Map<Expression, Type> resolvedExpressions) {
-        return new sword.logic.expressions.ArrayConstructionExpression(mParameters.map(param -> param.untokenize(typeAliasResolverMap, resolvedExpressions)));
+    public sword.logic.expressions.ArrayConstructionExpression untokenize(
+            ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap,
+            Map<Expression, Type> resolvedExpressions,
+            MutableMap<Expression, sword.logic.expressions.Expression> outExpressionMap) {
+        final sword.logic.expressions.ArrayConstructionExpression result = new sword.logic.expressions.ArrayConstructionExpression(mParameters.map(param -> param.untokenize(typeAliasResolverMap, resolvedExpressions, outExpressionMap)));
+        outExpressionMap.put(this, result);
+        return result;
     }
 }
