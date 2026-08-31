@@ -39,7 +39,7 @@ public final class TypeDefinitionStatement implements Statement {
             Map<Expression, Type> resolvedExpressions,
             MutableMap<Expression, sword.logic.expressions.Expression> outExpressionMap) {
         try {
-            return new sword.logic.statements.TypeDefinitionStatement(mName.getText(), mDefinition.resolve(typeAliasResolverMap.get(this)));
+            return new sword.logic.statements.TypeDefinitionStatement(mName.getText(), typeAliasResolverMap.get(this).resolveTypeAlias(mName));
         }
         catch (UnresolvedTypeReferenceException e) {
             throw new RuntimeException("Unable to untokenize type", e);
