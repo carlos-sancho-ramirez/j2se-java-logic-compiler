@@ -17,6 +17,14 @@ public final class FunctionDefinitionExpression implements Expression {
         mBody = body;
     }
 
+    public ImmutableList<FunctionParameter> getParameters() {
+        return mParameters;
+    }
+
+    public Expression getBody() {
+        return mBody;
+    }
+
     @Override
     public ImmutableSet<String> dependencies() {
         ImmutableSet<String> result = mBody.dependencies();

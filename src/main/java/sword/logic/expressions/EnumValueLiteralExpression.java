@@ -9,4 +9,8 @@ public final class EnumValueLiteralExpression implements LiteralExpression {
         ensureValidArguments(literal.charAt(0) >= 'A' && literal.charAt(0) <= 'Z');
         mLiteral = literal;
     }
+
+    public String getValue() {
+        return mLiteral;
+    }
 }

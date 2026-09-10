@@ -14,6 +14,10 @@ public final class ArrayConstructionExpression implements Expression {
         mParameters = parameters;
     }
 
+    public ImmutableList<Expression> getValues() {
+        return mParameters;
+    }
+
     @Override
     public ImmutableSet<String> dependencies() {
         ImmutableSet<String> result = ImmutableHashSet.empty();

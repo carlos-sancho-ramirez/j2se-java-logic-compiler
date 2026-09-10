@@ -19,6 +19,10 @@ public final class RegisterFieldAccessExpression implements Expression {
         mFieldName = fieldName;
     }
 
+    public Expression getRegister() {
+        return mRegister;
+    }
+
     public String getFieldName() {
         return mFieldName;
     }
