@@ -19,6 +19,18 @@ public final class IfExpression implements Expression {
         mElseClause = elseClause;
     }
 
+    public Expression getCondition() {
+        return mCondition;
+    }
+
+    public Expression getThenClause() {
+        return mThenClause;
+    }
+
+    public Expression getElseClause() {
+        return mElseClause;
+    }
+
     @Override
     public ImmutableSet<String> dependencies() {
         return mCondition.dependencies()

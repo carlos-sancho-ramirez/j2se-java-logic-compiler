@@ -59,6 +59,14 @@ public final class IntType implements Type {
         return mRanges;
     }
 
+    public String getMin() {
+        return mRanges.first().getMin();
+    }
+
+    public String getMax() {
+        return mRanges.last().getMax();
+    }
+
     public boolean hasUniqueValue() {
         if (mRanges.size() == 1) {
             final Range range = mRanges.valueAt(0);

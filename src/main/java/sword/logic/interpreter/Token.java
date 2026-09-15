@@ -44,4 +44,17 @@ public final class Token {
     public String getText() {
         return mText;
     }
+
+    @Override
+    public int hashCode() {
+        return mLine * 31 + mColumn;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return this == obj || obj instanceof Token that &&
+                mLine == that.mLine &&
+                mColumn == that.mColumn &&
+                mText.equals(that.mText);
+    }
 }

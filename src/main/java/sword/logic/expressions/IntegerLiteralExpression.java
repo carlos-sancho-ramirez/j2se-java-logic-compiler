@@ -11,4 +11,8 @@ public final class IntegerLiteralExpression implements LiteralExpression {
         ensureValidArguments(IntegerLiteralOperations.validIntegerLiteral(literal));
         mLiteral = literal;
     }
+
+    public String getLiteral() {
+        return mLiteral;
+    }
 }

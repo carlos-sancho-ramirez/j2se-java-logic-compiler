@@ -14,6 +14,14 @@ public final class ArrayValueAtExpression implements Expression {
         mIndex = index;
     }
 
+    public Expression getArray() {
+        return mArray;
+    }
+
+    public Expression getIndex() {
+        return mIndex;
+    }
+
     @Override
     public ImmutableSet<String> dependencies() {
         return mArray.dependencies().addAll(mIndex.dependencies());

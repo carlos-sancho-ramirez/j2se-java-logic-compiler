@@ -15,6 +15,14 @@ public final class FunctionExecutionExpression implements Expression {
         mParameters = parameters;
     }
 
+    public Expression getFunction() {
+        return mFunction;
+    }
+
+    public ImmutableList<Expression> getParameters() {
+        return mParameters;
+    }
+
     @Override
     public ImmutableSet<String> dependencies() {
         ImmutableSet<String> result = mFunction.dependencies();
