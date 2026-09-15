@@ -1121,7 +1121,13 @@ public final class CCodeGenerator {
             if (constType instanceof RegisterType) {
                 assignExpressionToRegister(constDefExp, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer, varRef, false);
             }
-            else if (constType instanceof ArrayType) {
+            else if (constType instanceof ArrayType arrayType) {
+                final IntType resultLength = arrayType.getLengthType();
+                final String newValuesName = varNameCreator.create("values");
+                bodyBuilder.append(new CArrayDefinitionStatement(new CVariable(newValuesName, new CPointerType(cType(arrayType.getItemType(), definedStructs))), Integer.parseInt(resultLength.getMax())));
+                bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(new CReferenceExpression(newName)), new CCastExpression(
+                        new CPointerType(new CPointerType(CVoidType.getInstance())),
+                        new CReferenceExpression(newValuesName))));
                 assignExpressionToArray(constDefExp, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer, varRef, false);
             }
             else {
