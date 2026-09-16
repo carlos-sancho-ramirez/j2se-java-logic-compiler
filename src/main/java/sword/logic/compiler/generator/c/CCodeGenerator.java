@@ -175,6 +175,10 @@ public final class CCodeGenerator {
         return new CStructFieldPointerAccessExpression(arrayRef, ARRAY_FIELD_VALUES);
     }
 
+    private CCastExpression newCastToVoidPtrPtr(String varName) {
+        return new CCastExpression(CPointerType.getVoidPtrPtrInstance(), new CReferenceExpression(varName));
+    }
+
     private CExpression traverseExpression(
             Expression expression,
             ImmutableList<String> spaceName,
@@ -373,7 +377,7 @@ public final class CCodeGenerator {
             final CReferenceExpression arrayRef = new CReferenceExpression(arrayVarName);
             bodyBuilder.append(new CVarDefinitionStatement(new CVariable(arrayVarName, new CStructDeclarationType("Array"))));
             bodyBuilder.append(new CAssignmentStatement(newArrayLengthAccessExpression(arrayRef), new CIntLiteralExpression("" + arrayLength)));
-            bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(arrayRef), new CCastExpression(CPointerType.getVoidPtrPtrInstance(), new CReferenceExpression(valuesVarName))));
+            bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(arrayRef), newCastToVoidPtrPtr(valuesVarName)));
 
             return new CDereferenceExpression(arrayRef);
         }
@@ -632,7 +636,7 @@ public final class CCodeGenerator {
             final CAssignableExpression lengthTarget = outArrayIsPointer? newArrayLengthPointerAccessExpression(outArrayRef) : newArrayLengthAccessExpression(outArrayRef);
             bodyBuilder.append(new CAssignmentStatement(lengthTarget, new CIntLiteralExpression("" + arrayLength)));
             final CAssignableExpression valuesTarget = outArrayIsPointer? newArrayValuesPointerAccessExpression(outArrayRef) : newArrayValuesAccessExpression(outArrayRef);
-            bodyBuilder.append(new CAssignmentStatement(valuesTarget, new CCastExpression(CPointerType.getVoidPtrPtrInstance(), new CReferenceExpression(valuesVarName))));
+            bodyBuilder.append(new CAssignmentStatement(valuesTarget, newCastToVoidPtrPtr(valuesVarName)));
 
             final String arrayName = varNameCreator.create("array");
             bodyBuilder.append(new CVarDefinitionStatement(new CVariable(arrayName, new CStructDeclarationType("Array"))));
@@ -1103,7 +1107,7 @@ public final class CCodeGenerator {
                         final CTypeDeclaration cItemPtrType = new CPointerType(cItemType);
                         bodyBuilder.append(new CArrayDefinitionStatement(new CVariable(valuesVarName, cItemPtrType), arrayLength));
                         bodyBuilder.append(new CVarDefinitionStatement(new CVariable(ifResultVarName, targetType)));
-                        bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(ifResultRef), new CCastExpression(CPointerType.getVoidPtrPtrInstance(), new CReferenceExpression(valuesVarName))));
+                        bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(ifResultRef), newCastToVoidPtrPtr(valuesVarName)));
                         assignExpressionToArray(ifExpression, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer, ifResultRef, false);
                     }
                 }
@@ -1125,9 +1129,7 @@ public final class CCodeGenerator {
                 final IntType resultLength = arrayType.getLengthType();
                 final String newValuesName = varNameCreator.create("values");
                 bodyBuilder.append(new CArrayDefinitionStatement(new CVariable(newValuesName, new CPointerType(cType(arrayType.getItemType(), definedStructs))), Integer.parseInt(resultLength.getMax())));
-                bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(new CReferenceExpression(newName)), new CCastExpression(
-                        new CPointerType(new CPointerType(CVoidType.getInstance())),
-                        new CReferenceExpression(newValuesName))));
+                bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(new CReferenceExpression(newName)), newCastToVoidPtrPtr(newValuesName)));
                 assignExpressionToArray(constDefExp, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer, varRef, false);
             }
             else {
