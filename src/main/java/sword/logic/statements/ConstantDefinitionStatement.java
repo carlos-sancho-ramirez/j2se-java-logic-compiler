@@ -7,7 +7,20 @@ import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 
 public final class ConstantDefinitionStatement implements Statement {
     public static boolean validConstantName(String name) {
-        return name.charAt(0) >= 'a' && name.charAt(0) <= 'z';
+        if (name != null && !name.isEmpty() && name.charAt(0) >= 'a' && name.charAt(0) <= 'z') {
+            final int length = name.length();
+            for (int i = 1; i < length; i++) {
+                final char ch = name.charAt(i);
+                if ((ch < 'a' || ch > 'z') && (ch < 'A' || ch > 'Z') && (ch < '0' || ch > '9')) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+        else {
+            return false;
+        }
     }
 
     private final String mName;

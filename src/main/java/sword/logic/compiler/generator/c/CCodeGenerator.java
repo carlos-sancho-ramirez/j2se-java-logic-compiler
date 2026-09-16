@@ -1086,12 +1086,11 @@ public final class CCodeGenerator {
         else if (constDefExp instanceof IfExpression ifExpression) {
             final Type ifResultingType = mTypeMap.get(ifExpression);
             if (ifResultingType instanceof ArrayType arrayResultingType) {
-                final String ifResultVarName = varNameCreator.create(statement.getName());
                 final CTypeDeclaration targetType = cType(arrayResultingType, definedStructs);
                 if (isPointerEnough(ifExpression)) {
-                    refIsPointer.add(ifResultVarName);
-                    bodyBuilder.append(new CVarDefinitionStatement(new CVariable(ifResultVarName, new CPointerType(targetType))));
-                    assignExpressionToArrayPointer(ifExpression, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer, ifResultVarName);
+                    refIsPointer.add(statement.getName());
+                    bodyBuilder.append(new CVarDefinitionStatement(new CVariable(statement.getName(), new CPointerType(targetType))));
+                    assignExpressionToArrayPointer(ifExpression, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer, statement.getName());
                 }
                 else {
                     final String maxLengthText = arrayResultingType.getLengthType().getMax();
@@ -1099,14 +1098,14 @@ public final class CCodeGenerator {
                         throw new UnsupportedOperationException("Unimplemented");
                     }
                     else {
-                        final CReferenceExpression ifResultRef = new CReferenceExpression(ifResultVarName);
+                        final CReferenceExpression ifResultRef = new CReferenceExpression(statement.getName());
                         final String valuesVarName = varNameCreator.create("values");
                         final int arrayLength = Integer.parseInt(maxLengthText);
                         final Type itemType = arrayResultingType.getItemType();
                         final CTypeDeclaration cItemType = cType(itemType, definedStructs);
                         final CTypeDeclaration cItemPtrType = new CPointerType(cItemType);
                         bodyBuilder.append(new CArrayDefinitionStatement(new CVariable(valuesVarName, cItemPtrType), arrayLength));
-                        bodyBuilder.append(new CVarDefinitionStatement(new CVariable(ifResultVarName, targetType)));
+                        bodyBuilder.append(new CVarDefinitionStatement(new CVariable(statement.getName(), targetType)));
                         bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(ifResultRef), newCastToVoidPtrPtr(valuesVarName)));
                         assignExpressionToArray(ifExpression, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer, ifResultRef, false);
                     }
@@ -1117,9 +1116,8 @@ public final class CCodeGenerator {
             }
         }
         else {
-            final String newName = varNameCreator.create(statement.getName());
             final Type constType = mTypeMap.get(constDefExp);
-            bodyBuilder.append(new CVarDefinitionStatement(new CVariable(newName, cType(constType, definedStructs))));
+            bodyBuilder.append(new CVarDefinitionStatement(new CVariable(statement.getName(), cType(constType, definedStructs))));
 
             final CReferenceExpression varRef = new CReferenceExpression(statement.getName());
             if (constType instanceof RegisterType) {
@@ -1129,7 +1127,7 @@ public final class CCodeGenerator {
                 final IntType resultLength = arrayType.getLengthType();
                 final String newValuesName = varNameCreator.create("values");
                 bodyBuilder.append(new CArrayDefinitionStatement(new CVariable(newValuesName, new CPointerType(cType(arrayType.getItemType(), definedStructs))), Integer.parseInt(resultLength.getMax())));
-                bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(new CReferenceExpression(newName)), newCastToVoidPtrPtr(newValuesName)));
+                bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(new CReferenceExpression(statement.getName())), newCastToVoidPtrPtr(newValuesName)));
                 assignExpressionToArray(constDefExp, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer, varRef, false);
             }
             else {

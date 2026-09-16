@@ -9,13 +9,13 @@ public final class DefaultVariableNameCreator implements VariableNameCreator {
     @Override
     public String create(String suggestedName) {
         if (mUsed.add(suggestedName)) {
-            return suggestedName;
+            return "_" + suggestedName;
         }
         else {
             for (int i = 2; i < 1000; i++) {
                 String alternative = suggestedName + i;
                 if (mUsed.add(alternative)) {
-                    return alternative;
+                    return "_" + alternative;
                 }
             }
 
