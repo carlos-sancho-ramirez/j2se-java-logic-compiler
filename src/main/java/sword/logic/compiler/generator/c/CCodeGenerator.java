@@ -645,16 +645,28 @@ public final class CCodeGenerator {
             final CExpression arrayExp = traverseExpression(exp.getArray(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer);
             final CExpression indexExp = traverseExpression(exp.getIndex(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer);
             final ArrayType resultingType = (ArrayType) mTypeMap.get(exp);
+            final IntType resultingLengthType = resultingType.getLengthType();
             final boolean sourceIsPointer = exp.getArray() instanceof ReferenceExpression refExp && refIsPointer.contains(refExp.getReference());
             final CAssignableExpression outLength = outArrayIsPointer? newArrayLengthPointerAccessExpression(outArrayRef) : newArrayLengthAccessExpression(outArrayRef);
             final CExpression outValues = outArrayIsPointer? newArrayValuesPointerAccessExpression(outArrayRef) : newArrayValuesAccessExpression(outArrayRef);
             final CExpression source = new CCastExpression(new CPointerType(cArrayDeclarationType), new CArrayValueAtExpression(sourceIsPointer? newArrayValuesPointerAccessExpression(arrayExp) : newArrayValuesAccessExpression(arrayExp), indexExp));
-            bodyBuilder.append(new CAssignmentStatement(outLength, newArrayLengthPointerAccessExpression(source)));
-            bodyBuilder.append(new CFunctionExecutionStatement(new CReferenceExpression("memcpy"), new ImmutableList.Builder<CExpression>()
-                    .append(outValues)
-                    .append(newArrayValuesPointerAccessExpression(source))
-                    .append(new CMultiplicationExpression(outLength, new CSizeofExpression(new CPointerType(cType(resultingType, definedStructs)))))
-                    .build()));
+            if (resultingLengthType.getMax().equals(resultingLengthType.getMin())) {
+                final CIntLiteralExpression lengthExpression = new CIntLiteralExpression(resultingLengthType.getMax());
+                bodyBuilder.append(new CAssignmentStatement(outLength, lengthExpression));
+                bodyBuilder.append(new CFunctionExecutionStatement(new CReferenceExpression("memcpy"), new ImmutableList.Builder<CExpression>()
+                        .append(outValues)
+                        .append(newArrayValuesPointerAccessExpression(source))
+                        .append(new CMultiplicationExpression(lengthExpression, new CSizeofExpression(new CPointerType(cType(resultingType, definedStructs)))))
+                        .build()));
+            }
+            else {
+                bodyBuilder.append(new CAssignmentStatement(outLength, newArrayLengthPointerAccessExpression(source)));
+                bodyBuilder.append(new CFunctionExecutionStatement(new CReferenceExpression("memcpy"), new ImmutableList.Builder<CExpression>()
+                        .append(outValues)
+                        .append(newArrayValuesPointerAccessExpression(source))
+                        .append(new CMultiplicationExpression(outLength, new CSizeofExpression(new CPointerType(cType(resultingType, definedStructs)))))
+                        .build()));
+            }
         }
         else if (expression instanceof ComplexExpression exp) {
             for (Statement statement : exp.getStatements()) {
