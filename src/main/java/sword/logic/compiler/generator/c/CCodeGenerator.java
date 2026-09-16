@@ -107,7 +107,9 @@ public final class CCodeGenerator {
     private static final String STRING_POOL = "stringPool";
     private static final String OUT_RESULT = "outResult";
     private static final CReferenceExpression OUT_RESULT_REF = new CReferenceExpression(OUT_RESULT);
-    private static final String PLACEHOLDER = "<???>";
+
+    // When we need to copy array values. If we can determine the array length statically and it is lower or equal to this number, then memcpy will not be used, and the copy will be done directly element by element
+    private static final int MEMCPY_THRESHOLD = 3;
 
     private final ImmutableMap<Expression, Type> mTypeMap;
     private final CStructDeclarationType cArrayDeclarationType = new CStructDeclarationType("Array");
@@ -653,11 +655,32 @@ public final class CCodeGenerator {
             if (resultingLengthType.getMax().equals(resultingLengthType.getMin())) {
                 final CIntLiteralExpression lengthExpression = new CIntLiteralExpression(resultingLengthType.getMax());
                 bodyBuilder.append(new CAssignmentStatement(outLength, lengthExpression));
-                bodyBuilder.append(new CFunctionExecutionStatement(new CReferenceExpression("memcpy"), new ImmutableList.Builder<CExpression>()
-                        .append(outValues)
-                        .append(newArrayValuesPointerAccessExpression(source))
-                        .append(new CMultiplicationExpression(lengthExpression, new CSizeofExpression(new CPointerType(cType(resultingType, definedStructs)))))
-                        .build()));
+                final int length = Integer.parseInt(resultingLengthType.getMax());
+                if (length == 1) {
+                    final CIntLiteralExpression indexLiteral = new CIntLiteralExpression(TypeConstants.zeroText);
+                    bodyBuilder.append(new CAssignmentStatement(
+                            new CArrayValueAtExpression(outValues, indexLiteral),
+                            new CArrayValueAtExpression(newArrayValuesPointerAccessExpression(source), indexLiteral)));
+                }
+                else if (length <= MEMCPY_THRESHOLD) {
+                    final String sourceHolderName = varNameCreator.create("source");
+                    final CReferenceExpression sourceHolderRef = new CReferenceExpression(sourceHolderName);
+                    bodyBuilder.append(new CVarDefinitionStatement(new CVariable(sourceHolderName, CPointerType.getVoidPtrPtrInstance())));
+                    bodyBuilder.append(new CAssignmentStatement(sourceHolderRef, newArrayValuesPointerAccessExpression(source)));
+                    for (int index = 0; index < length; index++) {
+                        final CIntLiteralExpression indexLiteral = new CIntLiteralExpression("" + index);
+                        bodyBuilder.append(new CAssignmentStatement(
+                                new CArrayValueAtExpression(outValues, indexLiteral),
+                                new CArrayValueAtExpression(sourceHolderRef, indexLiteral)));
+                    }
+                }
+                else {
+                    bodyBuilder.append(new CFunctionExecutionStatement(new CReferenceExpression("memcpy"), new ImmutableList.Builder<CExpression>()
+                            .append(outValues)
+                            .append(newArrayValuesPointerAccessExpression(source))
+                            .append(new CMultiplicationExpression(lengthExpression, new CSizeofExpression(new CPointerType(cType(resultingType, definedStructs)))))
+                            .build()));
+                }
             }
             else {
                 bodyBuilder.append(new CAssignmentStatement(outLength, newArrayLengthPointerAccessExpression(source)));
