@@ -92,8 +92,6 @@ import sword.logic.types.RegisterType;
 import sword.logic.types.Type;
 import sword.logic.types.TypeConstants;
 
-import java.util.Objects;
-
 import static sword.logic.compiler.IntegerLiteralOperations.greaterOrEqualThan;
 import static sword.logic.compiler.IntegerLiteralOperations.lowerThan;
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
@@ -108,7 +106,7 @@ public final class CCodeGenerator {
     private static final String OUT_RESULT = "outResult";
     private static final CReferenceExpression OUT_RESULT_REF = new CReferenceExpression(OUT_RESULT);
 
-    // When we need to copy array values. If we can determine the array length statically and it is lower or equal to this number, then memcpy will not be used, and the copy will be done directly element by element
+    // When we need to copy array values, if we can determine the array length statically, and it is lower or equal to this number, then memcpy will not be used, and the copy will be done directly element by element
     private static final int MEMCPY_THRESHOLD = 3;
 
     private final ImmutableMap<Expression, Type> mTypeMap;
@@ -148,17 +146,6 @@ public final class CCodeGenerator {
         else {
             return CVoidType.getInstance();
         }
-    }
-
-    private boolean areParenthesesRequiredOnMultiplication(Expression expression) {
-        return !(expression instanceof IntegerLiteralExpression ||
-                expression instanceof ReferenceExpression ||
-                expression instanceof MultiplicationExpression ||
-                expression instanceof DivisionExpression ||
-                expression instanceof ModuleExpression ||
-                expression instanceof RegisterFieldAccessExpression ||
-                expression instanceof ArrayValueAtExpression ||
-                expression instanceof FunctionExecutionExpression);
     }
 
     private CStructFieldAccessExpression newArrayLengthAccessExpression(CExpression arrayRef) {
@@ -770,8 +757,7 @@ public final class CCodeGenerator {
             VariableNameCreator varNameCreator,
             StringPoolGenerator.Result stringPool,
             Set<String> refIsPointer,
-            CReferenceExpression outRegisterRef,
-            boolean outRegisterIsPointer) {
+            CReferenceExpression outRegisterRef) {
         if (expression instanceof ComplexExpression exp) {
             final MutableMap<String, Expression> scopeDefinitions = MutableHashMap.empty();
             for (Statement statement : exp.getStatements()) {
@@ -787,14 +773,14 @@ public final class CCodeGenerator {
                 }
             }
 
-            assignExpressionToRegister(exp.getExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, newRefIsPointer, outRegisterRef, outRegisterIsPointer);
+            assignExpressionToRegister(exp.getExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, newRefIsPointer, outRegisterRef);
         }
         else if (expression instanceof IfExpression exp) {
             final CExpression condition = traverseExpression(exp.getCondition(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer);
             final ImmutableList.Builder<CInFunctionStatement> thenClauseBuilder = new ImmutableList.Builder<>();
             final ImmutableList.Builder<CInFunctionStatement> elseClauseBuilder = new ImmutableList.Builder<>();
-            assignExpressionToRegister(exp.getThenClause(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, thenClauseBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer, outRegisterRef, outRegisterIsPointer);
-            assignExpressionToRegister(exp.getElseClause(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, elseClauseBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer, outRegisterRef, outRegisterIsPointer);
+            assignExpressionToRegister(exp.getThenClause(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, thenClauseBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer, outRegisterRef);
+            assignExpressionToRegister(exp.getElseClause(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, elseClauseBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer, outRegisterRef);
             bodyBuilder.append(new CIfStatement(condition, thenClauseBuilder.build(), elseClauseBuilder.build()));
         }
         else if (expression instanceof RegisterConstructionExpression exp) {
@@ -820,7 +806,7 @@ public final class CCodeGenerator {
             if (exp.getFunction() instanceof ReferenceExpression refExp) {
                 final String functionName = refExp.getReference();
                 ImmutableList<String> targetSpaceName = spaceName;
-                FunctionDefinitionExpression tempFuncDefExp = null;
+                FunctionDefinitionExpression tempFuncDefExp;
                 do {
                     tempFuncDefExp = functionMap.get(targetSpaceName.append(functionName), null);
                     if (tempFuncDefExp == null) {
@@ -1101,7 +1087,7 @@ public final class CCodeGenerator {
                 }
             }
             else if (resultType instanceof RegisterType regType && funcRequiredAllocations.getStructs().containsKey(regType.getDefinition())) {
-                assignExpressionToRegister(funcExpression.getBody(), innerSpaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, innerBodyBuilder, definedTypes, definedConstants, new DefaultVariableNameCreator(), stringPool, newRefIsPointer, OUT_RESULT_REF, true);
+                assignExpressionToRegister(funcExpression.getBody(), innerSpaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, innerBodyBuilder, definedTypes, definedConstants, new DefaultVariableNameCreator(), stringPool, newRefIsPointer, OUT_RESULT_REF);
             }
             else {
                 traverseExpression(funcExpression.getBody(), innerSpaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, innerBodyBuilder, definedTypes, definedConstants, new DefaultVariableNameCreator(), stringPool, newRefIsPointer);
@@ -1156,7 +1142,7 @@ public final class CCodeGenerator {
 
             final CReferenceExpression varRef = new CReferenceExpression(statement.getName());
             if (constType instanceof RegisterType) {
-                assignExpressionToRegister(constDefExp, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer, varRef, false);
+                assignExpressionToRegister(constDefExp, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer, varRef);
             }
             else if (constType instanceof ArrayType arrayType) {
                 final IntType resultLength = arrayType.getLengthType();
@@ -1172,64 +1158,6 @@ public final class CCodeGenerator {
         }
 
         definedConstants.put(statement.getName(), constDefExp);
-    }
-
-    private static final class ScopedName {
-        private final ScopedName parent;
-        private final String name;
-
-        ScopedName(ScopedName parent, String name) {
-            ensureNonNull(name);
-            this.parent = parent;
-            this.name = name;
-        }
-
-        ScopedName getParent() {
-            return parent;
-        }
-
-        String getName() {
-            return name;
-        }
-
-        @Override
-        public int hashCode() {
-            return (name != null)? name.hashCode() : 0;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            return this == obj || obj instanceof ScopedName that &&
-                    name.equals(that.name) &&
-                    Objects.equals(parent, that.parent);
-        }
-
-        public String toCNameSpace() {
-            return (parent == null)? name : parent.toCNameSpace() + "_" + name;
-        }
-    }
-
-    private static final class ConstantDependencies {
-        final ScopedName name;
-        final ConstantDefinitionStatement definitionStatement;
-
-        ConstantDependencies(ScopedName name, ConstantDefinitionStatement definitionStatement) {
-            ensureNonNull(name, definitionStatement);
-            this.name = name;
-            this.definitionStatement = definitionStatement;
-        }
-
-        public ScopedName getName() {
-            return name;
-        }
-
-        public ConstantDefinitionStatement getDefinitionStatement() {
-            return definitionStatement;
-        }
-    }
-
-    private static final class IntegerHolder {
-        int value;
     }
 
     public Result generate(ImmutableList<Statement> statements) {
