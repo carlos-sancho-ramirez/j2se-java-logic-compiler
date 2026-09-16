@@ -239,7 +239,7 @@ public final class CCodeGenerator {
             final CExpression arrayExp = traverseExpression(exp.getArray(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer);
             final CExpression indexExp = traverseExpression(exp.getIndex(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer);
             final Type resultType = mTypeMap.get(exp);
-            final CExpression casted = new CCastExpression(new CPointerType(cType(resultType, definedStructs)), new CArrayValueAtExpression(new CStructFieldPointerAccessExpression(arrayExp, ARRAY_FIELD_VALUES), indexExp));
+            final CExpression casted = new CCastExpression(new CPointerType(cType(resultType, definedStructs)), new CArrayValueAtExpression(newArrayValuesPointerAccessExpression(arrayExp), indexExp));
             return (resultType instanceof ArrayType || resultType instanceof RegisterType)? casted :
                     new CArrayValueAtExpression(casted, new CIntLiteralExpression(TypeConstants.zeroText));
         }
@@ -468,7 +468,7 @@ public final class CCodeGenerator {
                 final CReferenceExpression tempArrayRef = new CReferenceExpression(tempArrayName);
                 bodyBuilder.append(new CVarDefinitionStatement(new CVariable(tempArrayName, cArrayDeclarationType)));
                 final CExpression source = (outOffset == 0)? outArrayValuesRef : new CAdditionExpression(outArrayValuesRef, new CIntLiteralExpression("" + outOffset));
-                bodyBuilder.append(new CAssignmentStatement(new CStructFieldAccessExpression(tempArrayRef, ARRAY_FIELD_VALUES), source));
+                bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(tempArrayRef), source));
 
                 final ImmutableList.Builder<CExpression> paramsBuilder = new ImmutableList.Builder<CExpression>()
                         .append(new CDereferenceExpression(tempArrayRef));
@@ -599,8 +599,8 @@ public final class CCodeGenerator {
         if (expression instanceof ArrayConcatenationExpression exp) {
             final ArrayType arrayType = (ArrayType) mTypeMap.get(expression);
             final IntType lengthType = arrayType.getLengthType();
-            final CAssignableExpression lengthAccessExpression = outArrayIsPointer? new CStructFieldPointerAccessExpression(outArrayRef, ARRAY_FIELD_LENGTH) : new CStructFieldAccessExpression(outArrayRef, ARRAY_FIELD_LENGTH);
-            final CAssignableExpression valuesAccessExpression = outArrayIsPointer? new CStructFieldPointerAccessExpression(outArrayRef, ARRAY_FIELD_VALUES) : new CStructFieldAccessExpression(outArrayRef, ARRAY_FIELD_VALUES);
+            final CAssignableExpression lengthAccessExpression = outArrayIsPointer? newArrayLengthPointerAccessExpression(outArrayRef) : newArrayLengthAccessExpression(outArrayRef);
+            final CAssignableExpression valuesAccessExpression = outArrayIsPointer? newArrayValuesPointerAccessExpression(outArrayRef) : newArrayValuesAccessExpression(outArrayRef);
 
             if (lengthType.getMin().equals(lengthType.getMax())) {
                 bodyBuilder.append(new CAssignmentStatement(lengthAccessExpression, new CIntLiteralExpression(lengthType.getMin())));
@@ -616,7 +616,7 @@ public final class CCodeGenerator {
                         new CStructFieldAccessExpression(tempArrayRef, ARRAY_FIELD_VALUES),
                         new CAdditionExpression(valuesAccessExpression, lengthAccessExpression)));
                 assignExpressionToArray(exp.getRightExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer, tempArrayRef, false);
-                bodyBuilder.append(new CAdditionStatement(lengthAccessExpression, new CStructFieldAccessExpression(tempArrayRef, ARRAY_FIELD_LENGTH)));
+                bodyBuilder.append(new CAdditionStatement(lengthAccessExpression, newArrayLengthAccessExpression(tempArrayRef)));
             }
         }
         else if (expression instanceof ArrayConstructionExpression exp) {
@@ -645,10 +645,10 @@ public final class CCodeGenerator {
             final CAssignableExpression outLength = outArrayIsPointer? newArrayLengthPointerAccessExpression(outArrayRef) : newArrayLengthAccessExpression(outArrayRef);
             final CExpression outValues = outArrayIsPointer? newArrayValuesPointerAccessExpression(outArrayRef) : newArrayValuesAccessExpression(outArrayRef);
             final CExpression source = new CCastExpression(new CPointerType(cArrayDeclarationType), new CArrayValueAtExpression(sourceIsPointer? newArrayValuesPointerAccessExpression(arrayExp) : newArrayValuesAccessExpression(arrayExp), indexExp));
-            bodyBuilder.append(new CAssignmentStatement(outLength, new CStructFieldPointerAccessExpression(source, ARRAY_FIELD_LENGTH)));
+            bodyBuilder.append(new CAssignmentStatement(outLength, newArrayLengthPointerAccessExpression(source)));
             bodyBuilder.append(new CFunctionExecutionStatement(new CReferenceExpression("memcpy"), new ImmutableList.Builder<CExpression>()
                     .append(outValues)
-                    .append(new CStructFieldPointerAccessExpression(source, ARRAY_FIELD_VALUES))
+                    .append(newArrayValuesPointerAccessExpression(source))
                     .append(new CMultiplicationExpression(outLength, new CSizeofExpression(new CPointerType(cType(resultingType, definedStructs)))))
                     .build()));
         }
