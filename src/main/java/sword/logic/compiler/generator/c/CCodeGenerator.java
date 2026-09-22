@@ -100,6 +100,7 @@ import static sword.logic.compiler.generator.c.StringPoolGenerator.canBeOptimize
 import static sword.logic.expressions.RegisterFieldAccessExpression.ARRAY_FIELD_LENGTH;
 
 public final class CCodeGenerator {
+    private static final String ARRAY = TypeConstants.ARRAY_TYPE_TEXT;
     private static final String ARRAY_FIELD_VALUES = "values";
 
     private static final String STRING_POOL = "stringPool";
@@ -110,7 +111,7 @@ public final class CCodeGenerator {
     private static final int MEMCPY_THRESHOLD = 3;
 
     private final ImmutableMap<Expression, Type> mTypeMap;
-    private final CStructDeclarationType cArrayDeclarationType = new CStructDeclarationType("Array");
+    private final CStructDeclarationType cArrayDeclarationType = new CStructDeclarationType(ARRAY);
 
     public CCodeGenerator(ImmutableMap<Expression, Type> typeMap) {
         ensureNonNull(typeMap);
@@ -364,7 +365,7 @@ public final class CCodeGenerator {
 
             final String arrayVarName = varNameCreator.create("array");
             final CReferenceExpression arrayRef = new CReferenceExpression(arrayVarName);
-            bodyBuilder.append(new CVarDefinitionStatement(new CVariable(arrayVarName, new CStructDeclarationType("Array"))));
+            bodyBuilder.append(new CVarDefinitionStatement(new CVariable(arrayVarName, cArrayDeclarationType)));
             bodyBuilder.append(new CAssignmentStatement(newArrayLengthAccessExpression(arrayRef), new CIntLiteralExpression("" + arrayLength)));
             bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(arrayRef), newCastToVoidPtrPtr(valuesVarName)));
 
@@ -628,7 +629,7 @@ public final class CCodeGenerator {
             bodyBuilder.append(new CAssignmentStatement(valuesTarget, newCastToVoidPtrPtr(valuesVarName)));
 
             final String arrayName = varNameCreator.create("array");
-            bodyBuilder.append(new CVarDefinitionStatement(new CVariable(arrayName, new CStructDeclarationType("Array"))));
+            bodyBuilder.append(new CVarDefinitionStatement(new CVariable(arrayName, cArrayDeclarationType)));
         }
         else if (expression instanceof ArrayValueAtExpression exp) {
             final CExpression arrayExp = traverseExpression(exp.getArray(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer);
@@ -1204,7 +1205,7 @@ public final class CCodeGenerator {
         final ImmutableList<CFunction> cFunctions = cFunctionsBuilder.build();
 
         final ImmutableList.Builder<CFileRootStatement> headerStatementsBuilder = new ImmutableList.Builder<>();
-        headerStatementsBuilder.append(new CStructDefinitionStatement(new CStructType("Array", new ImmutableList.Builder<CVariable>()
+        headerStatementsBuilder.append(new CStructDefinitionStatement(new CStructType(ARRAY, new ImmutableList.Builder<CVariable>()
                 .append(new CVariable(ARRAY_FIELD_LENGTH, CIntType.getInstance()))
                 .append(new CVariable(ARRAY_FIELD_VALUES, CPointerType.getVoidPtrPtrInstance()))
                 .build())));
