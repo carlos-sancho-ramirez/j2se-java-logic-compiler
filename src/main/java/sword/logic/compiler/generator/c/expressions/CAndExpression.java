@@ -12,8 +12,15 @@ public final class CAndExpression implements CExpression {
         mRight = right;
     }
 
+    private static boolean requiresParentheses(CExpression exp) {
+        return exp instanceof COrExpression;
+    }
+
     @Override
     public String getText() {
-        return mLeft.getText() + " && " + mRight.getText();
+        final String leftText = mLeft.getText();
+        final String rightText = mRight.getText();
+        return (requiresParentheses(mLeft)? "(" + leftText + ")" : leftText) + " && " +
+                (requiresParentheses(mRight)? "(" + rightText +")" : rightText);
     }
 }
