@@ -1,35 +1,307 @@
 #include "output.h"
 #include <stdio.h>
+#include <string.h>
+
+#define TEST_ENTRY_CODE_SIZE 8
+
+struct TestEntry {
+    unsigned char code[TEST_ENTRY_CODE_SIZE];
+    char expectedOutput[64];
+};
+
+struct TestEntry testEntries[] = {
+    [0] = {
+        .code = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx + si], al"
+    },
+    [1] = {
+        .code = { 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx + di], al"
+    },
+    [2] = {
+        .code = { 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bp + si], al"
+    },
+    [3] = {
+        .code = { 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bp + di], al"
+    },
+    [4] = {
+        .code = { 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [si], al"
+    },
+    [5] = {
+        .code = { 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [di], al"
+    },
+    [6] = {
+        .code = { 0x00, 0x06, 0x34, 0x12, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [0x1234], al"
+    },
+    [7] = {
+        .code = { 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx], al"
+    },
+    [8] = {
+        .code = { 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx + si], cl"
+    },
+    [9] = {
+        .code = { 0x00, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx + di], cl"
+    },
+    [10] = {
+        .code = { 0x00, 0x0E, 0x34, 0x12, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [0x1234], cl"
+    },
+    [11] = {
+        .code = { 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx + si], dl"
+    },
+    [12] = {
+        .code = { 0x00, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx + si], bl"
+    },
+    [13] = {
+        .code = { 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx + si], ah"
+    },
+    [14] = {
+        .code = { 0x00, 0x28, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx + si], ch"
+    },
+    [15] = {
+        .code = { 0x00, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx + si], dh"
+    },
+    [16] = {
+        .code = { 0x00, 0x38, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx + si], bh"
+    },
+    [17] = {
+        .code = { 0x00, 0x40, 0x67, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx + si + 0x67], al"
+    },
+    [18] = {
+        .code = { 0x00, 0x40, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx + si - 0x80], al"
+    },
+    [19] = {
+        .code = { 0x00, 0x40, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx + si - 0x04], al"
+    },
+    [20] = {
+        .code = { 0x00, 0x41, 0x7F, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx + di + 0x7F], al"
+    },
+    [21] = {
+        .code = { 0x00, 0x42, 0x83, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bp + si - 0x7D], al"
+    },
+    [22] = {
+        .code = { 0x00, 0x46, 0xFA, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bp - 0x06], al"
+    },
+    [23] = {
+        .code = { 0x00, 0x4E, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bp + 0x04], cl"
+    },
+    [24] = {
+        .code = { 0x00, 0x80, 0x67, 0x45, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx + si + 0x4567], al"
+    },
+    [25] = {
+        .code = { 0x00, 0x85, 0xFE, 0xFE, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [di - 0x0102], al"
+    },
+    [26] = {
+        .code = { 0x00, 0xAE, 0x34, 0x12, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bp + 0x1234], ch"
+    },
+    [27] = {
+        .code = { 0x00, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add al, al"
+    },
+    [28] = {
+        .code = { 0x00, 0xC1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add cl, al"
+    },
+    [29] = {
+        .code = { 0x00, 0xC7, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add bh, al"
+    },
+    [30] = {
+        .code = { 0x00, 0xC8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add al, cl"
+    },
+    [31] = {
+        .code = { 0x00, 0xEB, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add bl, ch"
+    },
+    [32] = {
+        .code = { 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx + si], ax"
+    },
+    [33] = {
+        .code = { 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx + di], ax"
+    },
+    [34] = {
+        .code = { 0x01, 0x06, 0x35, 0x02, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [0x0235], ax"
+    },
+    [35] = {
+        .code = { 0x01, 0x0E, 0x34, 0x12, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [0x1234], cx"
+    },
+    [36] = {
+        .code = { 0x01, 0x0F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx], cx"
+    },
+    [37] = {
+        .code = { 0x01, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [si], dx"
+    },
+    [38] = {
+        .code = { 0x01, 0x1D, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [di], bx"
+    },
+    [39] = {
+        .code = { 0x01, 0x23, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bp + di], sp"
+    },
+    [40] = {
+        .code = { 0x01, 0x2F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx], bp"
+    },
+    [41] = {
+        .code = { 0x01, 0x36, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [0x0100], si"
+    },
+    [42] = {
+        .code = { 0x01, 0x38, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx + si], di"
+    },
+    [43] = {
+        .code = { 0x01, 0x40, 0x67, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx + si + 0x67], ax"
+    },
+    [44] = {
+        .code = { 0x01, 0x40, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx + si - 0x80], ax"
+    },
+    [45] = {
+        .code = { 0x01, 0x49, 0x7F, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx + di + 0x7F], cx"
+    },
+    [46] = {
+        .code = { 0x01, 0x56, 0xFA, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bp - 0x06], dx"
+    },
+    [47] = {
+        .code = { 0x01, 0x76, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bp + 0x04], si"
+    },
+    [48] = {
+        .code = { 0x01, 0x80, 0x67, 0x45, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bx + si + 0x4567], ax"
+    },
+    [49] = {
+        .code = { 0x01, 0xAE, 0x34, 0x12, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add [bp + 0x1234], bp"
+    },
+    [50] = {
+        .code = { 0x01, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add ax, ax"
+    },
+    [51] = {
+        .code = { 0x01, 0xC1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add cx, ax"
+    },
+    [52] = {
+        .code = { 0x01, 0xC7, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add di, ax"
+    },
+    [53] = {
+        .code = { 0x01, 0xC8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add ax, cx"
+    },
+    [54] = {
+        .code = { 0x01, 0xEB, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add bx, bp"
+    },
+    [55] = {
+        .code = { 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add al, [bx + si]"
+    },
+    [56] = {
+        .code = { 0x02, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add dl, [si]"
+    },
+    [57] = {
+        .code = { 0x02, 0x26, 0xEF, 0xC0, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add ah, [0xC0EF]"
+    },
+    [58] = {
+        .code = { 0x02, 0x7C, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add bh, [si + 0x02]"
+    },
+    [59] = {
+        .code = { 0x02, 0x95, 0x38, 0x01, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add dl, [di + 0x0138]"
+    },
+    [60] = {
+        .code = { 0x02, 0xCC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add cl, ah"
+    },
+    [61] = {
+        .code = { 0x03, 0x77, 0x56, 0x00, 0x00, 0x00, 0x00, 0x00 },
+        .expectedOutput = "add si, [bx + 0x56]"
+    }
+};
 
 int main(int argc, char *argv[]) {
     struct Result result;
-    struct Array array;
-    unsigned char *arrayValues[256];
+
+    struct String string;
+    char stringValues[256];
+    string.values = stringValues;
+
+    unsigned char *codeValues[TEST_ENTRY_CODE_SIZE];
     struct Array code;
-    unsigned char rawCode[] = { 0x06, 0x00, 0x00, 0x00 };
-    unsigned char *codeValues[sizeof(rawCode)];
-
-    array.values = (void **) arrayValues;
-    for (int i = 0; i < sizeof(rawCode); i++) {
-        codeValues[i] = rawCode + i;
-    }
-
-    code.length = sizeof(rawCode);
+    code.length = TEST_ENTRY_CODE_SIZE;
     code.values = (void **) codeValues;
-    disasmInstruction(&result, &array, &code);
 
-    char rawMessage[1024];
-    for (int i = 0; i < result.message->length; i++) {
-        rawMessage[i] = *((char *) result.message->values[i]);
+    const int testEntryCount = sizeof(testEntries) / sizeof(struct TestEntry);
+    unsigned int failureCount = 0;
+    for (int testEntryIndex = 0; testEntryIndex < testEntryCount; testEntryIndex++) {
+        for (int i = 0; i < TEST_ENTRY_CODE_SIZE; i++) {
+            codeValues[i] = testEntries[testEntryIndex].code + i;
+        }
+
+        disasmInstruction(&result, &string, &code);
+
+        result.message->values[result.message->length] = '\0';
+        if (result.valid) {
+            if (strcmp(result.message->values, testEntries[testEntryIndex].expectedOutput)) {
+                failureCount++;
+                printf("[%4d] Failure: Expected '%s' but it was '%s'\n", testEntryIndex, testEntries[testEntryIndex].expectedOutput, result.message->values);
+            }
+            else {
+                printf("[%4d] Ok: %s\n", testEntryIndex, result.message->values);
+            }
+        }
+        else {
+            printf("[%4d] Failure: Expected '%s' but returned error with text '%s'\n", testEntryIndex, testEntries[testEntryIndex].expectedOutput, result.message->values);
+        }
     }
-    rawMessage[result.message->length] = '\0';
 
-    if (result.valid) {
-        printf("Ok: %s\n", rawMessage);
+    if (failureCount) {
+        printf("%d failures found\n", failureCount);
     }
     else {
-        printf("Error: %s\n", rawMessage);
+        printf("All fine!\n");
     }
 
-    return 0;
+    return failureCount? 1 : 0;
 }

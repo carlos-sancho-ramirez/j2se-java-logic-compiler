@@ -6,9 +6,9 @@ type Result = {
 };
 
 disasmInstruction = (code: Array[Byte]) -> {
-  byteRegister = Array ("AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH");
-  wordRegister = Array ("AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI");
-  segment = Array ("ES", "CS", "SS", "DS");
+  byteRegister = Array ("al", "cl", "dl", "bl", "ah", "ch", "dh", "bh");
+  wordRegister = Array ("ax", "cx", "dx", "bx", "sp", "bp", "si", "di");
+  segment = Array ("es", "cs", "ss", "ds");
 
   hexChars = Array ("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F");
   toByteHexLiteral = (x: Byte) -> "0x" + hexChars[x / 16] + hexChars[x % 16];
@@ -27,7 +27,7 @@ disasmInstruction = (code: Array[Byte]) -> {
   if code.length == 0 then error("Code is empty")
   else {
     operations = Array ("add", "or", "adc", "sbb", "and", "sub", "xor", "cmp");
-    addresses = Array ("BX + SI", "BX + DI", "BP + SI", "BP + DI", "SI", "DI", "BP", "BX");
+    addresses = Array ("bx + si", "bx + di", "bp + si", "bp + di", "si", "di", "bp", "bx");
     ch = code[0];
     if ch < 0x40 & ch % 8 < 4 then {
       if code.length == 1 then error("Opcode " + toByteHexLiteral(ch) + " requires more bytes")
