@@ -3,6 +3,7 @@ package sword.logic.compiler.generator.c.types;
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 
 public final class CPointerType implements CTypeDeclaration {
+    private static CPointerType charPtrInstance;
     private static CPointerType voidPtrPtrInstance;
     private final CTypeDeclaration mTargetType;
 
@@ -14,6 +15,14 @@ public final class CPointerType implements CTypeDeclaration {
     @Override
     public String getText() {
         return mTargetType.getText() + " *";
+    }
+
+    public static CPointerType getCharPtrInstance() {
+        if (charPtrInstance == null) {
+            charPtrInstance = new CPointerType(CCharType.getInstance());
+        }
+
+        return charPtrInstance;
     }
 
     public static CPointerType getVoidPtrPtrInstance() {

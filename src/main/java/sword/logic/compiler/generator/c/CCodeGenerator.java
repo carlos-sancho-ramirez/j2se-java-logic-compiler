@@ -11,12 +11,14 @@ import sword.collections.MutableMap;
 import sword.collections.MutableSet;
 import sword.collections.Set;
 import sword.logic.compiler.DefaultVariableNameCreator;
+import sword.logic.compiler.IntegerLiteralOperations;
 import sword.logic.compiler.VariableNameCreator;
 import sword.logic.compiler.generator.c.expressions.CAdditionExpression;
 import sword.logic.compiler.generator.c.expressions.CAndExpression;
 import sword.logic.compiler.generator.c.expressions.CArrayValueAtExpression;
 import sword.logic.compiler.generator.c.expressions.CAssignableExpression;
 import sword.logic.compiler.generator.c.expressions.CCastExpression;
+import sword.logic.compiler.generator.c.expressions.CCharLiteralExpression;
 import sword.logic.compiler.generator.c.expressions.CDereferenceExpression;
 import sword.logic.compiler.generator.c.expressions.CDifferentFromExpression;
 import sword.logic.compiler.generator.c.expressions.CDivisionExpression;
@@ -102,9 +104,11 @@ import static sword.logic.expressions.RegisterFieldAccessExpression.ARRAY_FIELD_
 public final class CCodeGenerator {
     private static final String ARRAY = TypeConstants.ARRAY_TYPE_TEXT;
     private static final String ARRAY_FIELD_VALUES = "values";
+    private static final String STRING = "String";
 
     private static final String STRING_POOL = "stringPool";
     private static final String OUT_RESULT = "outResult";
+    private static final CReferenceExpression STRING_POOL_REF = new CReferenceExpression(STRING_POOL);
     private static final CReferenceExpression OUT_RESULT_REF = new CReferenceExpression(OUT_RESULT);
 
     // When we need to copy array values, if we can determine the array length statically, and it is lower or equal to this number, then memcpy will not be used, and the copy will be done directly element by element
@@ -112,10 +116,18 @@ public final class CCodeGenerator {
 
     private final ImmutableMap<Expression, Type> mTypeMap;
     private final CStructDeclarationType cArrayDeclarationType = new CStructDeclarationType(ARRAY);
+    private final CStructDeclarationType cStringDeclarationType = new CStructDeclarationType(STRING);
 
     public CCodeGenerator(ImmutableMap<Expression, Type> typeMap) {
         ensureNonNull(typeMap);
         mTypeMap = typeMap;
+    }
+
+    static boolean arrayShouldBeString(ArrayType arrayType) {
+        // In theory, we should consider String any integer. However, it complicates things up. For now let's assume that all strings values field can be casted to "char *" or "unsigned char *"
+        return arrayType.getItemType() instanceof IntType itemType &&
+                IntegerLiteralOperations.greaterOrEqualThan(itemType.getMin(), "0") &&
+                IntegerLiteralOperations.lowerOrEqualThan(itemType.getMax(), "127");
     }
 
     private CTypeDeclaration cType(Type type, Map<RegisterType.Definition, RegisterStructTypes> definedStructs) {
@@ -135,8 +147,8 @@ public final class CCodeGenerator {
                 return CIntType.getInstance();
             }
         }
-        else if (type instanceof ArrayType) {
-            return cArrayDeclarationType;
+        else if (type instanceof ArrayType arrayType) {
+            return arrayShouldBeString(arrayType)? cStringDeclarationType : cArrayDeclarationType;
         }
         else if (type instanceof EnumType enumType && enumType.isBooleanType()) {
             return CIntType.getInstance();
@@ -328,7 +340,7 @@ public final class CCodeGenerator {
 
             final Expression defConstant = definedConstants.get(exp.getReference(), null);
             if (defConstant instanceof ArrayConstructionExpression arrayConstructionExp && canBeOptimizedInStringPool(arrayConstructionExp)) {
-                return new CAdditionExpression(new CReferenceExpression(STRING_POOL), new CIntLiteralExpression("" + stringPool.getIndexes().get((StringLiteralExpression) arrayConstructionExp.getValues().valueAt(0))));
+                return new CAdditionExpression(STRING_POOL_REF, new CIntLiteralExpression("" + stringPool.getIndexes().get((StringLiteralExpression) arrayConstructionExp.getValues().valueAt(0))));
             }
             else {
                 return new CReferenceExpression(exp.getReference());
@@ -360,7 +372,7 @@ public final class CCodeGenerator {
                 final String ch = exp.getCharAt(i);
                 final int index = stringPool.getPool().indexOf(ch);
                 ensureValidState(index >= 0);
-                bodyBuilder.append(new CAssignmentStatement(new CArrayValueAtExpression(new CReferenceExpression(valuesVarName), new CIntLiteralExpression("" + i)), new CAdditionExpression(new CReferenceExpression(STRING_POOL), new CIntLiteralExpression("" + index))));
+                bodyBuilder.append(new CAssignmentStatement(new CArrayValueAtExpression(new CReferenceExpression(valuesVarName), new CIntLiteralExpression("" + i)), new CAdditionExpression(STRING_POOL_REF, new CIntLiteralExpression("" + index))));
             }
 
             final String arrayVarName = varNameCreator.create("array");
@@ -380,6 +392,13 @@ public final class CCodeGenerator {
         }
     }
 
+    /**
+     * Assigns the given expression to the values of an Array or String.
+     * <p>
+     * This method assumes that outArrayValuesRef points to the values field
+     * within an Array or String struct and that it is already initialized by
+     * the caller of this method.
+     */
     private void assignExpressionToArrayValues(
             Expression expression,
             ImmutableList<String> spaceName,
@@ -421,7 +440,7 @@ public final class CCodeGenerator {
             }
 
             if (optimizedRef) {
-                bodyBuilder.append(new CAssignmentStatement(new CArrayValueAtExpression(outArrayValuesRef, new CIntLiteralExpression("" + outOffset)), new CAdditionExpression(ref, index)));
+                bodyBuilder.append(new CAssignmentStatement(new CArrayValueAtExpression(outArrayValuesRef, new CIntLiteralExpression("" + outOffset)), new CArrayValueAtExpression(ref, index)));
             }
             else {
                 final boolean sourceIsPointer = ref instanceof CReferenceExpression refExp && refIsPointer.contains(refExp.getText());
@@ -456,11 +475,20 @@ public final class CCodeGenerator {
                 final FunctionDefinitionExpression funcDefExp = tempFuncDefExp;
                 ensureValidState(exp.getParameters().size() == funcDefExp.getParameters().size());
 
-                ensureValidState(mTypeMap.get(funcDefExp.getBody()) instanceof ArrayType);
+                final ArrayType arrayType = (ArrayType) mTypeMap.get(funcDefExp.getBody());
+                final String tempArrayName;
+                final CReferenceExpression tempArrayRef;
+                if (arrayShouldBeString(arrayType)) {
+                    tempArrayName = varNameCreator.create("string");
+                    tempArrayRef = new CReferenceExpression(tempArrayName);
+                    bodyBuilder.append(new CVarDefinitionStatement(new CVariable(tempArrayName, cStringDeclarationType)));
+                }
+                else {
+                    tempArrayName = varNameCreator.create("array");
+                    tempArrayRef = new CReferenceExpression(tempArrayName);
+                    bodyBuilder.append(new CVarDefinitionStatement(new CVariable(tempArrayName, cArrayDeclarationType)));
+                }
 
-                final String tempArrayName = varNameCreator.create("array");
-                final CReferenceExpression tempArrayRef = new CReferenceExpression(tempArrayName);
-                bodyBuilder.append(new CVarDefinitionStatement(new CVariable(tempArrayName, cArrayDeclarationType)));
                 final CExpression source = (outOffset == 0)? outArrayValuesRef : new CAdditionExpression(outArrayValuesRef, new CIntLiteralExpression("" + outOffset));
                 bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(tempArrayRef), source));
 
@@ -469,7 +497,8 @@ public final class CCodeGenerator {
 
                 final ImmutableMap<String, PersistenceChecker.Persistence> funcPersistence = persistenceChecker.obtainExpressionPersistence(targetSpaceName.append(functionName), funcDefExp.getBody(), persistenceChecker.full);
                 for (int paramIndex = 0; paramIndex < exp.getParameters().size(); paramIndex++) {
-                    final String paramName = funcDefExp.getParameters().valueAt(paramIndex).getName();
+                    final FunctionParameter funcParameter = funcDefExp.getParameters().valueAt(paramIndex);
+                    final String paramName = funcParameter.getName();
                     final PersistenceChecker.Persistence paramPersistence = funcPersistence.get(paramName, null);
                     if (paramPersistence == null) {
                         paramsBuilder.append(traverseExpression(exp.getParameters().valueAt(paramIndex), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer));
@@ -523,11 +552,31 @@ public final class CCodeGenerator {
         }
         else if (expression instanceof StringLiteralExpression exp) {
             final int arrayLength = exp.getArrayLength();
-            for (int i = 0; i < arrayLength; i++) {
-                final String ch = exp.getCharAt(i);
-                final int chIndex = stringPool.getPool().indexOf(ch);
-                ensureValidState(chIndex >= 0);
-                bodyBuilder.append(new CAssignmentStatement(new CArrayValueAtExpression(outArrayValuesRef, new CIntLiteralExpression("" + (outOffset + i))), new CAdditionExpression(new CReferenceExpression(STRING_POOL), new CIntLiteralExpression("" + chIndex))));
+            final ArrayType type = (ArrayType) mTypeMap.get(exp);
+            if (arrayShouldBeString(type)) {
+                if (arrayLength <= MEMCPY_THRESHOLD) {
+                    for (int i = 0; i < arrayLength; i++) {
+                        bodyBuilder.append(new CAssignmentStatement(
+                                new CArrayValueAtExpression(outArrayValuesRef, new CIntLiteralExpression("" + (outOffset + i))),
+                                new CCharLiteralExpression(exp.getCharAt(i))));
+                    }
+                }
+                else {
+                    final int index = stringPool.getIndexes().get(exp);
+                    bodyBuilder.append(new CFunctionExecutionStatement(new CReferenceExpression("memcpy"), new ImmutableList.Builder<CExpression>()
+                            .append((outOffset > 0)? new CAdditionExpression(outArrayValuesRef, new CIntLiteralExpression("" + outOffset)) : outArrayValuesRef)
+                            .append((index > 0)? new CAdditionExpression(STRING_POOL_REF, new CIntLiteralExpression("" + index)) : STRING_POOL_REF)
+                            .append(new CIntLiteralExpression("" + type.getLengthType().getMax()))
+                            .build()));
+                }
+            }
+            else {
+                for (int i = 0; i < arrayLength; i++) {
+                    final String ch = exp.getCharAt(i);
+                    final int chIndex = stringPool.getPool().indexOf(ch);
+                    ensureValidState(chIndex >= 0);
+                    bodyBuilder.append(new CAssignmentStatement(new CArrayValueAtExpression(outArrayValuesRef, new CIntLiteralExpression("" + (outOffset + i))), new CAdditionExpression(STRING_POOL_REF, new CIntLiteralExpression("" + chIndex))));
+                }
             }
         }
         else {
@@ -602,34 +651,50 @@ public final class CCodeGenerator {
             }
             else {
                 assignExpressionToArray(exp.getLeftExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer, outArrayRef, outArrayIsPointer);
-                final String tempArrayName = varNameCreator.create("array");
-                final CReferenceExpression tempArrayRef = new CReferenceExpression(tempArrayName);
-                bodyBuilder.append(new CVarDefinitionStatement(new CVariable(tempArrayName, cArrayDeclarationType)));
+                final String tempVarName;
+                if (arrayShouldBeString(arrayType)) {
+                    tempVarName = varNameCreator.create("string");
+                    bodyBuilder.append(new CVarDefinitionStatement(new CVariable(tempVarName, cStringDeclarationType)));
+                }
+                else {
+                    tempVarName = varNameCreator.create("array");
+                    bodyBuilder.append(new CVarDefinitionStatement(new CVariable(tempVarName, cArrayDeclarationType)));
+                }
 
+                final CReferenceExpression tempVarRef = new CReferenceExpression(tempVarName);
                 bodyBuilder.append(new CAssignmentStatement(
-                        new CStructFieldAccessExpression(tempArrayRef, ARRAY_FIELD_VALUES),
+                        new CStructFieldAccessExpression(tempVarRef, ARRAY_FIELD_VALUES),
                         new CAdditionExpression(valuesAccessExpression, lengthAccessExpression)));
-                assignExpressionToArray(exp.getRightExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer, tempArrayRef, false);
-                bodyBuilder.append(new CAdditionStatement(lengthAccessExpression, newArrayLengthAccessExpression(tempArrayRef)));
+                assignExpressionToArray(exp.getRightExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer, tempVarRef, false);
+                bodyBuilder.append(new CAdditionStatement(lengthAccessExpression, newArrayLengthAccessExpression(tempVarRef)));
             }
         }
         else if (expression instanceof ArrayConstructionExpression exp) {
-            final ArrayType arrayType = (ArrayType) mTypeMap.get(exp);
-            final ImmutableList<CExpression> params = exp.getValues().map(paramValue -> traverseExpression(paramValue, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer));
-            final String valuesVarName = varNameCreator.create("values");
-            final int arrayLength = params.size();
-            bodyBuilder.append(new CArrayDefinitionStatement(new CVariable(valuesVarName, new CPointerType(cType(arrayType.getItemType(), definedStructs))), arrayLength));
-            for (int i = 0; i < arrayLength; i++) {
-                bodyBuilder.append(new CAssignmentStatement(new CArrayValueAtExpression(new CReferenceExpression(valuesVarName), new CIntLiteralExpression("" + i)), params.valueAt(i)));
-            }
+            final ImmutableList<CExpression> params = exp.getValues().map(paramValue -> {
+                if (paramValue instanceof StringLiteralExpression paramStrLiteral) {
+                    final int index = stringPool.getIndexes().get(paramStrLiteral);
+                    final String stringVarName = varNameCreator.create("string");
+                    final CReferenceExpression arrayRef = new CReferenceExpression(stringVarName);
+                    bodyBuilder.append(new CVarDefinitionStatement(new CVariable(stringVarName, cStringDeclarationType)));
+                    bodyBuilder.append(new CAssignmentStatement(newArrayLengthAccessExpression(arrayRef), new CIntLiteralExpression("" + paramStrLiteral.getArrayLength())));
+                    bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(arrayRef), (index > 0)? new CAdditionExpression(STRING_POOL_REF, new CIntLiteralExpression("" + index)) : STRING_POOL_REF));
+
+                    return new CDereferenceExpression(arrayRef);
+                }
+                else {
+                    return traverseExpression(paramValue, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer);
+                }
+            });
 
             final CAssignableExpression lengthTarget = outArrayIsPointer? newArrayLengthPointerAccessExpression(outArrayRef) : newArrayLengthAccessExpression(outArrayRef);
-            bodyBuilder.append(new CAssignmentStatement(lengthTarget, new CIntLiteralExpression("" + arrayLength)));
-            final CAssignableExpression valuesTarget = outArrayIsPointer? newArrayValuesPointerAccessExpression(outArrayRef) : newArrayValuesAccessExpression(outArrayRef);
-            bodyBuilder.append(new CAssignmentStatement(valuesTarget, newCastToVoidPtrPtr(valuesVarName)));
+            final CExpression valuesTarget = outArrayIsPointer? newArrayValuesPointerAccessExpression(outArrayRef) : newArrayValuesAccessExpression(outArrayRef);
 
-            final String arrayName = varNameCreator.create("array");
-            bodyBuilder.append(new CVarDefinitionStatement(new CVariable(arrayName, cArrayDeclarationType)));
+            final int arrayLength = params.size();
+            for (int i = 0; i < arrayLength; i++) {
+                bodyBuilder.append(new CAssignmentStatement(new CArrayValueAtExpression(valuesTarget, new CIntLiteralExpression("" + i)), params.valueAt(i)));
+            }
+
+            bodyBuilder.append(new CAssignmentStatement(lengthTarget, new CIntLiteralExpression("" + arrayLength)));
         }
         else if (expression instanceof ArrayValueAtExpression exp) {
             final CExpression arrayExp = traverseExpression(exp.getArray(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer);
@@ -639,7 +704,10 @@ public final class CCodeGenerator {
             final boolean sourceIsPointer = exp.getArray() instanceof ReferenceExpression refExp && refIsPointer.contains(refExp.getReference());
             final CAssignableExpression outLength = outArrayIsPointer? newArrayLengthPointerAccessExpression(outArrayRef) : newArrayLengthAccessExpression(outArrayRef);
             final CExpression outValues = outArrayIsPointer? newArrayValuesPointerAccessExpression(outArrayRef) : newArrayValuesAccessExpression(outArrayRef);
-            final CExpression source = new CCastExpression(new CPointerType(cArrayDeclarationType), new CArrayValueAtExpression(sourceIsPointer? newArrayValuesPointerAccessExpression(arrayExp) : newArrayValuesAccessExpression(arrayExp), indexExp));
+            final boolean sourceIsString = arrayShouldBeString(resultingType);
+            final CTypeDeclaration sourceType = new CPointerType(sourceIsString? cStringDeclarationType : cArrayDeclarationType);
+            final CExpression source = new CCastExpression(sourceType, new CArrayValueAtExpression(sourceIsPointer? newArrayValuesPointerAccessExpression(arrayExp) : newArrayValuesAccessExpression(arrayExp), indexExp));
+
             if (resultingLengthType.getMax().equals(resultingLengthType.getMin())) {
                 final CIntLiteralExpression lengthExpression = new CIntLiteralExpression(resultingLengthType.getMax());
                 bodyBuilder.append(new CAssignmentStatement(outLength, lengthExpression));
@@ -653,7 +721,8 @@ public final class CCodeGenerator {
                 else if (length <= MEMCPY_THRESHOLD) {
                     final String sourceHolderName = varNameCreator.create("source");
                     final CReferenceExpression sourceHolderRef = new CReferenceExpression(sourceHolderName);
-                    bodyBuilder.append(new CVarDefinitionStatement(new CVariable(sourceHolderName, CPointerType.getVoidPtrPtrInstance())));
+                    bodyBuilder.append(new CVarDefinitionStatement(new CVariable(sourceHolderName,
+                            sourceIsString? CPointerType.getCharPtrInstance() : CPointerType.getVoidPtrPtrInstance())));
                     bodyBuilder.append(new CAssignmentStatement(sourceHolderRef, newArrayValuesPointerAccessExpression(source)));
                     for (int index = 0; index < length; index++) {
                         final CIntLiteralExpression indexLiteral = new CIntLiteralExpression("" + index);
@@ -671,11 +740,15 @@ public final class CCodeGenerator {
                 }
             }
             else {
-                bodyBuilder.append(new CAssignmentStatement(outLength, newArrayLengthPointerAccessExpression(source)));
+                final String sourceTempVarName = varNameCreator.create(sourceIsString? "string" : "array");
+                final CReferenceExpression sourceTempVarRef = new CReferenceExpression(sourceTempVarName);
+                bodyBuilder.append(new CVarDefinitionStatement(new CVariable(sourceTempVarName, sourceType)));
+                bodyBuilder.append(new CAssignmentStatement(sourceTempVarRef, source));
+                bodyBuilder.append(new CAssignmentStatement(outLength, newArrayLengthPointerAccessExpression(sourceTempVarRef)));
                 bodyBuilder.append(new CFunctionExecutionStatement(new CReferenceExpression("memcpy"), new ImmutableList.Builder<CExpression>()
                         .append(outValues)
-                        .append(newArrayValuesPointerAccessExpression(source))
-                        .append(new CMultiplicationExpression(outLength, new CSizeofExpression(new CPointerType(cType(resultingType, definedStructs)))))
+                        .append(newArrayValuesPointerAccessExpression(sourceTempVarRef))
+                        .append(sourceIsString? outLength : new CMultiplicationExpression(outLength, new CSizeofExpression(new CPointerType(cType(resultingType, definedStructs)))))
                         .build()));
             }
         }
@@ -828,9 +901,9 @@ public final class CCodeGenerator {
                     final String paramName = funcDefExp.getParameters().valueAt(paramIndex).getName();
                     final PersistenceChecker.Persistence paramPersistence = funcPersistence.get(paramName, null);
                     if (paramPersistence == PersistenceChecker.fullPersistence) {
-                        // Assuming that the variable exists and has name outArray0
+                        // Assuming that the variable exists and has name outString0
                         // TODO: Adjust this logic to get the correct variable name
-                        final CReferenceExpression outArrayRef = new CReferenceExpression("outArray0");
+                        final CReferenceExpression outArrayRef = new CReferenceExpression("outString0");
                         assignExpressionToArray(exp.getParameters().valueAt(paramIndex), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer, outArrayRef, true);
                         paramsBuilder.append(outArrayRef);
                     }
@@ -1020,10 +1093,23 @@ public final class CCodeGenerator {
             final Type resultType = mTypeMap.get(funcExpression.getBody());
             final ImmutableList.Builder<CVariable> paramsBuilder = new ImmutableList.Builder<>();
             boolean resultAsParameter = false;
-            if (resultType instanceof ArrayType && !funcRequiredAllocations.getPointersInArray().isEmpty()) {
-                paramsBuilder.append(new CVariable(OUT_RESULT, new CPointerType(cArrayDeclarationType)));
-                newRefIsPointer.add(OUT_RESULT);
-                resultAsParameter = true;
+            boolean resultIsArray = false;
+            boolean resultIsString = false;
+            if (resultType instanceof ArrayType resultArrayType) {
+                if (arrayShouldBeString(resultArrayType)) {
+                    if (!funcRequiredAllocations.getCharsInString().isEmpty()) {
+                        paramsBuilder.append(new CVariable(OUT_RESULT, new CPointerType(cStringDeclarationType)));
+                        newRefIsPointer.add(OUT_RESULT);
+                        resultAsParameter = true;
+                        resultIsString = true;
+                    }
+                }
+                else if (!funcRequiredAllocations.getPointersInArray().isEmpty()) {
+                    paramsBuilder.append(new CVariable(OUT_RESULT, new CPointerType(cArrayDeclarationType)));
+                    newRefIsPointer.add(OUT_RESULT);
+                    resultAsParameter = true;
+                    resultIsArray = true;
+                }
             }
             else if (resultType instanceof RegisterType regType && funcRequiredAllocations.getStructs().containsKey(regType.getDefinition())) {
                 paramsBuilder.append(new CVariable(OUT_RESULT, new CPointerType(cType(resultType, definedStructs))));
@@ -1045,12 +1131,23 @@ public final class CCodeGenerator {
             }
 
             for (int index : funcRequiredAllocations.getPointersInArray().indexes()) {
-                if (resultType instanceof ArrayType && index == 0) {
+                if (resultType instanceof ArrayType && resultIsArray && index == 0) {
                     // Result as parameter already added
                 }
                 else {
                     final String varName = "outArray" + index;
                     paramsBuilder.append(new CVariable(varName, new CPointerType(cArrayDeclarationType)));
+                    newRefIsPointer.add(varName);
+                }
+            }
+
+            for (int index : funcRequiredAllocations.getCharsInString().indexes()) {
+                if (resultType instanceof ArrayType && resultIsString && index == 0) {
+                    // Result as parameter already added
+                }
+                else {
+                    final String varName = "outString" + index;
+                    paramsBuilder.append(new CVariable(varName, new CPointerType(cStringDeclarationType)));
                     newRefIsPointer.add(varName);
                 }
             }
@@ -1079,12 +1176,24 @@ public final class CCodeGenerator {
             }
 
             final ImmutableList.Builder<CInFunctionStatement> innerBodyBuilder = new ImmutableList.Builder<>();
-            if (resultType instanceof ArrayType arrayType && !funcRequiredAllocations.getPointersInArray().isEmpty()) {
-                if (arrayType.getLengthType().getMin().equals(arrayType.getLengthType().getMax())) {
-                    assignExpressionToArray(funcExpression.getBody(), innerSpaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, innerBodyBuilder, definedTypes, definedConstants, new DefaultVariableNameCreator(), stringPool, newRefIsPointer, OUT_RESULT_REF, true);
+            if (resultType instanceof ArrayType arrayType) {
+                if (arrayShouldBeString(arrayType)) {
+                    ensureValidState(!funcRequiredAllocations.getCharsInString().isEmpty());
+                    if (arrayType.getLengthType().getMin().equals(arrayType.getLengthType().getMax())) {
+                        assignExpressionToArray(funcExpression.getBody(), innerSpaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, innerBodyBuilder, definedTypes, definedConstants, new DefaultVariableNameCreator(), stringPool, newRefIsPointer, OUT_RESULT_REF, true);
+                    }
+                    else {
+                        throw new UnsupportedOperationException("Unimplemented for non-fixed length array");
+                    }
                 }
                 else {
-                    throw new UnsupportedOperationException("Unimplemented for non-fixed length array");
+                    ensureValidState(!funcRequiredAllocations.getPointersInArray().isEmpty());
+                    if (arrayType.getLengthType().getMin().equals(arrayType.getLengthType().getMax())) {
+                        assignExpressionToArray(funcExpression.getBody(), innerSpaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, innerBodyBuilder, definedTypes, definedConstants, new DefaultVariableNameCreator(), stringPool, newRefIsPointer, OUT_RESULT_REF, true);
+                    }
+                    else {
+                        throw new UnsupportedOperationException("Unimplemented for non-fixed length array");
+                    }
                 }
             }
             else if (resultType instanceof RegisterType regType && funcRequiredAllocations.getStructs().containsKey(regType.getDefinition())) {
@@ -1125,10 +1234,17 @@ public final class CCodeGenerator {
                         final int arrayLength = Integer.parseInt(maxLengthText);
                         final Type itemType = arrayResultingType.getItemType();
                         final CTypeDeclaration cItemType = cType(itemType, definedStructs);
-                        final CTypeDeclaration cItemPtrType = new CPointerType(cItemType);
-                        bodyBuilder.append(new CArrayDefinitionStatement(new CVariable(valuesVarName, cItemPtrType), arrayLength));
-                        bodyBuilder.append(new CVarDefinitionStatement(new CVariable(statement.getName(), targetType)));
-                        bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(ifResultRef), newCastToVoidPtrPtr(valuesVarName)));
+                        if (arrayShouldBeString(arrayResultingType)) {
+                            bodyBuilder.append(new CArrayDefinitionStatement(new CVariable(valuesVarName, cItemType), arrayLength));
+                            bodyBuilder.append(new CVarDefinitionStatement(new CVariable(statement.getName(), targetType)));
+                            bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(ifResultRef), new CReferenceExpression(valuesVarName)));
+                        }
+                        else {
+                            final CTypeDeclaration cItemPtrType = new CPointerType(cItemType);
+                            bodyBuilder.append(new CArrayDefinitionStatement(new CVariable(valuesVarName, cItemPtrType), arrayLength));
+                            bodyBuilder.append(new CVarDefinitionStatement(new CVariable(statement.getName(), targetType)));
+                            bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(ifResultRef), newCastToVoidPtrPtr(valuesVarName)));
+                        }
                         assignExpressionToArray(ifExpression, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer, ifResultRef, false);
                     }
                 }
@@ -1148,8 +1264,9 @@ public final class CCodeGenerator {
             else if (constType instanceof ArrayType arrayType) {
                 final IntType resultLength = arrayType.getLengthType();
                 final String newValuesName = varNameCreator.create("values");
-                bodyBuilder.append(new CArrayDefinitionStatement(new CVariable(newValuesName, new CPointerType(cType(arrayType.getItemType(), definedStructs))), Integer.parseInt(resultLength.getMax())));
-                bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(new CReferenceExpression(statement.getName())), newCastToVoidPtrPtr(newValuesName)));
+                final boolean isString = arrayShouldBeString(arrayType);
+                bodyBuilder.append(new CArrayDefinitionStatement(new CVariable(newValuesName, isString? CCharType.getInstance() : new CPointerType(cType(arrayType.getItemType(), definedStructs))), Integer.parseInt(resultLength.getMax())));
+                bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(new CReferenceExpression(statement.getName())), isString? new CReferenceExpression(newValuesName) : newCastToVoidPtrPtr(newValuesName)));
                 assignExpressionToArray(constDefExp, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, varNameCreator, stringPool, refIsPointer, varRef, false);
             }
             else {
@@ -1208,6 +1325,10 @@ public final class CCodeGenerator {
         headerStatementsBuilder.append(new CStructDefinitionStatement(new CStructType(ARRAY, new ImmutableList.Builder<CVariable>()
                 .append(new CVariable(ARRAY_FIELD_LENGTH, CIntType.getInstance()))
                 .append(new CVariable(ARRAY_FIELD_VALUES, CPointerType.getVoidPtrPtrInstance()))
+                .build())));
+        headerStatementsBuilder.append(new CStructDefinitionStatement(new CStructType(STRING, new ImmutableList.Builder<CVariable>()
+                .append(new CVariable(ARRAY_FIELD_LENGTH, CIntType.getInstance()))
+                .append(new CVariable(ARRAY_FIELD_VALUES, CPointerType.getCharPtrInstance()))
                 .build())));
         for (CStructType cStruct : cStructs) {
             headerStatementsBuilder.append(new CStructDefinitionStatement(cStruct));

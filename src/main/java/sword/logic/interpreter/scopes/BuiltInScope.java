@@ -42,7 +42,7 @@ public final class BuiltInScope extends AbstractScope {
 
     private final ArrayType mStringType = new ArrayType(
             new IntType(TypeConstants.zeroText, TypeConstants.unboundText),
-            new IntType(TypeConstants.zeroText, "255"));
+            new IntType(TypeConstants.zeroText, "127"));
 
     private final EnumType mAlwaysTrueType = new EnumType(mBooleanType.getDefinition(), new ImmutableHashSet.Builder<String>()
             .add(TypeConstants.BOOLEAN_VALUE_TRUE)

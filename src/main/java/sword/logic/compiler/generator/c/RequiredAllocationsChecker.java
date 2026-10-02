@@ -38,6 +38,7 @@ import java.util.Objects;
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 import static sword.logic.compiler.PreconditionUtils.ensureValidState;
+import static sword.logic.compiler.generator.c.CCodeGenerator.arrayShouldBeString;
 import static sword.logic.compiler.generator.c.PersistenceChecker.fullPersistence;
 import static sword.logic.compiler.generator.c.PersistenceChecker.getUnionOfPersistences;
 
@@ -45,7 +46,7 @@ final class RequiredAllocationsChecker {
     private final ImmutableMap<Expression, Type> mTypeMap;
     private final ImmutableMap<ImmutableList<String>, FunctionDefinitionExpression> mFunctionMap;
     private final PersistenceChecker mPersistenceChecker;
-    private final Result mEmptyResult = new Result(ImmutableIntValueHashMap.empty(), ImmutableIntList.empty());
+    private final Result mEmptyResult = new Result(ImmutableIntValueHashMap.empty(), ImmutableIntList.empty(), ImmutableIntList.empty());
     private final MutableMap<KeyPair, Result> mResultMap = MutableHashMap.empty();
 
     RequiredAllocationsChecker(
@@ -98,16 +99,25 @@ final class RequiredAllocationsChecker {
             final Result rightResult = obtainCheckedExpression(spaceName, exp.getRightExpression(), mPersistenceChecker.arrayConcatenationInPersistence);
             final ImmutableIntValueMap<RegisterType.Definition> additionalStructs = leftResult.mStructs.keySet().addAll(rightResult.mStructs.keySet()).assignToInt(k ->
                     leftResult.mStructs.get(k, 0) + rightResult.mStructs.get(k, 0));
-            final String max = ((ArrayType) mTypeMap.get(exp)).getLengthType().getMax();
+            final ArrayType type = (ArrayType) mTypeMap.get(exp);
+            final String max = type.getLengthType().getMax();
             if (max.equals(TypeConstants.unboundText)) {
                 // This would require dynamic memory allocation...
                 throw new UnsupportedOperationException("Unimplemented");
             }
 
-            final ImmutableIntList newPointersInArray = new ImmutableIntList.Builder()
-                    .append(Integer.parseInt(max))
-                    .build();
-            return new Result(additionalStructs, newPointersInArray);
+            if (arrayShouldBeString(type)) {
+                final ImmutableIntList newCharsInString = new ImmutableIntList.Builder()
+                        .append(Integer.parseInt(max))
+                        .build();
+                return new Result(additionalStructs, ImmutableIntList.empty(), newCharsInString);
+            }
+            else {
+                final ImmutableIntList newPointersInArray = new ImmutableIntList.Builder()
+                        .append(Integer.parseInt(max))
+                        .build();
+                return new Result(additionalStructs, newPointersInArray, ImmutableIntList.empty());
+            }
         }
         else if (expression instanceof ArrayConstructionExpression exp) {
             final PersistenceChecker.InPersistence valuesInPersistence = (inPersistence instanceof PersistenceChecker.ArrayItemInPersistence arrayPers)? arrayPers.getWrapped() : mPersistenceChecker.full;
@@ -120,7 +130,11 @@ final class RequiredAllocationsChecker {
                     .map(Result::getPointersInArray)
                     .reduce(ImmutableIntList::appendAll, ImmutableIntList.empty())
                     .append(exp.getValues().size());
-            return new Result(newStructCount, newPointersInArray);
+            final ImmutableIntList newCharsInString = valuesResult
+                    .map(Result::getCharsInString)
+                    .reduce(ImmutableIntList::appendAll, ImmutableIntList.empty())
+                    .append(exp.getValues().size());
+            return new Result(newStructCount, newPointersInArray, newCharsInString);
         }
         else if (expression instanceof ArrayValueAtExpression) {
             return mEmptyResult;
@@ -140,6 +154,7 @@ final class RequiredAllocationsChecker {
 
             ImmutableIntValueMap<RegisterType.Definition> additionalStructs = expressionResult.getStructs();
             ImmutableIntList pointersInArray = expressionResult.getPointersInArray();
+            ImmutableIntList charsInString = expressionResult.getCharsInString();
 
             ImmutableMap<String, PersistenceChecker.Persistence> flatPersistences = expressionPersistences;
             final MutableMap<String, PersistenceChecker.Persistence> alreadyAccumulated = MutableHashMap.empty();
@@ -164,6 +179,7 @@ final class RequiredAllocationsChecker {
                             additionalStructs = additionalStructs.put(entry.key(), entry.value() + additionalStructs.get(entry.key(), 0));
                         }
                         pointersInArray = pointersInArray.appendAll(statementAllocations.getPointersInArray());
+                        charsInString = charsInString.appendAll(statementAllocations.getCharsInString());
 
                         for (Map.Entry<String, PersistenceChecker.Persistence> entry : statementPersistenceMap.entries()) {
                             final PersistenceChecker.Persistence newPersistence;
@@ -183,8 +199,10 @@ final class RequiredAllocationsChecker {
                         }
 
                         final int maxPointers = Integer.parseInt(((ArrayType) mTypeMap.get(constDefsMap.get(target).getExpression())).getLengthType().getMax());
-                        final int index = statementAllocations.getPointersInArray().indexOf(maxPointers);
-                        pointersInArray = pointersInArray.appendAll((index >= 0)? statementAllocations.getPointersInArray().removeAt(index) : statementAllocations.getPointersInArray());
+                        final int pointersIndex = statementAllocations.getPointersInArray().indexOf(maxPointers);
+                        pointersInArray = pointersInArray.appendAll((pointersIndex >= 0)? statementAllocations.getPointersInArray().removeAt(pointersIndex) : statementAllocations.getPointersInArray());
+                        final int charsIndex = statementAllocations.getCharsInString().indexOf(maxPointers);
+                        charsInString = charsInString.appendAll((charsIndex >= 0)? statementAllocations.getCharsInString().removeAt(charsIndex) : statementAllocations.getCharsInString());
 
                         for (Map.Entry<String, PersistenceChecker.Persistence> entry : statementPersistenceMap.entries()) {
                             final PersistenceChecker.Persistence newPersistence;
@@ -204,7 +222,7 @@ final class RequiredAllocationsChecker {
                 }
             }
 
-            return new Result(additionalStructs, pointersInArray);
+            return new Result(additionalStructs, pointersInArray, charsInString);
         }
         else if (expression instanceof EnumValueLiteralExpression) {
             return mEmptyResult;
@@ -234,6 +252,7 @@ final class RequiredAllocationsChecker {
                 final ImmutableMap<String, PersistenceChecker.Persistence> funcPersistences = mPersistenceChecker.obtainExpressionPersistence(funcQualifiedName, funcDefExp.getBody(), inPersistence);
                 final ImmutableMap<String, PersistenceChecker.Persistence> paramPersistences = funcPersistences.filterByKey(funcDefExp.getParameters().map(FunctionParameter::getName)::contains);
                 ImmutableIntList pointersInArray = ImmutableIntList.empty();
+                ImmutableIntList charsInString = ImmutableIntList.empty();
 
                 for (int paramPersistenceIndex : paramPersistences.indexes()) {
                     final String paramName = paramPersistences.keyAt(paramPersistenceIndex);
@@ -241,8 +260,8 @@ final class RequiredAllocationsChecker {
                     final int paramIndex = funcDefExp.getParameters().indexWhere(p -> p.getName().equals(paramName));
                     final Expression paramExp = exp.getParameters().valueAt(paramIndex);
                     if (paramPersistence == fullPersistence) {
-                        if (paramExp instanceof StringLiteralExpression litExp) {
-                            pointersInArray = pointersInArray.append(litExp.getArrayLength());
+                        if (paramExp instanceof StringLiteralExpression) {
+                            charsInString = charsInString.append(0);
                         }
                         else {
                             final Result paramResult = obtainCheckedExpression(spaceName, paramExp, inPersistence);
@@ -251,6 +270,7 @@ final class RequiredAllocationsChecker {
                             }
 
                             pointersInArray = pointersInArray.appendAll(paramResult.getPointersInArray());
+                            charsInString = charsInString.appendAll(paramResult.getCharsInString());
                         }
                     }
                     else {
@@ -259,7 +279,9 @@ final class RequiredAllocationsChecker {
                 }
 
                 final Result funcResult = obtainCheckedExpression(funcQualifiedName, funcDefExp.getBody(), inPersistence);
-                return new Result(funcResult.getStructs(), funcResult.getPointersInArray().appendAll(pointersInArray));
+                return new Result(funcResult.getStructs(),
+                        funcResult.getPointersInArray().appendAll(pointersInArray),
+                        funcResult.getCharsInString().appendAll(charsInString));
             }
             else {
                 throw new UnsupportedOperationException("Unimplemented");
@@ -271,7 +293,9 @@ final class RequiredAllocationsChecker {
 
             final ImmutableIntValueMap<RegisterType.Definition> additionalStructs = thenResult.mStructs.keySet().addAll(elseResult.mStructs.keySet()).assignToInt(k ->
                     Math.max(thenResult.mStructs.get(k, 0), elseResult.mStructs.get(k, 0)));
-            return new Result(additionalStructs, getUnionOfPointersInArray(thenResult.getPointersInArray(), elseResult.getPointersInArray()));
+            return new Result(additionalStructs,
+                    getUnionOfPointersInArray(thenResult.getPointersInArray(), elseResult.getPointersInArray()),
+                    getUnionOfPointersInArray(thenResult.getCharsInString(), elseResult.getCharsInString()));
         }
         else if (expression instanceof IntegerLiteralExpression) {
             return mEmptyResult;
@@ -294,7 +318,8 @@ final class RequiredAllocationsChecker {
                     .reduce((a, b) -> a.keySet().addAll(b.keySet()).assignToInt(k -> a.get(k, 0) + b.get(k, 0)));
             return new Result(
                     structsForOutput.put(regDef, structsForOutput.get(regDef, 0) + 1),
-                    results.map(Result::getPointersInArray).reduce(ImmutableIntList::appendAll, ImmutableIntList.empty()));
+                    results.map(Result::getPointersInArray).reduce(ImmutableIntList::appendAll, ImmutableIntList.empty()),
+                    results.map(Result::getCharsInString).reduce(ImmutableIntList::appendAll, ImmutableIntList.empty()));
         }
         else if (expression instanceof RegisterFieldAccessExpression exp) {
             final Type fieldType = mTypeMap.get(exp);
@@ -310,10 +335,10 @@ final class RequiredAllocationsChecker {
                 return mEmptyResult;
             }
             else {
-                final ImmutableIntList pointersInArray = new ImmutableIntList.Builder()
+                final ImmutableIntList charsInString = new ImmutableIntList.Builder()
                         .append(exp.getArrayLength())
                         .build();
-                return new Result(ImmutableIntValueHashMap.empty(), pointersInArray);
+                return new Result(ImmutableIntValueHashMap.empty(), ImmutableIntList.empty(), charsInString);
             }
         }
         else {
@@ -356,14 +381,18 @@ final class RequiredAllocationsChecker {
     static final class Result {
         private final ImmutableIntValueMap<RegisterType.Definition> mStructs;
         private final ImmutableIntList mPointersInArray;
+        private final ImmutableIntList mCharsInString;
 
         private Result(
                 ImmutableIntValueMap<RegisterType.Definition> structs,
-                ImmutableIntList pointersInArrays) {
+                ImmutableIntList pointersInArrays,
+                ImmutableIntList charsInStrings) {
             ensureValidArguments(structs.keySet().allMatch(Objects::nonNull) && structs.allMatch(v -> v > 0));
             ensureValidArguments(pointersInArrays.allMatch(v -> v >= 0));
+            ensureValidArguments(charsInStrings.allMatch(v -> v >= 0));
             mStructs = structs;
             mPointersInArray = pointersInArrays;
+            mCharsInString = charsInStrings;
         }
 
         /**
@@ -374,10 +403,25 @@ final class RequiredAllocationsChecker {
         }
 
         /**
-         * Return how many array structs should be allocated and how many pointers should be allocated for each inside.
+         * Return how many Array structs should be allocated and how many pointers should be allocated for each inside.
          */
         public ImmutableIntList getPointersInArray() {
             return mPointersInArray;
+        }
+
+        /**
+         * Return how many String structs should be allocated and how many characters should be allocated for each inside.
+         * <p>
+         * It is possible to find the value 0 withing the list.
+         * In that case, it means that the String struct must be allocated but not
+         * the values inside it. This is the normal scenario where either the string
+         * is empty or the string is a constant and values can point directly to the
+         * string pool.
+         * <p>
+         * This list will not include a negative number in any case.
+         */
+        public ImmutableIntList getCharsInString() {
+            return mCharsInString;
         }
     }
 }
