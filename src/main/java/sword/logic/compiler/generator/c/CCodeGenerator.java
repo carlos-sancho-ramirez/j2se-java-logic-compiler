@@ -792,10 +792,13 @@ public final class CCodeGenerator {
             final Type resultingType = mTypeMap.get(exp);
             if (resultingType instanceof ArrayType resultingArrayType) {
                 final CExpression lengthExpression = refIsPointer.contains(exp.getReference())? newArrayLengthPointerAccessExpression(valueRef) : newArrayLengthAccessExpression(valueRef);
+                final CExpression countExp = arrayShouldBeString(resultingArrayType)? lengthExpression :
+                        new CMultiplicationExpression(lengthExpression, new CSizeofExpression(new CPointerType(cType(resultingArrayType.getItemType(), definedStructs))));
+
                 bodyBuilder.append(new CFunctionExecutionStatement(new CReferenceExpression("memcpy"), new ImmutableList.Builder<CExpression>()
                         .append(outArrayIsPointer? newArrayValuesPointerAccessExpression(outArrayRef) : newArrayValuesAccessExpression(outArrayRef))
                         .append(refIsPointer.contains(exp.getReference())? newArrayValuesPointerAccessExpression(valueRef) : newArrayValuesAccessExpression(valueRef))
-                        .append(new CMultiplicationExpression(lengthExpression, new CSizeofExpression(new CPointerType(cType(resultingArrayType.getItemType(), definedStructs)))))
+                        .append(countExp)
                         .build()));
                 bodyBuilder.append(new CAssignmentStatement(newArrayLengthAccessExpression(outArrayRef), lengthExpression));
             }
