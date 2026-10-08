@@ -1,6 +1,6 @@
-type Byte = Int[0..255];
-type Word = Int[0..65535];
-type Result = {
+Byte = Int[0..255];
+Word = Int[0..65535];
+Result = {
   valid: Boolean;
   message: String;
 };

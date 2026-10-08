@@ -833,29 +833,47 @@ public final class LogicInterpreter {
         ImmutableSet<String> knownConstants = ImmutableHashSet.empty();
         ImmutableSet<String> knownTypes = ImmutableHashSet.empty();
         final ImmutableList.Builder<Statement> builder = new ImmutableList.Builder<>();
-        Token typeKeywordToken = null;
         Token assignmentName = null;
+        boolean assigningType = false; // Only relevant when assignmentName != null
         Token token;
         while ((token = mParser.next()) != null) {
             final String tokenText = token.getText();
-            if (typeKeywordToken == null) {
-                if (assignmentName == null) {
-                    if (tokenText.equals(Keywords.TYPE)) {
-                        typeKeywordToken = token;
-                    }
-                    else if (validConstantName(tokenText)) {
-                        if (knownConstants.contains(tokenText)) {
-                            throwSemanticError("Constant \"" + tokenText + "\" already declared in this scope", token);
-                        }
-                        else {
-                            assignmentName = token;
-                        }
+            if (assignmentName == null) {
+                if (validConstantName(tokenText)) {
+                    if (knownConstants.contains(tokenText)) {
+                        throwSemanticError("Constant \"" + tokenText + "\" already declared in this scope", token);
                     }
                     else {
-                        throwSemanticError("Constant names must start with a lower-case character", token);
+                        assignmentName = token;
+                        assigningType = false;
                     }
                 }
-                else if (tokenText.equals("=")) {
+                else if (validTypeName(tokenText)) {
+                    if (knownTypes.contains(tokenText)) {
+                        throwSemanticError("Type \"" + tokenText + "\" already declared in this scope", token);
+                    }
+                    else {
+                        assignmentName = token;
+                        assigningType = true;
+                    }
+                }
+                else {
+                    throwSemanticError("Constant names must start with a lower-case character", token);
+                }
+            }
+            else if (tokenText.equals("=")) {
+                if (assigningType) {
+                    final TypeDefinitionInterpretationResult result = interpretTypeDefinition();
+                    if (result.closingToken.getText().equals(";")) {
+                        builder.append(new TypeDefinitionStatement(assignmentName, result.typeDefinition));
+                        knownTypes = knownTypes.add(assignmentName.getText());
+                        assignmentName = null;
+                    }
+                    else {
+                        throwSemanticError("Expected ';' after type definition", result.closingToken);
+                    }
+                }
+                else {
                     final ExpressionInterpretationResult result = interpretExpression();
                     if (result.result instanceof Expression resultExp) {
                         if (result.closingToken.getText().equals(";")) {
@@ -871,40 +889,13 @@ public final class LogicInterpreter {
                         throwSemanticError("Expression expected as constant definition", result.closingToken);
                     }
                 }
-                else {
-                    throwSemanticError("Expected '=' after constant name", token);
-                }
             }
             else {
-                if (assignmentName == null) {
-                    if (validTypeName(tokenText)) {
-                        if (knownTypes.contains(tokenText)) {
-                            throwSemanticError("Duplicated type name", token);
-                        }
-                        else {
-                            assignmentName = token;
-                        }
-                    }
-                    else {
-                        throwSemanticError("Type names must start with an upper-case character", token);
-                    }
+                if (assigningType) {
+                    throwSemanticError("Expected '=' after type name", token);
                 }
                 else {
-                    if (tokenText.equals("=")) {
-                        final TypeDefinitionInterpretationResult result = interpretTypeDefinition();
-                        if (result.closingToken.getText().equals(";")) {
-                            builder.append(new TypeDefinitionStatement(assignmentName, result.typeDefinition));
-                            knownTypes = knownTypes.add(assignmentName.getText());
-                            typeKeywordToken = null;
-                            assignmentName = null;
-                        }
-                        else {
-                            throwSemanticError("Expected ';' after type definition", result.closingToken);
-                        }
-                    }
-                    else {
-                        throwSemanticError("Expected '=' after type name", token);
-                    }
+                    throwSemanticError("Expected '=' after constant name", token);
                 }
             }
         }
