@@ -31,6 +31,7 @@ import sword.logic.interpreter.statements.ConstantDefinitionStatement;
 import sword.logic.interpreter.statements.Statement;
 import sword.logic.interpreter.statements.TypeDefinitionStatement;
 import sword.logic.interpreter.type.definitions.ArrayTypeDefinition;
+import sword.logic.interpreter.type.definitions.EnumTypeDefinition;
 import sword.logic.interpreter.type.definitions.FunctionParameter;
 import sword.logic.interpreter.type.definitions.IntTypeDefinition;
 import sword.logic.interpreter.type.definitions.ReferenceTypeDefinition;
@@ -46,6 +47,7 @@ import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidState;
 import static sword.logic.statements.ConstantDefinitionStatement.validConstantName;
 import static sword.logic.statements.TypeDefinitionStatement.validTypeName;
+import static sword.logic.types.EnumType.validEnumValueName;
 
 public final class LogicInterpreter {
 
@@ -141,7 +143,26 @@ public final class LogicInterpreter {
     private TypeDefinitionInterpretationResult interpretTypeDefinition() throws IOException, SyntaxErrorException, SemanticErrorException, UnexpectedEndOfFileException {
         final Token typeToken = nextTokenOrThrow("Expected type");
         final String typeTokenText = typeToken.getText();
-        if (typeTokenText.equals(TypeConstants.INTEGER_TYPE_TEXT)) {
+        if (validEnumValueName(typeTokenText)) {
+            final ImmutableList.Builder<Token> enumValues = new ImmutableList.Builder<Token>()
+                    .append(typeToken);
+
+            Token nextToken = nextTokenOrThrow("Expected '|' or ';'");
+            while (nextToken.getText().equals("|")) {
+                Token newEnumValue = nextTokenOrThrow("Expected enum value");
+                if (validEnumValueName(newEnumValue.getText())) {
+                    enumValues.append(newEnumValue);
+                }
+                else {
+                    throwSemanticError("Invalid enum value", newEnumValue);
+                }
+
+                nextToken = nextTokenOrThrow("Expected '|' or ';'");
+            }
+
+            return new TypeDefinitionInterpretationResult(new EnumTypeDefinition(enumValues.build()), nextToken);
+        }
+        else if (typeTokenText.equals(TypeConstants.INTEGER_TYPE_TEXT)) {
             validateNextToken("[", "Expected '[' after 'Int'");
             final Token minToken = nextTokenOrThrow("Expected integer literal");
             validateNextToken("..", "Expected '..'");
@@ -464,7 +485,7 @@ public final class LogicInterpreter {
                     accumulated++;
                 }
             }
-            else if (tokenText.equals("TRUE") || tokenText.equals("FALSE") || tokenText.charAt(0) == '"' && tokenText.charAt(tokenText.length() - 1) == '"') {
+            else if (validEnumValueName(tokenText) || tokenText.charAt(0) == '"' && tokenText.charAt(tokenText.length() - 1) == '"') {
                 if (accumulated % 2 == 1) {
                     throwSemanticError("Operator expected", token);
                 }
@@ -507,25 +528,47 @@ public final class LogicInterpreter {
                 }
             }
             else if (validTypeName(tokenText)) {
-                validateNextToken("{", "Expected '{'");
-                final ExpressionInterpretationResult result = interpretExpression();
-                if (result.closingToken.getText().equals("}")) {
-                    if (accumulated == 0) {
-                        if (result.result instanceof StatementSetInterpretation statementSet) {
-                            final ImmutableList<Statement> statements = statementSet.getStatements();
-                            expression[0] = new RegisterConstructionExpression(token, statements);
-                            accumulated = 1;
+                Token operatorToken = mParser.next();
+                if (operatorToken.getText().equals("=")) {
+                    if (assigningName != null) {
+                        throwSemanticError("Unexpected operator '='. There is already an assignment pending", token);
+                    }
+                    else if (accumulated != 0) {
+                        throwSemanticError("Unexpected operator '='. Assignments must be at the beginning of the statement", token);
+                    }
+                    else {
+                        final TypeDefinitionInterpretationResult typeDefResult = interpretTypeDefinition();
+                        if (typeDefResult.closingToken.getText().equals(";")) {
+                            assignments.append(new TypeDefinitionStatement(token, typeDefResult.typeDefinition));
                         }
                         else {
-                            throwSemanticError("Invalid register construction", result.closingToken);
+                            throwSemanticError("Expected ';' after type definition", typeDefResult.closingToken);
+                        }
+                    }
+                }
+                else if (operatorToken.getText().equals("{")) {
+                    final ExpressionInterpretationResult result = interpretExpression();
+                    if (result.closingToken.getText().equals("}")) {
+                        if (accumulated == 0) {
+                            if (result.result instanceof StatementSetInterpretation statementSet) {
+                                final ImmutableList<Statement> statements = statementSet.getStatements();
+                                expression[0] = new RegisterConstructionExpression(token, statements);
+                                accumulated = 1;
+                            }
+                            else {
+                                throwSemanticError("Invalid register construction", result.closingToken);
+                            }
+                        }
+                        else {
+                            throw new UnsupportedOperationException("Unimplemented");
                         }
                     }
                     else {
-                        throw new UnsupportedOperationException("Unimplemented");
+                        throwSemanticError("Expected '}'", result.closingToken);
                     }
                 }
                 else {
-                    throwSemanticError("Expected '}'", result.closingToken);
+                    throwSemanticError("Expected '{' or '=' after type reference", operatorToken);
                 }
             }
             else if (tokenText.equals(Keywords.IF)) {

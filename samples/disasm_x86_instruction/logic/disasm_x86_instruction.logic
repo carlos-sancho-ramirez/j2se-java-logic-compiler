@@ -29,6 +29,70 @@ disasmInstruction = (code: Array[Byte]) -> {
     operations = Array ("add", "or", "adc", "sbb", "and", "sub", "xor", "cmp");
     addresses = Array ("bx + si", "bx + di", "bp + si", "bp + di", "si", "di", "bp", "bx");
     ch = code[0];
+
+    Segment = ES | CS | SS | DS;
+    withPrefix = (seg: Segment) -> {
+      if code.length == 1 then error("No instruction found after segment prefix")
+      else {
+        ch2 = code[1];
+        if ch2 < 0x40 & ch2 % 8 < 4 then {
+          if code.length == 2 then error("Opcode " + toByteHexLiteral(ch) + " requires more bytes")
+          else {
+            ch3 = code[2];
+            if (ch3 < 0x40 & ch3 % 8 == 6 | ch3 >= 0x80 & ch3 < 0xC0) & code.length < 5 then error("Opcodes " + toByteHexLiteral(ch) + " " + toByteHexLiteral(ch2) + " " + toByteHexLiteral(ch3) + " requires 5 bytes")
+            else if ch3 >= 0x40 & ch3 < 0x80 & code.length < 4 then error("Opcodes " + toByteHexLiteral(ch) + " " + toByteHexLiteral(ch2) + " " + toByteHexLiteral(ch3) + " requires 4 bytes")
+            else if ch3 >= 0xC0 then error("Unknown opcode " + toByteHexLiteral(ch) + " " + toByteHexLiteral(ch2) + " " + toByteHexLiteral(ch3))
+            else {
+              segmentPrefix = {
+                if seg == ES then "es: "
+                else if seg == CS then "cs: "
+                else if seg == SS then "ss: "
+                else "ds: "
+              };
+
+              address = {
+                if ch3 < 0x40 then {
+                  if ch3 % 8 != 6 then addresses[ch3 % 8] + "]"
+                  else toWordHexLiteral(code[4] * 256 + code[3])
+                }
+                else {
+                  offset = {
+                    if ch3 < 0x80 then {
+                      ch4 = code[3];
+                      if ch4 < 0x80 then " + " + toByteHexLiteral(ch4) else " - " + toByteHexLiteral(256 - ch4)
+                    }
+                    else {
+                      value = code[4] * 256 + code[3];
+                      if value < 0x8000 then " + " + toWordHexLiteral(value) else " - " + toWordHexLiteral(0x10000 - value)
+                    }
+                  };
+
+                  addresses[ch3 % 8] + offset
+                }
+              };
+
+              registers = if ch2 % 2 == 0 then byteRegister else wordRegister;
+              source = registers[ch3 / 8 % 8];
+              target = "[" + segmentPrefix + address + "]";
+              validResult(operations[ch2 / 8] + " " + {
+                if ch2 % 4 < 2 then target + ", " + source
+                else source + ", " + target
+              })
+            }
+          }
+        }
+        else if ch2 < 0x40 & ch2 % 8 == 4 then {
+          if code.length < 3 then error("Opcodes " + toByteHexLiteral(ch) + " " + toByteHexLiteral(ch2) + " requires 3 bytes")
+          else validResult(operations[ch2 / 8] + " " + byteRegister[0] + ", " + toByteHexLiteral(code[2]))
+        }
+        else if ch2 < 0x40 & ch2 % 8 == 5 then {
+          if code.length < 4 then error("Opcode " + toByteHexLiteral(ch) + " " + toByteHexLiteral(ch2) + " requires 4 bytes")
+          else validResult(operations[ch2 / 8] + " " + wordRegister[0] + ", " + toWordHexLiteral(code[3] * 256 + code[2]))
+        }
+        else error("Unknown opcode " + toByteHexLiteral(ch) + " " + toByteHexLiteral(ch2))
+      }
+    };
+
     if ch < 0x40 & ch % 8 < 4 then {
       if code.length == 1 then error("Opcode " + toByteHexLiteral(ch) + " requires more bytes")
       else {
@@ -75,6 +139,10 @@ disasmInstruction = (code: Array[Byte]) -> {
     }
     else if ch == 6 | ch == 0x0E | ch == 0x16 | ch == 0x1E then validResult("push " + segment[ch / 8])
     else if ch == 7 | ch == 0x17 | ch == 0x1F then validResult("pop " + segment[ch / 8])
+    else if ch == 0x26 then withPrefix(ES)
+    else if ch == 0x2E then withPrefix(CS)
+    else if ch == 0x36 then withPrefix(SS)
+    else if ch == 0x3E then withPrefix(DS)
     else if ch >= 0x40 & ch < 0x48 then validResult("inc " + wordRegister[ch % 8])
     else if ch >= 0x48 & ch < 0x50 then validResult("dec " + wordRegister[ch % 8])
     else if ch >= 0x50 & ch < 0x58 then validResult("push " + wordRegister[ch % 8])

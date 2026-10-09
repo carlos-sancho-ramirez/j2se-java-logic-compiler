@@ -68,6 +68,16 @@ void testOk4(unsigned char ch0, unsigned char ch1, unsigned char ch2, unsigned c
     TEST_FUNC_LAST(4)
 }
 
+void testOk5(unsigned char ch0, unsigned char ch1, unsigned char ch2, unsigned char ch3, unsigned char ch4, const char *expected) {
+    TEST_FUNC_FIRST(5)
+    codeValues[0] = &ch0;
+    codeValues[1] = &ch1;
+    codeValues[2] = &ch2;
+    codeValues[3] = &ch3;
+    codeValues[4] = &ch4;
+    TEST_FUNC_LAST(5)
+}
+
 int main(int argc, char *argv[]) {
     testOk2(0x00, 0x00, "add [bx + si], al");
     testOk2(0x00, 0x01, "add [bx + di], al");
@@ -195,7 +205,9 @@ int main(int argc, char *argv[]) {
     testOk3(0x23, 0x77, 0x56, "and si, [bx + 0x56]");
     testOk2(0x24, 0x95, "and al, 0x95");
     testOk3(0x25, 0xA0, 0x9E, "and ax, 0x9EA0");
-    // TODO: Test 0x26 -> es:
+    testOk3(0x26, 0x00, 0x00, "add [es: bx + si], al");
+    testOk5(0x26, 0x00, 0x0E, 0x34, 0x12, "add [es: 0x1234], cl");
+    testOk4(0x26, 0x21, 0x45, 0xFA, "and [es: di - 0x06], ax");
     // TODO: Test 0x27 -> daa
     testOk2(0x28, 0x00, "sub [bx + si], al");
     testOk4(0x28, 0x16, 0x23, 0xBC, "sub [0xBC23], dl");
@@ -209,7 +221,9 @@ int main(int argc, char *argv[]) {
     testOk3(0x2B, 0x77, 0x56, "sub si, [bx + 0x56]");
     testOk2(0x2C, 0x95, "sub al, 0x95");
     testOk3(0x2D, 0xA0, 0x9E, "sub ax, 0x9EA0");
-    // TODO: Test 0x2E -> cs:
+    testOk3(0x2E, 0x00, 0x00, "add [cs: bx + si], al");
+    testOk5(0x2E, 0x00, 0x0E, 0x34, 0x12, "add [cs: 0x1234], cl");
+    testOk4(0x2E, 0x21, 0x45, 0x0A, "and [cs: di + 0x0A], ax");
     // TODO: Test 0x2F -> das
     testOk2(0x30, 0x00, "xor [bx + si], al");
     testOk4(0x30, 0x16, 0x23, 0xBC, "xor [0xBC23], dl");
@@ -223,7 +237,9 @@ int main(int argc, char *argv[]) {
     testOk3(0x33, 0x77, 0x56, "xor si, [bx + 0x56]");
     testOk2(0x34, 0x95, "xor al, 0x95");
     testOk3(0x35, 0xA0, 0x9E, "xor ax, 0x9EA0");
-    // TODO: Test 0x36 -> ss:
+    testOk3(0x36, 0x00, 0x00, "add [ss: bx + si], al");
+    testOk5(0x36, 0x00, 0x0E, 0x34, 0x12, "add [ss: 0x1234], cl");
+    testOk4(0x36, 0x21, 0x45, 0xFA, "and [ss: di - 0x06], ax");
     // TODO: Test 0x37 -> aaa
     testOk2(0x38, 0x00, "cmp [bx + si], al");
     testOk4(0x38, 0x16, 0x23, 0xBC, "cmp [0xBC23], dl");
@@ -237,7 +253,8 @@ int main(int argc, char *argv[]) {
     testOk3(0x3B, 0x77, 0x56, "cmp si, [bx + 0x56]");
     testOk2(0x3C, 0x95, "cmp al, 0x95");
     testOk3(0x3D, 0xA0, 0x9E, "cmp ax, 0x9EA0");
-    // TODO: Test 0x3E -> ds:
+    testOk3(0x3E, 0x02, 0x00, "add [ds: bp + si], al");
+    testOk5(0x3E, 0x00, 0x8E, 0x34, 0x12, "add [ds: bp + 0x1234], cl");
     // TODO: Test 0x3F -> aas
 
     printf("%d tests found. %d passed, %d failed\n", passedCount + failureCount, passedCount, failureCount);

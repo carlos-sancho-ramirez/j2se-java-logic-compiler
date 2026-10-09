@@ -15,6 +15,7 @@ import sword.logic.interpreter.statements.ConstantDefinitionStatement;
 import sword.logic.interpreter.statements.Statement;
 import sword.logic.interpreter.statements.TypeDefinitionStatement;
 import sword.logic.interpreter.Token;
+import sword.logic.interpreter.type.definitions.EnumTypeDefinition;
 import sword.logic.types.EnumType;
 import sword.logic.types.Type;
 
@@ -45,7 +46,20 @@ public final class StatementsHolderScope extends AbstractScope {
 
     @Override
     public EnumType resolveEnumValue(Token value) throws UnresolvedEnumValueException {
-        // TODO: Check if there is any enum at this level holding the given value
+        for (Statement statement : mStatements) {
+            if (statement instanceof TypeDefinitionStatement typeDef && typeDef.getDefinition() instanceof EnumTypeDefinition enumTypeDef && enumTypeDef.containsValue(value.getText())) {
+                final EnumType cached = (EnumType) mResolvedTypeAlias.get(typeDef, null);
+                if (cached == null) {
+                    final EnumType resolved = enumTypeDef.resolve(this);
+                    mResolvedTypeAlias.put(typeDef, resolved);
+                    return resolved;
+                }
+                else {
+                    return cached;
+                }
+            }
+        }
+
         return mParent.resolveEnumValue(value);
     }
 
