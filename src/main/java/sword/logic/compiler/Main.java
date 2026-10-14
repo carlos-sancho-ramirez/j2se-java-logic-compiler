@@ -43,7 +43,7 @@ public final class Main {
 
                 final CCodeWriter codeWriter = new CCodeWriter();
                 final String path = "build" + File.separator + "output";
-                codeWriter.writeHeader(path, codeGenerationResult.getHeaderStatements());
+                codeWriter.writeHeader(path, codeGenerationResult.getHeaderEnums(), codeGenerationResult.getHeaderStatements());
                 codeWriter.writeSource(path, codeGenerationResult.getSourceStatements());
             }
             catch (UnexpectedEndOfFileException e) {

@@ -18,6 +18,10 @@ public final class EnumTypeDefinition implements TypeDefinition {
         mValues = values;
     }
 
+    public boolean containsValue(String value) {
+        return mValues.anyMatch(token -> token.getText().equals(value));
+    }
+
     @Override
     public EnumType resolve(TypeAliasResolver resolver) {
         final ImmutableSet<String> values = mValues.map(Token::getText).toSet();

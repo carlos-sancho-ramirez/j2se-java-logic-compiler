@@ -5,7 +5,7 @@ public final class UnresolvedEnumValueException extends Exception {
     private final int mColumn;
 
     public UnresolvedEnumValueException(Token token) {
-        super("Unable to resolve enum value '" + token + "'");
+        super("Unable to resolve enum value '" + token.getText() + "'");
         mLine = token.getLine();
         mColumn = token.getColumn();
     }

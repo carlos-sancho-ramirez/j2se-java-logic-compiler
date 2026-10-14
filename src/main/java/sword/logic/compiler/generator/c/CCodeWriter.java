@@ -1,7 +1,11 @@
 package sword.logic.compiler.generator.c;
 
 import sword.collections.ImmutableList;
+import sword.collections.ImmutableMap;
+import sword.collections.ImmutableSet;
+import sword.collections.Map;
 import sword.logic.compiler.generator.c.statements.CFileRootStatement;
+import sword.logic.types.EnumType;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -13,13 +17,21 @@ public final class CCodeWriter {
         return (lastSlash >= 0)? path.substring(lastSlash + 1) : path;
     }
 
-    public void writeHeader(String path, ImmutableList<CFileRootStatement> statements) {
+    public void writeHeader(String path, ImmutableMap<String, EnumType.Definition> enums, ImmutableList<CFileRootStatement> statements) {
         final String filename = extractFilename(path);
         try (FileOutputStream outStream = new FileOutputStream(path + ".h")) {
             final PrintWriter out = new PrintWriter(outStream, true);
             final String headerDefine = "_" + filename.toUpperCase() + "_H_";
             out.println("#ifndef " + headerDefine);
             out.println("#define " + headerDefine);
+
+            for (Map.Entry<String, EnumType.Definition> entry : enums.entries()) {
+                out.println();
+                final ImmutableSet<String> possibleValues = entry.value().getPossibleValues();
+                for (int i = 0; i < possibleValues.size(); i++) {
+                    out.println("#define " + entry.key() + "_" + possibleValues.valueAt(i) + " " + i);
+                }
+            }
 
             final Formatter formatter = new DefaultFormatter();
             for (CFileRootStatement statement : statements) {

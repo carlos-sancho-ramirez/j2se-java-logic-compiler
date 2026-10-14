@@ -17,14 +17,20 @@ public final class EnumType implements Type {
             return false;
         }
 
-        for (int i = 0; i < length; i++) {
-            final char ch = name.charAt(i);
-            if (ch < 'A' || ch > 'Z') {
+        char ch = name.charAt(0);
+        if (ch < 'A' || ch > 'Z') {
+            return false;
+        }
+
+        for (int i = 1; i < length - 1; i++) {
+            ch = name.charAt(i);
+            if ((ch < 'A' || ch > 'Z') && ch != '_') {
                 return false;
             }
         }
 
-        return true;
+        ch = name.charAt(length - 1);
+        return ch >= 'A' && ch <= 'Z';
     }
 
     private final Definition mDefinition;

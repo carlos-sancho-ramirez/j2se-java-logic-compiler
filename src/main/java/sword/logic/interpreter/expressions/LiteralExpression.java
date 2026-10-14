@@ -121,4 +121,8 @@ public final class LiteralExpression implements Expression {
         outExpressionMap.put(this, result);
         return result;
     }
+
+    public Token getLiteral() {
+        return mLiteral;
+    }
 }

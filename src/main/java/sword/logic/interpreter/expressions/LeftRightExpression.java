@@ -1,10 +1,6 @@
 package sword.logic.interpreter.expressions;
 
-import sword.collections.ImmutableList;
-import sword.collections.ImmutableMap;
-import sword.collections.ImmutableSet;
-import sword.collections.Map;
-import sword.collections.MutableMap;
+import sword.collections.*;
 import sword.logic.compiler.IntegerLiteralOperations;
 import sword.logic.compiler.SemanticErrorException;
 import sword.logic.compiler.UnresolvedReferenceException;
@@ -390,6 +386,14 @@ public final class LeftRightExpression implements Expression {
                     }
 
                     return builtInScope.getBooleanType();
+                }
+                else if (rawLeftType instanceof EnumType leftType && rawRightType instanceof EnumType rightType) {
+                    if (leftType.getDefinition() == rightType.getDefinition()) {
+                        return BuiltInScope.getInstance().getBooleanType();
+                    }
+                    else {
+                        throw new SemanticErrorException("Unable to compare among different enum types", mOperator.getLine(), mOperator.getColumn());
+                    }
                 }
                 else {
                     throw new UnsupportedOperationException("Unimplemented");
@@ -869,6 +873,32 @@ public final class LeftRightExpression implements Expression {
                                 }
                                 else if (resultEnumType.getValues().size() == 1 && resultEnumType.getValues().valueAt(0).equals(TypeConstants.BOOLEAN_VALUE_FALSE)) {
                                     return mLeft.restrictionMap(IntType.getAnyIntType().exclude(rightValue), resolvedExpressions, restrictionMap);
+                                }
+                                else {
+                                    throw new UnsupportedOperationException("Unimplemented");
+                                }
+                            }
+                            else {
+                                throw new UnsupportedOperationException("Unimplemented");
+                            }
+                        }
+                        else {
+                            throw new RuntimeException("Incomparable types");
+                        }
+                    }
+                    else if (leftType instanceof EnumType leftEnumType) {
+                        if (rightType instanceof EnumType rightEnumType && leftEnumType.getDefinition() == rightEnumType.getDefinition()) {
+                            if (mRight instanceof sword.logic.interpreter.expressions.LiteralExpression litExp) {
+                                final String rightValue = litExp.getLiteral().getText();
+                                if (resultEnumType.getValues().size() == 1 && resultEnumType.getValues().valueAt(0).equals(TypeConstants.BOOLEAN_VALUE_TRUE)) {
+                                    final ImmutableSet<String> newValues = new ImmutableHashSet.Builder<String>()
+                                            .add(rightValue)
+                                            .build();
+                                    return mLeft.restrictionMap(new EnumType(leftEnumType.getDefinition(), newValues), resolvedExpressions, restrictionMap);
+                                }
+                                else if (resultEnumType.getValues().size() == 1 && resultEnumType.getValues().valueAt(0).equals(TypeConstants.BOOLEAN_VALUE_FALSE)) {
+                                    final ImmutableSet<String> newValues = leftEnumType.getDefinition().getPossibleValues().remove(rightValue);
+                                    return mLeft.restrictionMap(new EnumType(leftEnumType.getDefinition(), newValues), resolvedExpressions, restrictionMap);
                                 }
                                 else {
                                     throw new UnsupportedOperationException("Unimplemented");
