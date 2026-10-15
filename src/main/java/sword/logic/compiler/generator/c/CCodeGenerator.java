@@ -1,11 +1,58 @@
 package sword.logic.compiler.generator.c;
 
-import sword.collections.*;
+import sword.collections.ImmutableHashMap;
+import sword.collections.ImmutableList;
+import sword.collections.ImmutableMap;
+import sword.collections.ImmutableSet;
+import sword.collections.IntValueMap;
+import sword.collections.List;
+import sword.collections.Map;
+import sword.collections.MutableHashMap;
+import sword.collections.MutableHashSet;
+import sword.collections.MutableMap;
+import sword.collections.MutableSet;
+import sword.collections.Set;
 import sword.logic.compiler.DefaultVariableNameCreator;
 import sword.logic.compiler.IntegerLiteralOperations;
 import sword.logic.compiler.VariableNameCreator;
-import sword.logic.compiler.generator.c.expressions.*;
-import sword.logic.compiler.generator.c.statements.*;
+import sword.logic.compiler.generator.c.expressions.CAdditionExpression;
+import sword.logic.compiler.generator.c.expressions.CAndExpression;
+import sword.logic.compiler.generator.c.expressions.CArrayValueAtExpression;
+import sword.logic.compiler.generator.c.expressions.CAssignableExpression;
+import sword.logic.compiler.generator.c.expressions.CCastExpression;
+import sword.logic.compiler.generator.c.expressions.CCharLiteralExpression;
+import sword.logic.compiler.generator.c.expressions.CDereferenceExpression;
+import sword.logic.compiler.generator.c.expressions.CDifferentFromExpression;
+import sword.logic.compiler.generator.c.expressions.CDivisionExpression;
+import sword.logic.compiler.generator.c.expressions.CEnumValueLiteralExpression;
+import sword.logic.compiler.generator.c.expressions.CEqualThanExpression;
+import sword.logic.compiler.generator.c.expressions.CExpression;
+import sword.logic.compiler.generator.c.expressions.CFunctionExecutionExpression;
+import sword.logic.compiler.generator.c.expressions.CGreaterOrEqualThanExpression;
+import sword.logic.compiler.generator.c.expressions.CIntLiteralExpression;
+import sword.logic.compiler.generator.c.expressions.CLowerThanExpression;
+import sword.logic.compiler.generator.c.expressions.CModuleExpression;
+import sword.logic.compiler.generator.c.expressions.CMultiplicationExpression;
+import sword.logic.compiler.generator.c.expressions.COrExpression;
+import sword.logic.compiler.generator.c.expressions.CReferenceExpression;
+import sword.logic.compiler.generator.c.expressions.CSizeofExpression;
+import sword.logic.compiler.generator.c.expressions.CStringLiteralExpression;
+import sword.logic.compiler.generator.c.expressions.CStructFieldAccessExpression;
+import sword.logic.compiler.generator.c.expressions.CStructFieldPointerAccessExpression;
+import sword.logic.compiler.generator.c.expressions.CSubtractionExpression;
+import sword.logic.compiler.generator.c.statements.CAdditionStatement;
+import sword.logic.compiler.generator.c.statements.CArrayDefinitionStatement;
+import sword.logic.compiler.generator.c.statements.CAssignmentStatement;
+import sword.logic.compiler.generator.c.statements.CConstantDefinitionStatement;
+import sword.logic.compiler.generator.c.statements.CFileRootStatement;
+import sword.logic.compiler.generator.c.statements.CFunctionDeclarationStatement;
+import sword.logic.compiler.generator.c.statements.CFunctionDefinitionStatement;
+import sword.logic.compiler.generator.c.statements.CFunctionExecutionStatement;
+import sword.logic.compiler.generator.c.statements.CIfStatement;
+import sword.logic.compiler.generator.c.statements.CInFunctionStatement;
+import sword.logic.compiler.generator.c.statements.CReturnStatement;
+import sword.logic.compiler.generator.c.statements.CStructDefinitionStatement;
+import sword.logic.compiler.generator.c.statements.CVarDefinitionStatement;
 import sword.logic.compiler.generator.c.types.CCharType;
 import sword.logic.compiler.generator.c.types.CIntType;
 import sword.logic.compiler.generator.c.types.CPointerType;
@@ -54,7 +101,9 @@ import sword.logic.types.TypeConstants;
 
 import static sword.logic.compiler.IntegerLiteralOperations.greaterOrEqualThan;
 import static sword.logic.compiler.IntegerLiteralOperations.lowerThan;
-import static sword.logic.compiler.PreconditionUtils.*;
+import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
+import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
+import static sword.logic.compiler.PreconditionUtils.ensureValidState;
 import static sword.logic.compiler.generator.c.StringPoolGenerator.canBeOptimizedInStringPool;
 import static sword.logic.expressions.RegisterFieldAccessExpression.ARRAY_FIELD_LENGTH;
 import static sword.logic.statements.TypeDefinitionStatement.validTypeName;
@@ -119,863 +168,6 @@ public final class CCodeGenerator {
         }
     }
 
-    private CStructFieldAccessExpression newArrayLengthAccessExpression(CExpression arrayRef) {
-        return new CStructFieldAccessExpression(arrayRef, ARRAY_FIELD_LENGTH);
-    }
-
-    private CStructFieldAccessExpression newArrayValuesAccessExpression(CExpression arrayRef) {
-        return new CStructFieldAccessExpression(arrayRef, ARRAY_FIELD_VALUES);
-    }
-
-    private CStructFieldPointerAccessExpression newArrayLengthPointerAccessExpression(CExpression arrayRef) {
-        return new CStructFieldPointerAccessExpression(arrayRef, ARRAY_FIELD_LENGTH);
-    }
-
-    private CStructFieldPointerAccessExpression newArrayValuesPointerAccessExpression(CExpression arrayRef) {
-        return new CStructFieldPointerAccessExpression(arrayRef, ARRAY_FIELD_VALUES);
-    }
-
-    private CCastExpression newCastToVoidPtrPtr(String varName) {
-        return new CCastExpression(CPointerType.getVoidPtrPtrInstance(), new CReferenceExpression(varName));
-    }
-
-    private CExpression traverseExpression(
-            Expression expression,
-            ImmutableList<String> spaceName,
-            MutableMap<RegisterType.Definition, RegisterStructTypes> definedStructs,
-            ImmutableMap<ImmutableList<String>, FunctionDefinitionExpression> functionMap,
-            PersistenceChecker persistenceChecker,
-            RequiredAllocationsChecker requiredAllocationsChecker,
-            ImmutableList.Builder<CFunction> cFunctionsBuilder,
-            ImmutableList.Builder<CInFunctionStatement> bodyBuilder,
-            Map<String, DefinedType> definedTypes,
-            MutableMap<String, Expression> definedConstants,
-            ImmutableMap.Builder<ImmutableList<String>, EnumType.Definition> sourceEnumPreprocessorDefines,
-            VariableNameCreator varNameCreator,
-            StringPoolGenerator.Result stringPool,
-            Set<String> refIsPointer) {
-        if (expression instanceof AdditionExpression exp) {
-            return new CAdditionExpression(traverseExpression(exp.getLeftExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer),
-                    traverseExpression(exp.getRightExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer));
-        }
-        else if (expression instanceof AndExpression exp) {
-            return new CAndExpression(traverseExpression(exp.getLeftExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer),
-                    traverseExpression(exp.getRightExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer));
-        }
-        else if (expression instanceof ArrayConcatenationExpression exp) {
-            final ArrayType arrayType = (ArrayType) mTypeMap.get(exp);
-            final IntType lengthType = arrayType.getLengthType();
-            final String maxLengthText = lengthType.getMax();
-            if (maxLengthText.equals(TypeConstants.unboundText)) {
-                throw new UnsupportedOperationException("Unimplemented");
-            }
-            else {
-                final String valuesVarName = varNameCreator.create("values");
-                final CReferenceExpression valuesRef = new CReferenceExpression(valuesVarName);
-                final int arrayLength = Integer.parseInt(maxLengthText);
-                bodyBuilder.append(new CArrayDefinitionStatement(new CVariable(valuesVarName, cType(arrayType.getItemType(), definedStructs)), arrayLength));
-                final IntType leftLengthType = ((ArrayType) mTypeMap.get(exp.getLeftExpression())).getLengthType();
-                final String leftLengthText = leftLengthType.getMax();
-                final String arrayVarName = varNameCreator.create("array");
-                bodyBuilder.append(new CVarDefinitionStatement(new CVariable(arrayVarName, cArrayDeclarationType)));
-                final CReferenceExpression arrayRef = new CReferenceExpression(arrayVarName);
-
-                if (leftLengthType.getMin().equals(leftLengthText)) {
-                    assignExpressionToArrayValues(exp.getLeftExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer, valuesRef, 0);
-                    assignExpressionToArrayValues(exp.getRightExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer, valuesRef, Integer.parseInt(leftLengthText));
-                    bodyBuilder.append(new CAssignmentStatement(newArrayLengthAccessExpression(arrayRef), new CIntLiteralExpression("" + arrayLength)));
-                    bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(arrayRef), new CReferenceExpression(valuesVarName)));
-                }
-                else {
-                    assignExpressionToArray(exp.getLeftExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer, arrayRef, false);
-                    final String secondArrayVarName = varNameCreator.create("array");
-                    bodyBuilder.append(new CVarDefinitionStatement(new CVariable(secondArrayVarName, cArrayDeclarationType)));
-                    final CReferenceExpression secondArrayRef = new CReferenceExpression(secondArrayVarName);
-
-                    bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(secondArrayRef), new CAdditionExpression(newArrayValuesAccessExpression(arrayRef), new CMultiplicationExpression(newArrayLengthAccessExpression(arrayRef), new CSizeofExpression(cType(arrayType.getItemType(), definedStructs))))));
-                    assignExpressionToArray(exp.getRightExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer, secondArrayRef, false);
-                    bodyBuilder.append(new CAdditionStatement(newArrayLengthAccessExpression(arrayRef), newArrayLengthAccessExpression(secondArrayRef)));
-                }
-
-                return new CReferenceExpression(arrayVarName);
-            }
-        }
-        else if (expression instanceof ArrayValueAtExpression exp) {
-            final CExpression arrayExp = traverseExpression(exp.getArray(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer);
-            final CExpression indexExp = traverseExpression(exp.getIndex(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer);
-            final Type resultType = mTypeMap.get(exp);
-            final CExpression casted = new CCastExpression(new CPointerType(cType(resultType, definedStructs)), new CArrayValueAtExpression(newArrayValuesPointerAccessExpression(arrayExp), indexExp));
-            return (resultType instanceof ArrayType || resultType instanceof RegisterType)? casted :
-                    new CArrayValueAtExpression(casted, new CIntLiteralExpression(TypeConstants.zeroText));
-        }
-        else if (expression instanceof EnumValueLiteralExpression exp) {
-            for (DefinedType definedType : definedTypes) {
-                if (definedType.getType() instanceof EnumType enumType) {
-                    if (enumType.getValues().contains(exp.getValue())) {
-                        return new CEnumValueLiteralExpression(definedType.getScopedName(), exp.getValue());
-                    }
-                }
-            }
-
-            return new CIntLiteralExpression(TypeConstants.BOOLEAN_VALUE_TRUE.equals(exp.getValue())? "1" : "0");
-        }
-        else if (expression instanceof ComplexExpression exp) {
-            final MutableMap<String, Expression> scopeDefinitions = MutableHashMap.empty();
-            final MutableMap<String, DefinedType> newDefinedTypes = definedTypes.mutate();
-            for (Statement statement : exp.getStatements()) {
-                if (statement instanceof TypeDefinitionStatement typeDef) {
-                    traverseTypeDefinitionStatement(typeDef, spaceName, definedStructs, newDefinedTypes);
-                    if (typeDef.getType() instanceof EnumType enumType) {
-                        sourceEnumPreprocessorDefines.put(spaceName.append(statement.getName()), enumType.getDefinition());
-                    }
-                }
-            }
-
-            final MutableSet<String> newRefIsPointer = refIsPointer.mutate();
-            for (Statement statement : exp.getStatements()) {
-                if (statement instanceof ConstantDefinitionStatement constDef) {
-                    final Type statementType = mTypeMap.get(constDef.getExpression());
-                    if (statementType instanceof ArrayType || statementType instanceof RegisterType) {
-                        newRefIsPointer.add(constDef.getName());
-                    }
-                }
-            }
-
-            for (Statement statement : exp.getStatements()) {
-                if (statement instanceof ConstantDefinitionStatement constDef) {
-                    traverseConstantDefinitionStatement(constDef, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, newDefinedTypes, scopeDefinitions, sourceEnumPreprocessorDefines, varNameCreator, stringPool, newRefIsPointer);
-                }
-            }
-
-            traverseExpression(exp.getExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, newDefinedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, newRefIsPointer);
-            throw new UnsupportedOperationException("Unimplemented return");
-        }
-        else if (expression instanceof DifferentFromExpression exp) {
-            return new CDifferentFromExpression(traverseExpression(exp.getLeftExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer),
-                    traverseExpression(exp.getRightExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer));
-        }
-        else if (expression instanceof DivisionExpression exp) {
-            return new CDivisionExpression(traverseExpression(exp.getLeftExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer),
-                    traverseExpression(exp.getRightExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer));
-        }
-        else if (expression instanceof EqualThanExpression exp) {
-            return new CEqualThanExpression(traverseExpression(exp.getLeftExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer),
-                    traverseExpression(exp.getRightExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer));
-        }
-        else if (expression instanceof FunctionExecutionExpression exp) {
-            final ImmutableList.Builder<CExpression> paramExpBuilder = new ImmutableList.Builder<>();
-            for (Expression param : exp.getParameters()) {
-                paramExpBuilder.append(traverseExpression(param, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer));
-            }
-
-            final CExpression funcExp = traverseExpression(exp.getFunction(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer);
-            return new CFunctionExecutionExpression(funcExp, paramExpBuilder.build());
-        }
-        else if (expression instanceof GreaterOrEqualThanExpression exp) {
-            return new CGreaterOrEqualThanExpression(traverseExpression(exp.getLeftExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer),
-                    traverseExpression(exp.getRightExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer));
-        }
-        else if (expression instanceof IfExpression exp) {
-            traverseExpression(exp.getCondition(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer);
-            traverseExpression(exp.getThenClause(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer);
-            traverseExpression(exp.getElseClause(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer);
-            throw new UnsupportedOperationException("Unimplemented return");
-        }
-        else if (expression instanceof IntegerLiteralExpression exp) {
-            return new CIntLiteralExpression(exp.getLiteral());
-        }
-        else if (expression instanceof LowerThanExpression exp) {
-            return new CLowerThanExpression(traverseExpression(exp.getLeftExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer),
-                    traverseExpression(exp.getRightExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer));
-        }
-        else if (expression instanceof ModuleExpression exp) {
-            return new CModuleExpression(traverseExpression(exp.getLeftExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer),
-                    traverseExpression(exp.getRightExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer));
-        }
-        else if (expression instanceof MultiplicationExpression exp) {
-            return new CMultiplicationExpression(traverseExpression(exp.getLeftExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer),
-                    traverseExpression(exp.getRightExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer));
-        }
-        else if (expression instanceof OrExpression exp) {
-            return new COrExpression(traverseExpression(exp.getLeftExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer),
-                    traverseExpression(exp.getRightExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer));
-        }
-        else if (expression instanceof ReferenceExpression exp) {
-            final String reference = exp.getReference();
-            ImmutableList<String> targetSpaceName = spaceName;
-            while (!targetSpaceName.isEmpty()) {
-                if (functionMap.containsKey(targetSpaceName.append(reference))) {
-                    return new CReferenceExpression(targetSpaceName.append(reference).reduce((a, b) -> a + "_" + b));
-                }
-
-                targetSpaceName = targetSpaceName.skipLast(1);
-            }
-
-            final Expression defConstant = definedConstants.get(exp.getReference(), null);
-            if (defConstant instanceof ArrayConstructionExpression arrayConstructionExp && canBeOptimizedInStringPool(arrayConstructionExp)) {
-                return new CAdditionExpression(STRING_POOL_REF, new CIntLiteralExpression("" + stringPool.getIndexes().get((StringLiteralExpression) arrayConstructionExp.getValues().valueAt(0))));
-            }
-            else {
-                return new CReferenceExpression(exp.getReference());
-            }
-        }
-        else if (expression instanceof RegisterConstructionExpression exp) {
-            final MutableMap<String, Expression> scopeDefinitions = MutableHashMap.empty();
-            final MutableSet<String> newRefIsPointer = refIsPointer.mutate();
-            for (Statement statement : exp.getStatements()) {
-                if (statement instanceof ConstantDefinitionStatement constDef) {
-                    traverseConstantDefinitionStatement(constDef, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, scopeDefinitions, sourceEnumPreprocessorDefines, varNameCreator, stringPool, newRefIsPointer);
-                }
-                else {
-                    throw new UnsupportedOperationException("Unimplemented");
-                }
-            }
-            throw new UnsupportedOperationException("Unimplemented return");
-        }
-        else if (expression instanceof RegisterFieldAccessExpression exp) {
-            final CExpression register = traverseExpression(exp.getRegister(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer);
-            return new CStructFieldPointerAccessExpression(register, exp.getFieldName());
-        }
-        else if (expression instanceof StringLiteralExpression exp) {
-            final IntType itemType = (IntType) ((ArrayType) mTypeMap.get(exp)).getItemType();
-            final String valuesVarName = varNameCreator.create("values");
-            final int arrayLength = exp.getArrayLength();
-            bodyBuilder.append(new CArrayDefinitionStatement(new CVariable(valuesVarName, new CPointerType(cType(itemType, definedStructs))), arrayLength));
-            for (int i = 0; i < arrayLength; i++) {
-                final String ch = exp.getCharAt(i);
-                final int index = stringPool.getPool().indexOf(ch);
-                ensureValidState(index >= 0);
-                bodyBuilder.append(new CAssignmentStatement(new CArrayValueAtExpression(new CReferenceExpression(valuesVarName), new CIntLiteralExpression("" + i)), new CAdditionExpression(STRING_POOL_REF, new CIntLiteralExpression("" + index))));
-            }
-
-            final String arrayVarName = varNameCreator.create("array");
-            final CReferenceExpression arrayRef = new CReferenceExpression(arrayVarName);
-            bodyBuilder.append(new CVarDefinitionStatement(new CVariable(arrayVarName, cArrayDeclarationType)));
-            bodyBuilder.append(new CAssignmentStatement(newArrayLengthAccessExpression(arrayRef), new CIntLiteralExpression("" + arrayLength)));
-            bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(arrayRef), newCastToVoidPtrPtr(valuesVarName)));
-
-            return new CDereferenceExpression(arrayRef);
-        }
-        else if (expression instanceof SubtractionExpression exp) {
-            return new CSubtractionExpression(traverseExpression(exp.getLeftExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer),
-                    traverseExpression(exp.getRightExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer));
-        }
-        else {
-            throw new UnsupportedOperationException("traverseExpression unimplemented for expression " + expression.getClass().getSimpleName());
-        }
-    }
-
-    /**
-     * Assigns the given expression to the values of an Array or String.
-     * <p>
-     * This method assumes that outArrayValuesRef points to the values field
-     * within an Array or String struct and that it is already initialized by
-     * the caller of this method.
-     */
-    private void assignExpressionToArrayValues(
-            Expression expression,
-            ImmutableList<String> spaceName,
-            MutableMap<RegisterType.Definition, RegisterStructTypes> definedStructs,
-            ImmutableMap<ImmutableList<String>, FunctionDefinitionExpression> functionMap,
-            PersistenceChecker persistenceChecker,
-            RequiredAllocationsChecker requiredAllocationsChecker,
-            ImmutableList.Builder<CFunction> cFunctionsBuilder,
-            ImmutableList.Builder<CInFunctionStatement> bodyBuilder,
-            Map<String, DefinedType> definedTypes,
-            MutableMap<String, Expression> definedConstants,
-            ImmutableMap.Builder<ImmutableList<String>, EnumType.Definition> sourceEnumPreprocessorDefines,
-            VariableNameCreator varNameCreator,
-            StringPoolGenerator.Result stringPool,
-            Set<String> refIsPointer,
-            CAssignableExpression outArrayValuesRef,
-            int outOffset) {
-        if (expression instanceof ArrayConcatenationExpression exp) {
-            final IntType leftLengthType = ((ArrayType) mTypeMap.get(exp.getLeftExpression())).getLengthType();
-            final String maxLeftLengthText = leftLengthType.getMax();
-            if (maxLeftLengthText.equals(leftLengthType.getMin())) {
-                assignExpressionToArrayValues(exp.getLeftExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer, outArrayValuesRef, outOffset);
-                assignExpressionToArrayValues(exp.getRightExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer, outArrayValuesRef, outOffset + Integer.parseInt(maxLeftLengthText));
-            }
-            else {
-                throw new UnsupportedOperationException("Unimplemented");
-            }
-        }
-        else if (expression instanceof ArrayValueAtExpression exp) {
-            final CExpression ref = traverseExpression(exp.getArray(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer);
-            final CExpression index = traverseExpression(exp.getIndex(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer);
-
-            final boolean optimizedRef;
-            if (exp.getArray() instanceof ReferenceExpression refExp) {
-                final Expression defConstant = definedConstants.get(refExp.getReference(), null);
-                optimizedRef = defConstant instanceof ArrayConstructionExpression arrayConstructionExp && canBeOptimizedInStringPool(arrayConstructionExp);
-            }
-            else {
-                optimizedRef = false;
-            }
-
-            if (optimizedRef) {
-                bodyBuilder.append(new CAssignmentStatement(new CArrayValueAtExpression(outArrayValuesRef, new CIntLiteralExpression("" + outOffset)), new CArrayValueAtExpression(ref, index)));
-            }
-            else {
-                final boolean sourceIsPointer = ref instanceof CReferenceExpression refExp && refIsPointer.contains(refExp.getText());
-                final CExpression valuesAccess = sourceIsPointer ? newArrayValuesPointerAccessExpression(ref) : newArrayValuesAccessExpression(ref);
-                final CExpression itemAccess = new CCastExpression(new CPointerType(cArrayDeclarationType), new CArrayValueAtExpression(valuesAccess, index));
-
-                final String itemVarName = varNameCreator.create("item");
-                final CReferenceExpression itemVarRef = new CReferenceExpression(itemVarName);
-                bodyBuilder.append(new CVarDefinitionStatement(new CVariable(itemVarName, new CPointerType(cArrayDeclarationType))));
-                bodyBuilder.append(new CAssignmentStatement(itemVarRef, itemAccess));
-                bodyBuilder.append(new CFunctionExecutionStatement(new CReferenceExpression("memcpy"), new ImmutableList.Builder<CExpression>()
-                        .append((outOffset > 0)? new CAdditionExpression(outArrayValuesRef, new CIntLiteralExpression("" + outOffset)) : outArrayValuesRef)
-                        .append(newArrayValuesPointerAccessExpression(itemVarRef))
-                        .append(new CMultiplicationExpression(newArrayLengthPointerAccessExpression(itemVarRef), new CSizeofExpression(new CPointerType(cArrayDeclarationType))))
-                        .build()));
-            }
-        }
-        else if (expression instanceof FunctionExecutionExpression exp) {
-            if (exp.getFunction() instanceof ReferenceExpression refExp) {
-                final String functionName = refExp.getReference();
-                ImmutableList<String> targetSpaceName = spaceName;
-                FunctionDefinitionExpression tempFuncDefExp;
-                do {
-                    tempFuncDefExp = functionMap.get(targetSpaceName.append(functionName), null);
-                    if (tempFuncDefExp == null) {
-                        ensureValidState(!targetSpaceName.isEmpty());
-                        targetSpaceName = targetSpaceName.skipLast(1);
-                    }
-                }
-                while (tempFuncDefExp == null);
-
-                final FunctionDefinitionExpression funcDefExp = tempFuncDefExp;
-                ensureValidState(exp.getParameters().size() == funcDefExp.getParameters().size());
-
-                final ArrayType arrayType = (ArrayType) mTypeMap.get(funcDefExp.getBody());
-                final String tempArrayName;
-                final CReferenceExpression tempArrayRef;
-                if (arrayShouldBeString(arrayType)) {
-                    tempArrayName = varNameCreator.create("string");
-                    tempArrayRef = new CReferenceExpression(tempArrayName);
-                    bodyBuilder.append(new CVarDefinitionStatement(new CVariable(tempArrayName, cStringDeclarationType)));
-                }
-                else {
-                    tempArrayName = varNameCreator.create("array");
-                    tempArrayRef = new CReferenceExpression(tempArrayName);
-                    bodyBuilder.append(new CVarDefinitionStatement(new CVariable(tempArrayName, cArrayDeclarationType)));
-                }
-
-                final CExpression source = (outOffset == 0)? outArrayValuesRef : new CAdditionExpression(outArrayValuesRef, new CIntLiteralExpression("" + outOffset));
-                bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(tempArrayRef), source));
-
-                final ImmutableList.Builder<CExpression> paramsBuilder = new ImmutableList.Builder<CExpression>()
-                        .append(new CDereferenceExpression(tempArrayRef));
-
-                final ImmutableMap<String, PersistenceChecker.Persistence> funcPersistence = persistenceChecker.obtainExpressionPersistence(targetSpaceName.append(functionName), funcDefExp.getBody(), persistenceChecker.full);
-                for (int paramIndex = 0; paramIndex < exp.getParameters().size(); paramIndex++) {
-                    final FunctionParameter funcParameter = funcDefExp.getParameters().valueAt(paramIndex);
-                    final String paramName = funcParameter.getName();
-                    final PersistenceChecker.Persistence paramPersistence = funcPersistence.get(paramName, null);
-                    if (paramPersistence == null) {
-                        paramsBuilder.append(traverseExpression(exp.getParameters().valueAt(paramIndex), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer));
-                    }
-                    else if (paramPersistence == PersistenceChecker.fullPersistence) {
-                        // Assuming that the variable exists and has name outArray
-                        // TODO: Adjust this logic to get the correct variable name
-                        final CReferenceExpression newOutArrayRef = new CReferenceExpression("outArray");
-                        assignExpressionToArray(exp.getParameters().valueAt(paramIndex), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer, newOutArrayRef, true);
-                        paramsBuilder.append(newOutArrayRef);
-                    }
-                    else if (paramPersistence instanceof PersistenceChecker.ArrayItemPersistence arrayItemParamPersistence) {
-                        if (arrayItemParamPersistence.getItemPersistence() == PersistenceChecker.fullPersistence) {
-                            final String arrayName = varNameCreator.create("array");
-                            bodyBuilder.append(new CVarDefinitionStatement(new CVariable(arrayName, cArrayDeclarationType)));
-
-                            final CReferenceExpression newOutArrayRef = new CReferenceExpression(arrayName);
-                            assignExpressionToArray(exp.getParameters().valueAt(paramIndex), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer, newOutArrayRef, false);
-                            paramsBuilder.append(new CDereferenceExpression(newOutArrayRef));
-                        }
-                        else {
-                            throw new UnsupportedOperationException("Unimplemented");
-                        }
-                    }
-                    else {
-                        throw new UnsupportedOperationException("Unimplemented");
-                    }
-                }
-
-                final CExpression funcExp = traverseExpression(exp.getFunction(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer);
-                ensureValidState(mTypeMap.get(exp) instanceof ArrayType);
-                bodyBuilder.append(new CFunctionExecutionStatement(funcExp, paramsBuilder.build()));
-            }
-            else {
-                throw new UnsupportedOperationException("Unimplemented");
-            }
-        }
-        else if (expression instanceof ReferenceExpression exp) {
-            final CReferenceExpression valueRef = new CReferenceExpression(exp.getReference());
-            final Type resultingType = mTypeMap.get(exp);
-            if (resultingType instanceof ArrayType resultingArrayType) {
-                bodyBuilder.append(new CFunctionExecutionStatement(new CReferenceExpression("memcpy"), new ImmutableList.Builder<CExpression>()
-                        .append((outOffset > 0)? new CAdditionExpression(outArrayValuesRef, new CIntLiteralExpression("" + outOffset)) : outArrayValuesRef)
-                        .append(refIsPointer.contains(exp.getReference())? newArrayValuesPointerAccessExpression(valueRef) : newArrayValuesAccessExpression(valueRef))
-                        .append(new CMultiplicationExpression(refIsPointer.contains(exp.getReference())? newArrayLengthPointerAccessExpression(valueRef) : newArrayLengthAccessExpression(valueRef), new CSizeofExpression(new CPointerType(cType(resultingArrayType.getItemType(), definedStructs)))))
-                        .build()));
-            }
-            else {
-                throw new UnsupportedOperationException("Unimplemented");
-            }
-        }
-        else if (expression instanceof StringLiteralExpression exp) {
-            final int arrayLength = exp.getArrayLength();
-            final ArrayType type = (ArrayType) mTypeMap.get(exp);
-            if (arrayShouldBeString(type)) {
-                if (arrayLength <= MEMCPY_THRESHOLD) {
-                    for (int i = 0; i < arrayLength; i++) {
-                        bodyBuilder.append(new CAssignmentStatement(
-                                new CArrayValueAtExpression(outArrayValuesRef, new CIntLiteralExpression("" + (outOffset + i))),
-                                new CCharLiteralExpression(exp.getCharAt(i))));
-                    }
-                }
-                else {
-                    final int index = stringPool.getIndexes().get(exp);
-                    bodyBuilder.append(new CFunctionExecutionStatement(new CReferenceExpression("memcpy"), new ImmutableList.Builder<CExpression>()
-                            .append((outOffset > 0)? new CAdditionExpression(outArrayValuesRef, new CIntLiteralExpression("" + outOffset)) : outArrayValuesRef)
-                            .append((index > 0)? new CAdditionExpression(STRING_POOL_REF, new CIntLiteralExpression("" + index)) : STRING_POOL_REF)
-                            .append(new CIntLiteralExpression("" + type.getLengthType().getMax()))
-                            .build()));
-                }
-            }
-            else {
-                for (int i = 0; i < arrayLength; i++) {
-                    final String ch = exp.getCharAt(i);
-                    final int chIndex = stringPool.getPool().indexOf(ch);
-                    ensureValidState(chIndex >= 0);
-                    bodyBuilder.append(new CAssignmentStatement(new CArrayValueAtExpression(outArrayValuesRef, new CIntLiteralExpression("" + (outOffset + i))), new CAdditionExpression(STRING_POOL_REF, new CIntLiteralExpression("" + chIndex))));
-                }
-            }
-        }
-        else {
-            throw new UnsupportedOperationException("Unimplemented");
-        }
-    }
-
-    private void assignExpressionToArrayPointer(
-            Expression expression,
-            ImmutableList<String> spaceName,
-            MutableMap<RegisterType.Definition, RegisterStructTypes> definedStructs,
-            ImmutableMap<ImmutableList<String>, FunctionDefinitionExpression> functionMap,
-            PersistenceChecker persistenceChecker,
-            RequiredAllocationsChecker requiredAllocationsChecker,
-            ImmutableList.Builder<CFunction> cFunctionsBuilder,
-            ImmutableList.Builder<CInFunctionStatement> bodyBuilder,
-            Map<String, DefinedType> definedTypes,
-            MutableMap<String, Expression> definedConstants,
-            ImmutableMap.Builder<ImmutableList<String>, EnumType.Definition> sourceEnumPreprocessorDefines,
-            VariableNameCreator varNameCreator,
-            StringPoolGenerator.Result stringPool,
-            Set<String> refIsPointer,
-            String outArrayPointer) {
-        if (expression instanceof IfExpression exp) {
-            final CExpression condition = traverseExpression(exp.getCondition(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer);
-            final ImmutableList.Builder<CInFunctionStatement> thenClauseBuilder = new ImmutableList.Builder<>();
-            final ImmutableList.Builder<CInFunctionStatement> elseClauseBuilder = new ImmutableList.Builder<>();
-            assignExpressionToArrayPointer(exp.getThenClause(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, thenClauseBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer, outArrayPointer);
-            assignExpressionToArrayPointer(exp.getElseClause(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, elseClauseBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer, outArrayPointer);
-            bodyBuilder.append(new CIfStatement(condition, thenClauseBuilder.build(), elseClauseBuilder.build()));
-        }
-        else if (expression instanceof ReferenceExpression exp) {
-            final String ref = exp.getReference();
-            final CReferenceExpression sourceRef = new CReferenceExpression(ref);
-            final CExpression source = refIsPointer.contains(ref)? sourceRef : new CDereferenceExpression(sourceRef);
-            bodyBuilder.append(new CAssignmentStatement(new CReferenceExpression(outArrayPointer), source));
-        }
-        else {
-            throw new UnsupportedOperationException("Unimplemented");
-        }
-    }
-
-    /**
-     * Add the corresponding statements in the current body to fill the given array.
-     * <p>
-     * This method assumes that the method calling here has already provided an Array structure matching the outArray name, and that its values fields has been initialized with enough room to the store the result.
-     */
-    private void assignExpressionToArray(
-            Expression expression,
-            ImmutableList<String> spaceName,
-            MutableMap<RegisterType.Definition, RegisterStructTypes> definedStructs,
-            ImmutableMap<ImmutableList<String>, FunctionDefinitionExpression> functionMap,
-            PersistenceChecker persistenceChecker,
-            RequiredAllocationsChecker requiredAllocationsChecker,
-            ImmutableList.Builder<CFunction> cFunctionsBuilder,
-            ImmutableList.Builder<CInFunctionStatement> bodyBuilder,
-            Map<String, DefinedType> definedTypes,
-            MutableMap<String, Expression> definedConstants,
-            ImmutableMap.Builder<ImmutableList<String>, EnumType.Definition> sourceEnumPreprocessorDefines,
-            VariableNameCreator varNameCreator,
-            StringPoolGenerator.Result stringPool,
-            Set<String> refIsPointer,
-            CReferenceExpression outArrayRef,
-            boolean outArrayIsPointer) {
-        if (expression instanceof ArrayConcatenationExpression exp) {
-            final ArrayType arrayType = (ArrayType) mTypeMap.get(expression);
-            final IntType lengthType = arrayType.getLengthType();
-            final CAssignableExpression lengthAccessExpression = outArrayIsPointer? newArrayLengthPointerAccessExpression(outArrayRef) : newArrayLengthAccessExpression(outArrayRef);
-            final CAssignableExpression valuesAccessExpression = outArrayIsPointer? newArrayValuesPointerAccessExpression(outArrayRef) : newArrayValuesAccessExpression(outArrayRef);
-
-            if (lengthType.getMin().equals(lengthType.getMax())) {
-                bodyBuilder.append(new CAssignmentStatement(lengthAccessExpression, new CIntLiteralExpression(lengthType.getMin())));
-                assignExpressionToArrayValues(exp, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer, valuesAccessExpression, 0);
-            }
-            else {
-                assignExpressionToArray(exp.getLeftExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer, outArrayRef, outArrayIsPointer);
-                final String tempVarName;
-                if (arrayShouldBeString(arrayType)) {
-                    tempVarName = varNameCreator.create("string");
-                    bodyBuilder.append(new CVarDefinitionStatement(new CVariable(tempVarName, cStringDeclarationType)));
-                }
-                else {
-                    tempVarName = varNameCreator.create("array");
-                    bodyBuilder.append(new CVarDefinitionStatement(new CVariable(tempVarName, cArrayDeclarationType)));
-                }
-
-                final CReferenceExpression tempVarRef = new CReferenceExpression(tempVarName);
-                bodyBuilder.append(new CAssignmentStatement(
-                        new CStructFieldAccessExpression(tempVarRef, ARRAY_FIELD_VALUES),
-                        new CAdditionExpression(valuesAccessExpression, lengthAccessExpression)));
-                assignExpressionToArray(exp.getRightExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer, tempVarRef, false);
-                bodyBuilder.append(new CAdditionStatement(lengthAccessExpression, newArrayLengthAccessExpression(tempVarRef)));
-            }
-        }
-        else if (expression instanceof ArrayConstructionExpression exp) {
-            final ImmutableList<CExpression> params = exp.getValues().map(paramValue -> {
-                if (paramValue instanceof StringLiteralExpression paramStrLiteral) {
-                    final int index = stringPool.getIndexes().get(paramStrLiteral);
-                    final String stringVarName = varNameCreator.create("string");
-                    final CReferenceExpression arrayRef = new CReferenceExpression(stringVarName);
-                    bodyBuilder.append(new CVarDefinitionStatement(new CVariable(stringVarName, cStringDeclarationType)));
-                    bodyBuilder.append(new CAssignmentStatement(newArrayLengthAccessExpression(arrayRef), new CIntLiteralExpression("" + paramStrLiteral.getArrayLength())));
-                    bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(arrayRef), (index > 0)? new CAdditionExpression(STRING_POOL_REF, new CIntLiteralExpression("" + index)) : STRING_POOL_REF));
-
-                    return new CDereferenceExpression(arrayRef);
-                }
-                else {
-                    return traverseExpression(paramValue, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer);
-                }
-            });
-
-            final CAssignableExpression lengthTarget = outArrayIsPointer? newArrayLengthPointerAccessExpression(outArrayRef) : newArrayLengthAccessExpression(outArrayRef);
-            final CExpression valuesTarget = outArrayIsPointer? newArrayValuesPointerAccessExpression(outArrayRef) : newArrayValuesAccessExpression(outArrayRef);
-
-            final int arrayLength = params.size();
-            for (int i = 0; i < arrayLength; i++) {
-                bodyBuilder.append(new CAssignmentStatement(new CArrayValueAtExpression(valuesTarget, new CIntLiteralExpression("" + i)), params.valueAt(i)));
-            }
-
-            bodyBuilder.append(new CAssignmentStatement(lengthTarget, new CIntLiteralExpression("" + arrayLength)));
-        }
-        else if (expression instanceof ArrayValueAtExpression exp) {
-            final CExpression arrayExp = traverseExpression(exp.getArray(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer);
-            final CExpression indexExp = traverseExpression(exp.getIndex(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer);
-            final ArrayType resultingType = (ArrayType) mTypeMap.get(exp);
-            final IntType resultingLengthType = resultingType.getLengthType();
-            final boolean sourceIsPointer = exp.getArray() instanceof ReferenceExpression refExp && refIsPointer.contains(refExp.getReference());
-            final CAssignableExpression outLength = outArrayIsPointer? newArrayLengthPointerAccessExpression(outArrayRef) : newArrayLengthAccessExpression(outArrayRef);
-            final CExpression outValues = outArrayIsPointer? newArrayValuesPointerAccessExpression(outArrayRef) : newArrayValuesAccessExpression(outArrayRef);
-            final boolean sourceIsString = arrayShouldBeString(resultingType);
-            final CTypeDeclaration sourceType = new CPointerType(sourceIsString? cStringDeclarationType : cArrayDeclarationType);
-            final CExpression source = new CCastExpression(sourceType, new CArrayValueAtExpression(sourceIsPointer? newArrayValuesPointerAccessExpression(arrayExp) : newArrayValuesAccessExpression(arrayExp), indexExp));
-
-            if (resultingLengthType.getMax().equals(resultingLengthType.getMin())) {
-                final CIntLiteralExpression lengthExpression = new CIntLiteralExpression(resultingLengthType.getMax());
-                bodyBuilder.append(new CAssignmentStatement(outLength, lengthExpression));
-                final int length = Integer.parseInt(resultingLengthType.getMax());
-                if (length == 1) {
-                    final CIntLiteralExpression indexLiteral = new CIntLiteralExpression(TypeConstants.zeroText);
-                    bodyBuilder.append(new CAssignmentStatement(
-                            new CArrayValueAtExpression(outValues, indexLiteral),
-                            new CArrayValueAtExpression(newArrayValuesPointerAccessExpression(source), indexLiteral)));
-                }
-                else if (length <= MEMCPY_THRESHOLD) {
-                    final String sourceHolderName = varNameCreator.create("source");
-                    final CReferenceExpression sourceHolderRef = new CReferenceExpression(sourceHolderName);
-                    bodyBuilder.append(new CVarDefinitionStatement(new CVariable(sourceHolderName,
-                            sourceIsString? CPointerType.getCharPtrInstance() : CPointerType.getVoidPtrPtrInstance())));
-                    bodyBuilder.append(new CAssignmentStatement(sourceHolderRef, newArrayValuesPointerAccessExpression(source)));
-                    for (int index = 0; index < length; index++) {
-                        final CIntLiteralExpression indexLiteral = new CIntLiteralExpression("" + index);
-                        bodyBuilder.append(new CAssignmentStatement(
-                                new CArrayValueAtExpression(outValues, indexLiteral),
-                                new CArrayValueAtExpression(sourceHolderRef, indexLiteral)));
-                    }
-                }
-                else {
-                    bodyBuilder.append(new CFunctionExecutionStatement(new CReferenceExpression("memcpy"), new ImmutableList.Builder<CExpression>()
-                            .append(outValues)
-                            .append(newArrayValuesPointerAccessExpression(source))
-                            .append(new CMultiplicationExpression(lengthExpression, new CSizeofExpression(new CPointerType(cType(resultingType, definedStructs)))))
-                            .build()));
-                }
-            }
-            else {
-                final String sourceTempVarName = varNameCreator.create(sourceIsString? "string" : "array");
-                final CReferenceExpression sourceTempVarRef = new CReferenceExpression(sourceTempVarName);
-                bodyBuilder.append(new CVarDefinitionStatement(new CVariable(sourceTempVarName, sourceType)));
-                bodyBuilder.append(new CAssignmentStatement(sourceTempVarRef, source));
-                bodyBuilder.append(new CAssignmentStatement(outLength, newArrayLengthPointerAccessExpression(sourceTempVarRef)));
-                bodyBuilder.append(new CFunctionExecutionStatement(new CReferenceExpression("memcpy"), new ImmutableList.Builder<CExpression>()
-                        .append(outValues)
-                        .append(newArrayValuesPointerAccessExpression(sourceTempVarRef))
-                        .append(sourceIsString? outLength : new CMultiplicationExpression(outLength, new CSizeofExpression(new CPointerType(cType(resultingType, definedStructs)))))
-                        .build()));
-            }
-        }
-        else if (expression instanceof ComplexExpression exp) {
-            final MutableMap<String, DefinedType> newDefinedTypes = definedTypes.mutate();
-            for (Statement statement : exp.getStatements()) {
-                if (statement instanceof TypeDefinitionStatement typeDef) {
-                    traverseTypeDefinitionStatement(typeDef, spaceName, definedStructs, newDefinedTypes);
-                    if (typeDef.getType() instanceof EnumType enumType) {
-                        sourceEnumPreprocessorDefines.put(spaceName.append(statement.getName()), enumType.getDefinition());
-                    }
-                }
-            }
-
-            final MutableSet<String> newRefIsPointer = refIsPointer.mutate();
-            for (Statement statement : exp.getStatements()) {
-                if (statement instanceof ConstantDefinitionStatement constDef) {
-                    traverseConstantDefinitionStatement(constDef, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, newDefinedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, newRefIsPointer);
-                }
-            }
-
-            assignExpressionToArray(exp.getExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, newDefinedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, newRefIsPointer, outArrayRef, outArrayIsPointer);
-        }
-        else if (expression instanceof FunctionExecutionExpression exp) {
-            final CExpression funcExp = traverseExpression(exp.getFunction(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer);
-            final ImmutableList<CExpression> paramsExp = exp.getParameters().map(e -> traverseExpression(e, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer));
-            final Type resultingType = mTypeMap.get(exp);
-            if (resultingType instanceof ArrayType) {
-                bodyBuilder.append(new CFunctionExecutionStatement(funcExp, paramsExp.prepend(outArrayIsPointer? outArrayRef : new CDereferenceExpression(outArrayRef))));
-            }
-            else {
-                throw new UnsupportedOperationException("Unimplemented");
-            }
-        }
-        else if (expression instanceof IfExpression exp) {
-            final CExpression condition = traverseExpression(exp.getCondition(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer);
-            final ImmutableList.Builder<CInFunctionStatement> thenClauseBuilder = new ImmutableList.Builder<>();
-            final ImmutableList.Builder<CInFunctionStatement> elseClauseBuilder = new ImmutableList.Builder<>();
-            assignExpressionToArray(exp.getThenClause(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, thenClauseBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator.duplicate(), stringPool, refIsPointer, outArrayRef, outArrayIsPointer);
-            assignExpressionToArray(exp.getElseClause(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, elseClauseBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator.duplicate(), stringPool, refIsPointer, outArrayRef, outArrayIsPointer);
-            bodyBuilder.append(new CIfStatement(condition, thenClauseBuilder.build(), elseClauseBuilder.build()));
-        }
-        else if (expression instanceof ReferenceExpression exp) {
-            final CReferenceExpression valueRef = new CReferenceExpression(exp.getReference());
-            final Type resultingType = mTypeMap.get(exp);
-            if (resultingType instanceof ArrayType resultingArrayType) {
-                final CExpression lengthExpression = refIsPointer.contains(exp.getReference())? newArrayLengthPointerAccessExpression(valueRef) : newArrayLengthAccessExpression(valueRef);
-                final CExpression countExp = arrayShouldBeString(resultingArrayType)? lengthExpression :
-                        new CMultiplicationExpression(lengthExpression, new CSizeofExpression(new CPointerType(cType(resultingArrayType.getItemType(), definedStructs))));
-
-                bodyBuilder.append(new CFunctionExecutionStatement(new CReferenceExpression("memcpy"), new ImmutableList.Builder<CExpression>()
-                        .append(outArrayIsPointer? newArrayValuesPointerAccessExpression(outArrayRef) : newArrayValuesAccessExpression(outArrayRef))
-                        .append(refIsPointer.contains(exp.getReference())? newArrayValuesPointerAccessExpression(valueRef) : newArrayValuesAccessExpression(valueRef))
-                        .append(countExp)
-                        .build()));
-                bodyBuilder.append(new CAssignmentStatement(newArrayLengthAccessExpression(outArrayRef), lengthExpression));
-            }
-            else {
-                throw new UnsupportedOperationException("Unimplemented");
-            }
-        }
-        else if (expression instanceof StringLiteralExpression exp) {
-            final CAssignableExpression target = outArrayIsPointer? newArrayLengthPointerAccessExpression(outArrayRef) :
-                    newArrayLengthAccessExpression(outArrayRef);
-            bodyBuilder.append(new CAssignmentStatement(target, new CIntLiteralExpression("" + exp.getArrayLength())));
-
-            final CAssignableExpression targetValues = outArrayIsPointer? newArrayValuesPointerAccessExpression(outArrayRef) :
-                    newArrayValuesAccessExpression(outArrayRef);
-            assignExpressionToArrayValues(exp, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer, targetValues, 0);
-        }
-        else {
-            throw new UnsupportedOperationException("Unimplemented");
-        }
-    }
-
-    private void assignExpressionToRegister(
-            Expression expression,
-            ImmutableList<String> spaceName,
-            MutableMap<RegisterType.Definition, RegisterStructTypes> definedStructs,
-            ImmutableMap<ImmutableList<String>, FunctionDefinitionExpression> functionMap,
-            PersistenceChecker persistenceChecker,
-            RequiredAllocationsChecker requiredAllocationsChecker,
-            ImmutableList.Builder<CFunction> cFunctionsBuilder,
-            ImmutableList.Builder<CInFunctionStatement> bodyBuilder,
-            Map<String, DefinedType> definedTypes,
-            MutableMap<String, Expression> definedConstants,
-            ImmutableMap.Builder<ImmutableList<String>, EnumType.Definition> sourceEnumPreprocessorDefines,
-            VariableNameCreator varNameCreator,
-            StringPoolGenerator.Result stringPool,
-            Set<String> refIsPointer,
-            CReferenceExpression outRegisterRef) {
-        if (expression instanceof ComplexExpression exp) {
-            final MutableMap<String, Expression> scopeDefinitions = MutableHashMap.empty();
-            final MutableMap<String, DefinedType> newDefinedTypes = definedTypes.mutate();
-            for (Statement statement : exp.getStatements()) {
-                if (statement instanceof TypeDefinitionStatement typeDef) {
-                    traverseTypeDefinitionStatement(typeDef, spaceName, definedStructs, newDefinedTypes);
-                    if (typeDef.getType() instanceof EnumType enumType) {
-                        sourceEnumPreprocessorDefines.put(spaceName.append(statement.getName()), enumType.getDefinition());
-                    }
-                }
-            }
-
-            final MutableSet<String> newRefIsPointer = refIsPointer.mutate();
-            for (Statement statement : exp.getStatements()) {
-                if (statement instanceof ConstantDefinitionStatement constDef) {
-                    traverseConstantDefinitionStatement(constDef, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, newDefinedTypes, scopeDefinitions, sourceEnumPreprocessorDefines, varNameCreator, stringPool, newRefIsPointer);
-                }
-            }
-
-            assignExpressionToRegister(exp.getExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, newDefinedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, newRefIsPointer, outRegisterRef);
-        }
-        else if (expression instanceof IfExpression exp) {
-            final CExpression condition = traverseExpression(exp.getCondition(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer);
-            final ImmutableList.Builder<CInFunctionStatement> thenClauseBuilder = new ImmutableList.Builder<>();
-            final ImmutableList.Builder<CInFunctionStatement> elseClauseBuilder = new ImmutableList.Builder<>();
-            assignExpressionToRegister(exp.getThenClause(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, thenClauseBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer, outRegisterRef);
-            assignExpressionToRegister(exp.getElseClause(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, elseClauseBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer, outRegisterRef);
-            bodyBuilder.append(new CIfStatement(condition, thenClauseBuilder.build(), elseClauseBuilder.build()));
-        }
-        else if (expression instanceof RegisterConstructionExpression exp) {
-            final RegisterType regType = (RegisterType) definedTypes.get(exp.getType()).getType();
-            final ImmutableSet<String> fieldNames = regType.getFields().keySet();
-            final MutableSet<String> newRefIsPointer = refIsPointer.mutate();
-            for (Statement statement : exp.getStatements()) {
-                if (statement instanceof ConstantDefinitionStatement constDef) {
-                    final String name = constDef.getName();
-                    if (fieldNames.contains(name)) {
-                        bodyBuilder.append(new CAssignmentStatement(new CStructFieldPointerAccessExpression(outRegisterRef, name), traverseExpression(constDef.getExpression(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, newRefIsPointer)));
-                    }
-                    else {
-                        traverseConstantDefinitionStatement(constDef, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, newRefIsPointer);
-                    }
-                }
-                else {
-                    throw new UnsupportedOperationException("Unimplemented");
-                }
-            }
-        }
-        else if (expression instanceof FunctionExecutionExpression exp) {
-            if (exp.getFunction() instanceof ReferenceExpression refExp) {
-                final String functionName = refExp.getReference();
-                ImmutableList<String> targetSpaceName = spaceName;
-                FunctionDefinitionExpression tempFuncDefExp;
-                do {
-                    tempFuncDefExp = functionMap.get(targetSpaceName.append(functionName), null);
-                    if (tempFuncDefExp == null) {
-                        ensureValidState(!targetSpaceName.isEmpty());
-                        targetSpaceName = targetSpaceName.skipLast(1);
-                    }
-                }
-                while (tempFuncDefExp == null);
-
-                final FunctionDefinitionExpression funcDefExp = tempFuncDefExp;
-                ensureValidState(exp.getParameters().size() == funcDefExp.getParameters().size());
-
-                final ImmutableMap<String, PersistenceChecker.Persistence> funcPersistence = persistenceChecker.obtainExpressionPersistence(targetSpaceName.append(functionName), funcDefExp.getBody(), persistenceChecker.full);
-                final ImmutableList.Builder<CExpression> paramsBuilder = new ImmutableList.Builder<CExpression>()
-                        .append(outRegisterRef);
-
-                for (int paramIndex = 0; paramIndex < exp.getParameters().size(); paramIndex++) {
-                    final String paramName = funcDefExp.getParameters().valueAt(paramIndex).getName();
-                    final PersistenceChecker.Persistence paramPersistence = funcPersistence.get(paramName, null);
-                    if (paramPersistence == PersistenceChecker.fullPersistence) {
-                        // Assuming that the variable exists and has name outString0
-                        // TODO: Adjust this logic to get the correct variable name
-                        final CReferenceExpression outArrayRef = new CReferenceExpression("outString0");
-                        assignExpressionToArray(exp.getParameters().valueAt(paramIndex), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer, outArrayRef, true);
-                        paramsBuilder.append(outArrayRef);
-                    }
-                    else if (paramPersistence instanceof PersistenceChecker.ArrayItemPersistence arrayItemParamPersistence) {
-                        if (arrayItemParamPersistence.getItemPersistence() == PersistenceChecker.fullPersistence) {
-                            final String arrayName = varNameCreator.create("array");
-                            bodyBuilder.append(new CVarDefinitionStatement(new CVariable(arrayName, cArrayDeclarationType)));
-
-                            final CReferenceExpression outArrayRef = new CReferenceExpression(arrayName);
-                            assignExpressionToArray(exp.getParameters().valueAt(paramIndex), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer, outArrayRef, false);
-                            paramsBuilder.append(new CDereferenceExpression(outArrayRef));
-                        }
-                        else {
-                            throw new UnsupportedOperationException("Unimplemented");
-                        }
-                    }
-                    else {
-                        throw new UnsupportedOperationException("Unimplemented");
-                    }
-                }
-
-                final CExpression funcExp = traverseExpression(exp.getFunction(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer);
-                ensureValidState(mTypeMap.get(exp) instanceof RegisterType);
-                bodyBuilder.append(new CFunctionExecutionStatement(funcExp, paramsBuilder.build()));
-            }
-            else {
-                throw new UnsupportedOperationException("Unimplemented");
-            }
-        }
-        else {
-            throw new UnsupportedOperationException("Unimplemented");
-        }
-    }
-
-    private void returnEnumFromExpression(
-            Expression expression,
-            ImmutableList<String> spaceName,
-            MutableMap<RegisterType.Definition, RegisterStructTypes> definedStructs,
-            ImmutableMap<ImmutableList<String>, FunctionDefinitionExpression> functionMap,
-            PersistenceChecker persistenceChecker,
-            RequiredAllocationsChecker requiredAllocationsChecker,
-            ImmutableList.Builder<CFunction> cFunctionsBuilder,
-            ImmutableList.Builder<CInFunctionStatement> bodyBuilder,
-            Map<String, DefinedType> definedTypes,
-            MutableMap<String, Expression> definedConstants,
-            ImmutableMap.Builder<ImmutableList<String>, EnumType.Definition> sourceEnumPreprocessorDefines,
-            VariableNameCreator varNameCreator,
-            StringPoolGenerator.Result stringPool,
-            Set<String> refIsPointer) {
-        if (expression instanceof EnumValueLiteralExpression) {
-            final CExpression cExp = traverseExpression(expression, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer);
-            bodyBuilder.append(new CReturnStatement(cExp));
-        }
-        else if (expression instanceof IfExpression exp) {
-            final CExpression condition = traverseExpression(exp.getCondition(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer);
-            final ImmutableList.Builder<CInFunctionStatement> thenClauseBuilder = new ImmutableList.Builder<>();
-            final ImmutableList.Builder<CInFunctionStatement> elseClauseBuilder = new ImmutableList.Builder<>();
-            returnEnumFromExpression(exp.getThenClause(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, thenClauseBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer);
-            returnEnumFromExpression(exp.getElseClause(), spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, elseClauseBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer);
-            bodyBuilder.append(new CIfStatement(condition, thenClauseBuilder.build(), elseClauseBuilder.build()));
-        }
-        else {
-            throw new UnsupportedOperationException("Unimplemented");
-        }
-    }
-
-    /**
-     * Whether the result of this expression can be just a pointer in C.
-     * <p>
-     * Usually it is OK to be a pointer if the expression does not build
-     * any new data structure, and an existing one can be reused instead.
-     */
-    private boolean isPointerEnough(Expression exp) {
-        if (exp instanceof ReferenceExpression) {
-            return true;
-        }
-        else if (exp instanceof IfExpression e) {
-            return isPointerEnough(e.getThenClause()) && isPointerEnough(e.getElseClause());
-        }
-        else {
-            return false;
-        }
-    }
-
     private static final class RegisterStructTypes {
         private final CStructDeclarationType mDeclaration;
         private final CStructType mType;
@@ -1015,307 +207,15 @@ public final class CCodeGenerator {
         definedTypes.put(typeName, new DefinedType(spaceName.append(typeName), type));
     }
 
-    private void findFunctionDefinitionsInStatement(
-            Statement statement,
-            ImmutableList<String> spaceName,
-            MutableMap<ImmutableList<String>, FunctionDefinitionExpression> outFunctions) {
-        if (statement instanceof ConstantDefinitionStatement constDef) {
-            final ImmutableList<String> innerSpaceName = spaceName.append(statement.getName());
-            findFunctionDefinitionsInExpression(constDef.getExpression(), innerSpaceName, outFunctions);
-        }
-    }
-
-    private void findFunctionDefinitionsInExpression(
-            Expression expression,
-            ImmutableList<String> spaceName,
-            MutableMap<ImmutableList<String>, FunctionDefinitionExpression> outFunctions) {
-        if (expression instanceof ArrayConstructionExpression exp) {
-            for (Expression parameter : exp.getValues()) {
-                findFunctionDefinitionsInExpression(parameter, spaceName, outFunctions);
-            }
-        }
-        else if (expression instanceof ArrayValueAtExpression exp) {
-            findFunctionDefinitionsInExpression(exp.getArray(), spaceName, outFunctions);
-            findFunctionDefinitionsInExpression(exp.getIndex(), spaceName, outFunctions);
-        }
-        else if (expression instanceof ComplexExpression exp) {
-            for (Statement statement : exp.getStatements()) {
-                findFunctionDefinitionsInStatement(statement, spaceName, outFunctions);
-            }
-
-            findFunctionDefinitionsInExpression(exp.getExpression(), spaceName, outFunctions);
-        }
-        else if (expression instanceof FunctionDefinitionExpression exp) {
-            outFunctions.put(spaceName, exp);
-            findFunctionDefinitionsInExpression(exp.getBody(), spaceName, outFunctions);
-        }
-        else if (expression instanceof FunctionExecutionExpression exp) {
-            for (Expression parameter : exp.getParameters()) {
-                findFunctionDefinitionsInExpression(parameter, spaceName, outFunctions);
-            }
-
-            findFunctionDefinitionsInExpression(exp.getFunction(), spaceName, outFunctions);
-        }
-        else if (expression instanceof IfExpression exp) {
-            findFunctionDefinitionsInExpression(exp.getCondition(), spaceName, outFunctions);
-            findFunctionDefinitionsInExpression(exp.getThenClause(), spaceName, outFunctions);
-            findFunctionDefinitionsInExpression(exp.getElseClause(), spaceName, outFunctions);
-        }
-        else if (expression instanceof LeftRightExpression exp) {
-            findFunctionDefinitionsInExpression(exp.getLeftExpression(), spaceName, outFunctions);
-            findFunctionDefinitionsInExpression(exp.getRightExpression(), spaceName, outFunctions);
-        }
-        else if (expression instanceof LiteralExpression || expression instanceof ReferenceExpression) {
-            // Nothing to be done
-        }
-        else if (expression instanceof RegisterConstructionExpression exp) {
-            for (Statement statement : exp.getStatements()) {
-                findFunctionDefinitionsInStatement(statement, spaceName, outFunctions);
-            }
-        }
-        else if (expression instanceof RegisterFieldAccessExpression exp) {
-            findFunctionDefinitionsInExpression(exp.getRegister(), spaceName, outFunctions);
-        }
-        else {
-            throw new UnsupportedOperationException("Unimplemented");
-        }
-    }
-
-    private void traverseConstantDefinitionStatement(
-            ConstantDefinitionStatement statement,
-            ImmutableList<String> spaceName,
-            MutableMap<RegisterType.Definition, RegisterStructTypes> definedStructs,
-            ImmutableMap<ImmutableList<String>, FunctionDefinitionExpression> functionMap,
-            PersistenceChecker persistenceChecker,
-            RequiredAllocationsChecker requiredAllocationsChecker,
-            ImmutableList.Builder<CFunction> cFunctionsBuilder,
-            ImmutableList.Builder<CInFunctionStatement> bodyBuilder,
-            Map<String, DefinedType> definedTypes,
-            MutableMap<String, Expression> definedConstants,
-            ImmutableMap.Builder<ImmutableList<String>, EnumType.Definition> sourceEnumPreprocessorDefines,
-            VariableNameCreator varNameCreator,
-            StringPoolGenerator.Result stringPool,
-            MutableSet<String> refIsPointer) {
-        final Expression constDefExp = statement.getExpression();
-        if (constDefExp instanceof FunctionDefinitionExpression funcExpression) {
-            final boolean isPublic = spaceName.isEmpty();
-            final ImmutableList<String> innerSpaceName = spaceName.append(statement.getName());
-
-            final RequiredAllocationsChecker.Result funcRequiredAllocations = requiredAllocationsChecker.obtainCheckedExpression(innerSpaceName, funcExpression.getBody(), persistenceChecker.full);
-            final MutableMap<String, Type> paramTypes = MutableHashMap.empty();
-            final MutableSet<String> newRefIsPointer = MutableHashSet.empty();
-            for (FunctionParameter funcParam : funcExpression.getParameters()) {
-                final Type paramType = funcParam.getType();
-                paramTypes.put(funcParam.getName(), paramType);
-                if (paramType instanceof RegisterType || paramType instanceof ArrayType) {
-                    newRefIsPointer.add(funcParam.getName());
-                }
-            }
-
-            final Type resultType = mTypeMap.get(funcExpression.getBody());
-            final ImmutableList.Builder<CVariable> paramsBuilder = new ImmutableList.Builder<>();
-            boolean resultAsParameter = false;
-            boolean resultIsArray = false;
-            boolean resultIsString = false;
-            if (resultType instanceof ArrayType resultArrayType) {
-                if (arrayShouldBeString(resultArrayType)) {
-                    if (!funcRequiredAllocations.getCharsInString().isEmpty()) {
-                        paramsBuilder.append(new CVariable(OUT_RESULT, new CPointerType(cStringDeclarationType)));
-                        newRefIsPointer.add(OUT_RESULT);
-                        resultAsParameter = true;
-                        resultIsString = true;
-                    }
-                }
-                else if (!funcRequiredAllocations.getPointersInArray().isEmpty()) {
-                    paramsBuilder.append(new CVariable(OUT_RESULT, new CPointerType(cArrayDeclarationType)));
-                    newRefIsPointer.add(OUT_RESULT);
-                    resultAsParameter = true;
-                    resultIsArray = true;
-                }
-            }
-            else if (resultType instanceof RegisterType regType && funcRequiredAllocations.getStructs().containsKey(regType.getDefinition())) {
-                paramsBuilder.append(new CVariable(OUT_RESULT, new CPointerType(cType(resultType, definedStructs))));
-                newRefIsPointer.add(OUT_RESULT);
-                resultAsParameter = true;
-            }
-
-            for (IntValueMap.Entry<RegisterType.Definition> entry : funcRequiredAllocations.getStructs().entries()) {
-                for (int i = 0; i < entry.value(); i++) {
-                    if (resultType instanceof RegisterType regType && regType.getDefinition() == entry.key() && i == 0) {
-                        // Result as parameter already added
-                    }
-                    else {
-                        final String varName = "outRegister" + i;
-                        paramsBuilder.append(new CVariable(varName, new CPointerType(definedStructs.get(entry.key()).getDeclaration())));
-                        newRefIsPointer.add(varName);
-                    }
-                }
-            }
-
-            for (int index : funcRequiredAllocations.getPointersInArray().indexes()) {
-                if (resultType instanceof ArrayType && resultIsArray && index == 0) {
-                    // Result as parameter already added
-                }
-                else {
-                    final String varName = "outArray" + index;
-                    paramsBuilder.append(new CVariable(varName, new CPointerType(cArrayDeclarationType)));
-                    newRefIsPointer.add(varName);
-                }
-            }
-
-            for (int index : funcRequiredAllocations.getCharsInString().indexes()) {
-                if (resultType instanceof ArrayType && resultIsString && index == 0) {
-                    // Result as parameter already added
-                }
-                else {
-                    final String varName = "outString" + index;
-                    paramsBuilder.append(new CVariable(varName, new CPointerType(cStringDeclarationType)));
-                    newRefIsPointer.add(varName);
-                }
-            }
-
-            for (String dependency : funcExpression.dependencies()) {
-                final Expression dependencyExp = definedConstants.get(dependency);
-                if (!(dependencyExp instanceof StringLiteralExpression || dependencyExp instanceof ArrayConstructionExpression depArrayCons && depArrayCons.getValues().allMatch(v -> v instanceof StringLiteralExpression))) {
-                    final Type dependencyType = mTypeMap.get(dependencyExp);
-                    final CTypeDeclaration cParamType;
-                    if (dependencyType instanceof ArrayType arrayType) {
-                        final String lengthMinText = arrayType.getLengthType().getMin();
-                        final String lengthMaxText = arrayType.getLengthType().getMax();
-                        cParamType = new CPointerType(lengthMinText.equals(lengthMaxText) ?
-                                cType(arrayType.getItemType(), definedStructs) :
-                                cType(dependencyType, definedStructs));
-                    }
-                    else {
-                        cParamType = cType(dependencyType, definedStructs);
-                    }
-
-                    paramsBuilder.append(new CVariable(dependency, cParamType));
-                    if (dependencyType instanceof ArrayType || dependencyType instanceof RegisterType) {
-                        newRefIsPointer.add(dependency);
-                    }
-                }
-            }
-
-            final ImmutableList.Builder<CInFunctionStatement> innerBodyBuilder = new ImmutableList.Builder<>();
-            if (resultType instanceof ArrayType arrayType) {
-                if (arrayShouldBeString(arrayType)) {
-                    ensureValidState(!funcRequiredAllocations.getCharsInString().isEmpty());
-                    if (arrayType.getLengthType().getMin().equals(arrayType.getLengthType().getMax())) {
-                        assignExpressionToArray(funcExpression.getBody(), innerSpaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, innerBodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, new DefaultVariableNameCreator(), stringPool, newRefIsPointer, OUT_RESULT_REF, true);
-                    }
-                    else {
-                        throw new UnsupportedOperationException("Unimplemented for non-fixed length array");
-                    }
-                }
-                else {
-                    ensureValidState(!funcRequiredAllocations.getPointersInArray().isEmpty());
-                    if (arrayType.getLengthType().getMin().equals(arrayType.getLengthType().getMax())) {
-                        assignExpressionToArray(funcExpression.getBody(), innerSpaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, innerBodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, new DefaultVariableNameCreator(), stringPool, newRefIsPointer, OUT_RESULT_REF, true);
-                    }
-                    else {
-                        throw new UnsupportedOperationException("Unimplemented for non-fixed length array");
-                    }
-                }
-            }
-            else if (resultType instanceof RegisterType regType && funcRequiredAllocations.getStructs().containsKey(regType.getDefinition())) {
-                assignExpressionToRegister(funcExpression.getBody(), innerSpaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, innerBodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, new DefaultVariableNameCreator(), stringPool, newRefIsPointer, OUT_RESULT_REF);
-            }
-            else if (resultType instanceof EnumType) {
-                returnEnumFromExpression(funcExpression.getBody(), innerSpaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, innerBodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, new DefaultVariableNameCreator(), stringPool, newRefIsPointer);
-            }
-            else {
-                traverseExpression(funcExpression.getBody(), innerSpaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, innerBodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, new DefaultVariableNameCreator(), stringPool, newRefIsPointer);
-            }
-
-            for (FunctionParameter param : funcExpression.getParameters()) {
-                final Type paramType = param.getType();
-                final CTypeDeclaration cType = cType(paramType, definedStructs);
-                final CTypeDeclaration ptrType = (paramType instanceof ArrayType || paramType instanceof RegisterType)? new CPointerType(cType) : cType;
-                paramsBuilder.append(new CVariable(param.getName(), ptrType));
-            }
-
-            final String functionName = innerSpaceName.reduce((a, b) -> a + "_" + b);
-            final CTypeDeclaration resultCType = resultAsParameter? CVoidType.getInstance() : cType(resultType, definedStructs);
-            cFunctionsBuilder.append(new CFunction(functionName, paramsBuilder.build(), resultCType, innerBodyBuilder.build(), !isPublic));
-        }
-        else if (constDefExp instanceof IfExpression ifExpression) {
-            final Type ifResultingType = mTypeMap.get(ifExpression);
-            if (ifResultingType instanceof ArrayType arrayResultingType) {
-                final CTypeDeclaration targetType = cType(arrayResultingType, definedStructs);
-                if (isPointerEnough(ifExpression)) {
-                    refIsPointer.add(statement.getName());
-                    bodyBuilder.append(new CVarDefinitionStatement(new CVariable(statement.getName(), new CPointerType(targetType))));
-                    assignExpressionToArrayPointer(ifExpression, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer, statement.getName());
-                }
-                else {
-                    final String maxLengthText = arrayResultingType.getLengthType().getMax();
-                    if (maxLengthText.equals(TypeConstants.unboundText)) {
-                        throw new UnsupportedOperationException("Unimplemented");
-                    }
-                    else {
-                        final CReferenceExpression ifResultRef = new CReferenceExpression(statement.getName());
-                        final String valuesVarName = varNameCreator.create("values");
-                        final int arrayLength = Integer.parseInt(maxLengthText);
-                        final Type itemType = arrayResultingType.getItemType();
-                        final CTypeDeclaration cItemType = cType(itemType, definedStructs);
-                        if (arrayShouldBeString(arrayResultingType)) {
-                            bodyBuilder.append(new CArrayDefinitionStatement(new CVariable(valuesVarName, cItemType), arrayLength));
-                            bodyBuilder.append(new CVarDefinitionStatement(new CVariable(statement.getName(), targetType)));
-                            bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(ifResultRef), new CReferenceExpression(valuesVarName)));
-                        }
-                        else {
-                            final CTypeDeclaration cItemPtrType = new CPointerType(cItemType);
-                            bodyBuilder.append(new CArrayDefinitionStatement(new CVariable(valuesVarName, cItemPtrType), arrayLength));
-                            bodyBuilder.append(new CVarDefinitionStatement(new CVariable(statement.getName(), targetType)));
-                            bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(ifResultRef), newCastToVoidPtrPtr(valuesVarName)));
-                        }
-                        assignExpressionToArray(ifExpression, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer, ifResultRef, false);
-                    }
-                }
-            }
-            else {
-                throw new UnsupportedOperationException("Unimplemented");
-            }
-        }
-        else {
-            final Type constType = mTypeMap.get(constDefExp);
-            bodyBuilder.append(new CVarDefinitionStatement(new CVariable(statement.getName(), cType(constType, definedStructs))));
-
-            final CReferenceExpression varRef = new CReferenceExpression(statement.getName());
-            if (constType instanceof RegisterType) {
-                assignExpressionToRegister(constDefExp, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer, varRef);
-            }
-            else if (constType instanceof ArrayType arrayType) {
-                final IntType resultLength = arrayType.getLengthType();
-                final String newValuesName = varNameCreator.create("values");
-                final boolean isString = arrayShouldBeString(arrayType);
-                bodyBuilder.append(new CArrayDefinitionStatement(new CVariable(newValuesName, isString? CCharType.getInstance() : new CPointerType(cType(arrayType.getItemType(), definedStructs))), Integer.parseInt(resultLength.getMax())));
-                bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(new CReferenceExpression(statement.getName())), isString? new CReferenceExpression(newValuesName) : newCastToVoidPtrPtr(newValuesName)));
-                assignExpressionToArray(constDefExp, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer, varRef, false);
-            }
-            else {
-                final CExpression resultExpression = traverseExpression(constDefExp, spaceName, definedStructs, functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, bodyBuilder, definedTypes, definedConstants, sourceEnumPreprocessorDefines, varNameCreator, stringPool, refIsPointer);
-                bodyBuilder.append(new CAssignmentStatement(varRef, resultExpression));
-            }
-        }
-
-        definedConstants.put(statement.getName(), constDefExp);
-    }
-
     public Result generate(ImmutableList<Statement> statements) {
         final StringPoolGenerator stringPoolGenerator = new StringPoolGenerator();
         final StringPoolGenerator.Result stringPoolGeneratorResult = stringPoolGenerator.generate(statements);
 
-        final MutableMap<ImmutableList<String>, FunctionDefinitionExpression> foundFunctions = MutableHashMap.empty();
-        for (Statement statement : statements) {
-            if (statement instanceof ConstantDefinitionStatement constDef) {
-                findFunctionDefinitionsInStatement(constDef, ImmutableList.empty(), foundFunctions);
-            }
-        }
+        final FunctionFinding functionFinding = new FunctionFinding();
+        final ImmutableMap<ImmutableList<String>, FunctionDefinitionExpression> foundFunctions = functionFinding.find(statements);
 
-        final PersistenceChecker persistenceChecker = new PersistenceChecker(mTypeMap, foundFunctions.toImmutable());
-        final RequiredAllocationsChecker requiredAllocationsChecker = new RequiredAllocationsChecker(mTypeMap, foundFunctions.toImmutable(), persistenceChecker);
+        final PersistenceChecker persistenceChecker = new PersistenceChecker(mTypeMap, foundFunctions);
+        final RequiredAllocationsChecker requiredAllocationsChecker = new RequiredAllocationsChecker(mTypeMap, foundFunctions, persistenceChecker);
 
         final MutableMap<RegisterType.Definition, RegisterStructTypes> definedStructs = MutableHashMap.empty();
         final ImmutableList.Builder<CFunction> cFunctionsBuilder = new ImmutableList.Builder<>();
@@ -1343,11 +243,8 @@ public final class CCodeGenerator {
             }
         }
 
-        for (Statement statement : statements) {
-            if (statement instanceof ConstantDefinitionStatement constDef) {
-                traverseConstantDefinitionStatement(constDef, ImmutableList.empty(), definedStructs, foundFunctions.toImmutable(), persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, new ImmutableList.Builder<>(), definedTypes, MutableHashMap.empty(), sourceEnumPreprocessorDefines, new DefaultVariableNameCreator(), stringPoolGeneratorResult, refIsPointer);
-            }
-        }
+        final Generation generation = new Generation(foundFunctions.toImmutable(), persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, sourceEnumPreprocessorDefines, stringPoolGeneratorResult);
+        generation.traverseStatements(statements, ImmutableList.empty(), definedStructs, new ImmutableList.Builder<>(), definedTypes, MutableHashMap.empty(), new DefaultVariableNameCreator(), refIsPointer);
 
         final ImmutableList<CStructType> cStructs = definedStructs.toList().map(RegisterStructTypes::getType).toImmutable();
         final ImmutableList<CFunction> cFunctions = cFunctionsBuilder.build();
@@ -1385,6 +282,1151 @@ public final class CCodeGenerator {
                 headerStatementsBuilder.build(),
                 sourceEnumPreprocessorDefines.build(),
                 sourceStatementsBuilder.build());
+    }
+
+    private static final class FunctionFinding {
+        private final MutableMap<ImmutableList<String>, FunctionDefinitionExpression> mOutFunctions = MutableHashMap.empty();
+        private boolean mConsumed;
+
+        private void findFunctionDefinitionsInStatement(
+                Statement statement,
+                ImmutableList<String> spaceName) {
+            if (statement instanceof ConstantDefinitionStatement constDef) {
+                final ImmutableList<String> innerSpaceName = spaceName.append(statement.getName());
+                findFunctionDefinitionsInExpression(constDef.getExpression(), innerSpaceName);
+            }
+        }
+
+        private void findFunctionDefinitionsInExpression(
+                Expression expression,
+                ImmutableList<String> spaceName) {
+            if (expression instanceof ArrayConstructionExpression exp) {
+                for (Expression parameter : exp.getValues()) {
+                    findFunctionDefinitionsInExpression(parameter, spaceName);
+                }
+            }
+            else if (expression instanceof ArrayValueAtExpression exp) {
+                findFunctionDefinitionsInExpression(exp.getArray(), spaceName);
+                findFunctionDefinitionsInExpression(exp.getIndex(), spaceName);
+            }
+            else if (expression instanceof ComplexExpression exp) {
+                for (Statement statement : exp.getStatements()) {
+                    findFunctionDefinitionsInStatement(statement, spaceName);
+                }
+
+                findFunctionDefinitionsInExpression(exp.getExpression(), spaceName);
+            }
+            else if (expression instanceof FunctionDefinitionExpression exp) {
+                mOutFunctions.put(spaceName, exp);
+                findFunctionDefinitionsInExpression(exp.getBody(), spaceName);
+            }
+            else if (expression instanceof FunctionExecutionExpression exp) {
+                for (Expression parameter : exp.getParameters()) {
+                    findFunctionDefinitionsInExpression(parameter, spaceName);
+                }
+
+                findFunctionDefinitionsInExpression(exp.getFunction(), spaceName);
+            }
+            else if (expression instanceof IfExpression exp) {
+                findFunctionDefinitionsInExpression(exp.getCondition(), spaceName);
+                findFunctionDefinitionsInExpression(exp.getThenClause(), spaceName);
+                findFunctionDefinitionsInExpression(exp.getElseClause(), spaceName);
+            }
+            else if (expression instanceof LeftRightExpression exp) {
+                findFunctionDefinitionsInExpression(exp.getLeftExpression(), spaceName);
+                findFunctionDefinitionsInExpression(exp.getRightExpression(), spaceName);
+            }
+            else if (expression instanceof LiteralExpression || expression instanceof ReferenceExpression) {
+                // Nothing to be done
+            }
+            else if (expression instanceof RegisterConstructionExpression exp) {
+                for (Statement statement : exp.getStatements()) {
+                    findFunctionDefinitionsInStatement(statement, spaceName);
+                }
+            }
+            else if (expression instanceof RegisterFieldAccessExpression exp) {
+                findFunctionDefinitionsInExpression(exp.getRegister(), spaceName);
+            }
+            else {
+                throw new UnsupportedOperationException("Unimplemented");
+            }
+        }
+
+        ImmutableMap<ImmutableList<String>, FunctionDefinitionExpression> find(List<Statement> statements) {
+            ensureValidState(!mConsumed);
+            mConsumed = true;
+
+            for (Statement statement : statements) {
+                if (statement instanceof ConstantDefinitionStatement constDef) {
+                    findFunctionDefinitionsInStatement(constDef, ImmutableList.empty());
+                }
+            }
+
+            return mOutFunctions.toImmutable();
+        }
+    }
+
+    private final class Generation {
+        private final ImmutableMap<ImmutableList<String>, FunctionDefinitionExpression> mFunctionMap;
+        private final PersistenceChecker mPersistenceChecker;
+        private final RequiredAllocationsChecker mRequiredAllocationsChecker;
+        private final ImmutableList.Builder<CFunction> mCFunctionsBuilder;
+        private final ImmutableMap.Builder<ImmutableList<String>, EnumType.Definition> mSourceEnumPreprocessorDefines;
+        private final StringPoolGenerator.Result mStringPool;
+
+        Generation(
+                ImmutableMap<ImmutableList<String>, FunctionDefinitionExpression> functionMap,
+                PersistenceChecker persistenceChecker,
+                RequiredAllocationsChecker requiredAllocationsChecker,
+                ImmutableList.Builder<CFunction> cFunctionsBuilder,
+                ImmutableMap.Builder<ImmutableList<String>, EnumType.Definition> sourceEnumPreprocessorDefines,
+                StringPoolGenerator.Result stringPool) {
+            ensureNonNull(functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, sourceEnumPreprocessorDefines, stringPool);
+            mFunctionMap = functionMap;
+            mPersistenceChecker = persistenceChecker;
+            mRequiredAllocationsChecker = requiredAllocationsChecker;
+            mCFunctionsBuilder = cFunctionsBuilder;
+            mSourceEnumPreprocessorDefines = sourceEnumPreprocessorDefines;
+            mStringPool = stringPool;
+        }
+
+        private CStructFieldAccessExpression newArrayLengthAccessExpression(CExpression arrayRef) {
+            return new CStructFieldAccessExpression(arrayRef, ARRAY_FIELD_LENGTH);
+        }
+
+        private CStructFieldAccessExpression newArrayValuesAccessExpression(CExpression arrayRef) {
+            return new CStructFieldAccessExpression(arrayRef, ARRAY_FIELD_VALUES);
+        }
+
+        private CStructFieldPointerAccessExpression newArrayLengthPointerAccessExpression(CExpression arrayRef) {
+            return new CStructFieldPointerAccessExpression(arrayRef, ARRAY_FIELD_LENGTH);
+        }
+
+        private CStructFieldPointerAccessExpression newArrayValuesPointerAccessExpression(CExpression arrayRef) {
+            return new CStructFieldPointerAccessExpression(arrayRef, ARRAY_FIELD_VALUES);
+        }
+
+        private CCastExpression newCastToVoidPtrPtr(String varName) {
+            return new CCastExpression(CPointerType.getVoidPtrPtrInstance(), new CReferenceExpression(varName));
+        }
+
+        /**
+         * Whether the result of this expression can be just a pointer in C.
+         * <p>
+         * Usually it is OK to be a pointer if the expression does not build
+         * any new data structure, and an existing one can be reused instead.
+         */
+        private boolean isPointerEnough(Expression exp) {
+            if (exp instanceof ReferenceExpression) {
+                return true;
+            }
+            else if (exp instanceof IfExpression e) {
+                return isPointerEnough(e.getThenClause()) && isPointerEnough(e.getElseClause());
+            }
+            else {
+                return false;
+            }
+        }
+
+        private CExpression traverseExpression(
+                Expression expression,
+                ImmutableList<String> spaceName,
+                MutableMap<RegisterType.Definition, RegisterStructTypes> definedStructs,
+                ImmutableList.Builder<CInFunctionStatement> bodyBuilder,
+                Map<String, DefinedType> definedTypes,
+                MutableMap<String, Expression> definedConstants,
+                VariableNameCreator varNameCreator,
+                Set<String> refIsPointer) {
+            if (expression instanceof AdditionExpression exp) {
+                return new CAdditionExpression(traverseExpression(exp.getLeftExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer),
+                        traverseExpression(exp.getRightExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer));
+            }
+            else if (expression instanceof AndExpression exp) {
+                return new CAndExpression(traverseExpression(exp.getLeftExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer),
+                        traverseExpression(exp.getRightExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer));
+            }
+            else if (expression instanceof ArrayConcatenationExpression exp) {
+                final ArrayType arrayType = (ArrayType) mTypeMap.get(exp);
+                final IntType lengthType = arrayType.getLengthType();
+                final String maxLengthText = lengthType.getMax();
+                if (maxLengthText.equals(TypeConstants.unboundText)) {
+                    throw new UnsupportedOperationException("Unimplemented");
+                }
+                else {
+                    final String valuesVarName = varNameCreator.create("values");
+                    final CReferenceExpression valuesRef = new CReferenceExpression(valuesVarName);
+                    final int arrayLength = Integer.parseInt(maxLengthText);
+                    bodyBuilder.append(new CArrayDefinitionStatement(new CVariable(valuesVarName, cType(arrayType.getItemType(), definedStructs)), arrayLength));
+                    final IntType leftLengthType = ((ArrayType) mTypeMap.get(exp.getLeftExpression())).getLengthType();
+                    final String leftLengthText = leftLengthType.getMax();
+                    final String arrayVarName = varNameCreator.create("array");
+                    bodyBuilder.append(new CVarDefinitionStatement(new CVariable(arrayVarName, cArrayDeclarationType)));
+                    final CReferenceExpression arrayRef = new CReferenceExpression(arrayVarName);
+
+                    if (leftLengthType.getMin().equals(leftLengthText)) {
+                        assignExpressionToArrayValues(exp.getLeftExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer, valuesRef, 0);
+                        assignExpressionToArrayValues(exp.getRightExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer, valuesRef, Integer.parseInt(leftLengthText));
+                        bodyBuilder.append(new CAssignmentStatement(newArrayLengthAccessExpression(arrayRef), new CIntLiteralExpression("" + arrayLength)));
+                        bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(arrayRef), new CReferenceExpression(valuesVarName)));
+                    }
+                    else {
+                        assignExpressionToArray(exp.getLeftExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer, arrayRef, false);
+                        final String secondArrayVarName = varNameCreator.create("array");
+                        bodyBuilder.append(new CVarDefinitionStatement(new CVariable(secondArrayVarName, cArrayDeclarationType)));
+                        final CReferenceExpression secondArrayRef = new CReferenceExpression(secondArrayVarName);
+
+                        bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(secondArrayRef), new CAdditionExpression(newArrayValuesAccessExpression(arrayRef), new CMultiplicationExpression(newArrayLengthAccessExpression(arrayRef), new CSizeofExpression(cType(arrayType.getItemType(), definedStructs))))));
+                        assignExpressionToArray(exp.getRightExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer, secondArrayRef, false);
+                        bodyBuilder.append(new CAdditionStatement(newArrayLengthAccessExpression(arrayRef), newArrayLengthAccessExpression(secondArrayRef)));
+                    }
+
+                    return new CReferenceExpression(arrayVarName);
+                }
+            }
+            else if (expression instanceof ArrayValueAtExpression exp) {
+                final CExpression arrayExp = traverseExpression(exp.getArray(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+                final CExpression indexExp = traverseExpression(exp.getIndex(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+                final Type resultType = mTypeMap.get(exp);
+                final CExpression casted = new CCastExpression(new CPointerType(cType(resultType, definedStructs)), new CArrayValueAtExpression(newArrayValuesPointerAccessExpression(arrayExp), indexExp));
+                return (resultType instanceof ArrayType || resultType instanceof RegisterType)? casted :
+                        new CArrayValueAtExpression(casted, new CIntLiteralExpression(TypeConstants.zeroText));
+            }
+            else if (expression instanceof EnumValueLiteralExpression exp) {
+                for (DefinedType definedType : definedTypes) {
+                    if (definedType.getType() instanceof EnumType enumType) {
+                        if (enumType.getValues().contains(exp.getValue())) {
+                            return new CEnumValueLiteralExpression(definedType.getScopedName(), exp.getValue());
+                        }
+                    }
+                }
+
+                return new CIntLiteralExpression(TypeConstants.BOOLEAN_VALUE_TRUE.equals(exp.getValue())? "1" : "0");
+            }
+            else if (expression instanceof ComplexExpression exp) {
+                final MutableMap<String, Expression> scopeDefinitions = MutableHashMap.empty();
+                final MutableMap<String, DefinedType> newDefinedTypes = definedTypes.mutate();
+                for (Statement statement : exp.getStatements()) {
+                    if (statement instanceof TypeDefinitionStatement typeDef) {
+                        traverseTypeDefinitionStatement(typeDef, spaceName, definedStructs, newDefinedTypes);
+                        if (typeDef.getType() instanceof EnumType enumType) {
+                            mSourceEnumPreprocessorDefines.put(spaceName.append(statement.getName()), enumType.getDefinition());
+                        }
+                    }
+                }
+
+                final MutableSet<String> newRefIsPointer = refIsPointer.mutate();
+                for (Statement statement : exp.getStatements()) {
+                    if (statement instanceof ConstantDefinitionStatement constDef) {
+                        final Type statementType = mTypeMap.get(constDef.getExpression());
+                        if (statementType instanceof ArrayType || statementType instanceof RegisterType) {
+                            newRefIsPointer.add(constDef.getName());
+                        }
+                    }
+                }
+
+                traverseStatements(exp.getStatements(), spaceName, definedStructs, bodyBuilder, newDefinedTypes, scopeDefinitions, varNameCreator, newRefIsPointer);
+                traverseExpression(exp.getExpression(), spaceName, definedStructs, bodyBuilder, newDefinedTypes, definedConstants, varNameCreator, newRefIsPointer);
+                throw new UnsupportedOperationException("Unimplemented return");
+            }
+            else if (expression instanceof DifferentFromExpression exp) {
+                return new CDifferentFromExpression(traverseExpression(exp.getLeftExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer),
+                        traverseExpression(exp.getRightExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer));
+            }
+            else if (expression instanceof DivisionExpression exp) {
+                return new CDivisionExpression(traverseExpression(exp.getLeftExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer),
+                        traverseExpression(exp.getRightExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer));
+            }
+            else if (expression instanceof EqualThanExpression exp) {
+                return new CEqualThanExpression(traverseExpression(exp.getLeftExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer),
+                        traverseExpression(exp.getRightExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer));
+            }
+            else if (expression instanceof FunctionExecutionExpression exp) {
+                final ImmutableList.Builder<CExpression> paramExpBuilder = new ImmutableList.Builder<>();
+                for (Expression param : exp.getParameters()) {
+                    paramExpBuilder.append(traverseExpression(param, spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer));
+                }
+
+                final CExpression funcExp = traverseExpression(exp.getFunction(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+                return new CFunctionExecutionExpression(funcExp, paramExpBuilder.build());
+            }
+            else if (expression instanceof GreaterOrEqualThanExpression exp) {
+                return new CGreaterOrEqualThanExpression(traverseExpression(exp.getLeftExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer),
+                        traverseExpression(exp.getRightExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer));
+            }
+            else if (expression instanceof IfExpression exp) {
+                traverseExpression(exp.getCondition(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+                traverseExpression(exp.getThenClause(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+                traverseExpression(exp.getElseClause(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+                throw new UnsupportedOperationException("Unimplemented return");
+            }
+            else if (expression instanceof IntegerLiteralExpression exp) {
+                return new CIntLiteralExpression(exp.getLiteral());
+            }
+            else if (expression instanceof LowerThanExpression exp) {
+                return new CLowerThanExpression(traverseExpression(exp.getLeftExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer),
+                        traverseExpression(exp.getRightExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer));
+            }
+            else if (expression instanceof ModuleExpression exp) {
+                return new CModuleExpression(traverseExpression(exp.getLeftExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer),
+                        traverseExpression(exp.getRightExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer));
+            }
+            else if (expression instanceof MultiplicationExpression exp) {
+                return new CMultiplicationExpression(traverseExpression(exp.getLeftExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer),
+                        traverseExpression(exp.getRightExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer));
+            }
+            else if (expression instanceof OrExpression exp) {
+                return new COrExpression(traverseExpression(exp.getLeftExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer),
+                        traverseExpression(exp.getRightExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer));
+            }
+            else if (expression instanceof ReferenceExpression exp) {
+                final String reference = exp.getReference();
+                ImmutableList<String> targetSpaceName = spaceName;
+                while (!targetSpaceName.isEmpty()) {
+                    if (mFunctionMap.containsKey(targetSpaceName.append(reference))) {
+                        return new CReferenceExpression(targetSpaceName.append(reference).reduce((a, b) -> a + "_" + b));
+                    }
+
+                    targetSpaceName = targetSpaceName.skipLast(1);
+                }
+
+                final Expression defConstant = definedConstants.get(exp.getReference(), null);
+                if (defConstant instanceof ArrayConstructionExpression arrayConstructionExp && canBeOptimizedInStringPool(arrayConstructionExp)) {
+                    return new CAdditionExpression(STRING_POOL_REF, new CIntLiteralExpression("" + mStringPool.getIndexes().get((StringLiteralExpression) arrayConstructionExp.getValues().valueAt(0))));
+                }
+                else {
+                    return new CReferenceExpression(exp.getReference());
+                }
+            }
+            else if (expression instanceof RegisterConstructionExpression exp) {
+                final MutableMap<String, Expression> scopeDefinitions = MutableHashMap.empty();
+                final MutableSet<String> newRefIsPointer = refIsPointer.mutate();
+                for (Statement statement : exp.getStatements()) {
+                    if (statement instanceof ConstantDefinitionStatement constDef) {
+                        traverseConstantDefinitionStatement(constDef, spaceName, definedStructs, bodyBuilder, definedTypes, scopeDefinitions, varNameCreator, newRefIsPointer);
+                    }
+                    else {
+                        throw new UnsupportedOperationException("Unimplemented");
+                    }
+                }
+                throw new UnsupportedOperationException("Unimplemented return");
+            }
+            else if (expression instanceof RegisterFieldAccessExpression exp) {
+                final CExpression register = traverseExpression(exp.getRegister(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+                return new CStructFieldPointerAccessExpression(register, exp.getFieldName());
+            }
+            else if (expression instanceof StringLiteralExpression exp) {
+                final IntType itemType = (IntType) ((ArrayType) mTypeMap.get(exp)).getItemType();
+                final String valuesVarName = varNameCreator.create("values");
+                final int arrayLength = exp.getArrayLength();
+                bodyBuilder.append(new CArrayDefinitionStatement(new CVariable(valuesVarName, new CPointerType(cType(itemType, definedStructs))), arrayLength));
+                for (int i = 0; i < arrayLength; i++) {
+                    final String ch = exp.getCharAt(i);
+                    final int index = mStringPool.getPool().indexOf(ch);
+                    ensureValidState(index >= 0);
+                    bodyBuilder.append(new CAssignmentStatement(new CArrayValueAtExpression(new CReferenceExpression(valuesVarName), new CIntLiteralExpression("" + i)), new CAdditionExpression(STRING_POOL_REF, new CIntLiteralExpression("" + index))));
+                }
+
+                final String arrayVarName = varNameCreator.create("array");
+                final CReferenceExpression arrayRef = new CReferenceExpression(arrayVarName);
+                bodyBuilder.append(new CVarDefinitionStatement(new CVariable(arrayVarName, cArrayDeclarationType)));
+                bodyBuilder.append(new CAssignmentStatement(newArrayLengthAccessExpression(arrayRef), new CIntLiteralExpression("" + arrayLength)));
+                bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(arrayRef), newCastToVoidPtrPtr(valuesVarName)));
+
+                return new CDereferenceExpression(arrayRef);
+            }
+            else if (expression instanceof SubtractionExpression exp) {
+                return new CSubtractionExpression(traverseExpression(exp.getLeftExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer),
+                        traverseExpression(exp.getRightExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer));
+            }
+            else {
+                throw new UnsupportedOperationException("traverseExpression unimplemented for expression " + expression.getClass().getSimpleName());
+            }
+        }
+
+        /**
+         * Assigns the given expression to the values of an Array or String.
+         * <p>
+         * This method assumes that outArrayValuesRef points to the values field
+         * within an Array or String struct and that it is already initialized by
+         * the caller of this method.
+         */
+        private void assignExpressionToArrayValues(
+                Expression expression,
+                ImmutableList<String> spaceName,
+                MutableMap<RegisterType.Definition, RegisterStructTypes> definedStructs,
+                ImmutableList.Builder<CInFunctionStatement> bodyBuilder,
+                Map<String, DefinedType> definedTypes,
+                MutableMap<String, Expression> definedConstants,
+                VariableNameCreator varNameCreator,
+                Set<String> refIsPointer,
+                CAssignableExpression outArrayValuesRef,
+                int outOffset) {
+            if (expression instanceof ArrayConcatenationExpression exp) {
+                final IntType leftLengthType = ((ArrayType) mTypeMap.get(exp.getLeftExpression())).getLengthType();
+                final String maxLeftLengthText = leftLengthType.getMax();
+                if (maxLeftLengthText.equals(leftLengthType.getMin())) {
+                    assignExpressionToArrayValues(exp.getLeftExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer, outArrayValuesRef, outOffset);
+                    assignExpressionToArrayValues(exp.getRightExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer, outArrayValuesRef, outOffset + Integer.parseInt(maxLeftLengthText));
+                }
+                else {
+                    throw new UnsupportedOperationException("Unimplemented");
+                }
+            }
+            else if (expression instanceof ArrayValueAtExpression exp) {
+                final CExpression ref = traverseExpression(exp.getArray(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+                final CExpression index = traverseExpression(exp.getIndex(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+
+                final boolean optimizedRef;
+                if (exp.getArray() instanceof ReferenceExpression refExp) {
+                    final Expression defConstant = definedConstants.get(refExp.getReference(), null);
+                    optimizedRef = defConstant instanceof ArrayConstructionExpression arrayConstructionExp && canBeOptimizedInStringPool(arrayConstructionExp);
+                }
+                else {
+                    optimizedRef = false;
+                }
+
+                if (optimizedRef) {
+                    bodyBuilder.append(new CAssignmentStatement(new CArrayValueAtExpression(outArrayValuesRef, new CIntLiteralExpression("" + outOffset)), new CArrayValueAtExpression(ref, index)));
+                }
+                else {
+                    final boolean sourceIsPointer = ref instanceof CReferenceExpression refExp && refIsPointer.contains(refExp.getText());
+                    final CExpression valuesAccess = sourceIsPointer ? newArrayValuesPointerAccessExpression(ref) : newArrayValuesAccessExpression(ref);
+                    final CExpression itemAccess = new CCastExpression(new CPointerType(cArrayDeclarationType), new CArrayValueAtExpression(valuesAccess, index));
+
+                    final String itemVarName = varNameCreator.create("item");
+                    final CReferenceExpression itemVarRef = new CReferenceExpression(itemVarName);
+                    bodyBuilder.append(new CVarDefinitionStatement(new CVariable(itemVarName, new CPointerType(cArrayDeclarationType))));
+                    bodyBuilder.append(new CAssignmentStatement(itemVarRef, itemAccess));
+                    bodyBuilder.append(new CFunctionExecutionStatement(new CReferenceExpression("memcpy"), new ImmutableList.Builder<CExpression>()
+                            .append((outOffset > 0)? new CAdditionExpression(outArrayValuesRef, new CIntLiteralExpression("" + outOffset)) : outArrayValuesRef)
+                            .append(newArrayValuesPointerAccessExpression(itemVarRef))
+                            .append(new CMultiplicationExpression(newArrayLengthPointerAccessExpression(itemVarRef), new CSizeofExpression(new CPointerType(cArrayDeclarationType))))
+                            .build()));
+                }
+            }
+            else if (expression instanceof FunctionExecutionExpression exp) {
+                if (exp.getFunction() instanceof ReferenceExpression refExp) {
+                    final String functionName = refExp.getReference();
+                    ImmutableList<String> targetSpaceName = spaceName;
+                    FunctionDefinitionExpression tempFuncDefExp;
+                    do {
+                        tempFuncDefExp = mFunctionMap.get(targetSpaceName.append(functionName), null);
+                        if (tempFuncDefExp == null) {
+                            ensureValidState(!targetSpaceName.isEmpty());
+                            targetSpaceName = targetSpaceName.skipLast(1);
+                        }
+                    }
+                    while (tempFuncDefExp == null);
+
+                    final FunctionDefinitionExpression funcDefExp = tempFuncDefExp;
+                    ensureValidState(exp.getParameters().size() == funcDefExp.getParameters().size());
+
+                    final ArrayType arrayType = (ArrayType) mTypeMap.get(funcDefExp.getBody());
+                    final String tempArrayName;
+                    final CReferenceExpression tempArrayRef;
+                    if (arrayShouldBeString(arrayType)) {
+                        tempArrayName = varNameCreator.create("string");
+                        tempArrayRef = new CReferenceExpression(tempArrayName);
+                        bodyBuilder.append(new CVarDefinitionStatement(new CVariable(tempArrayName, cStringDeclarationType)));
+                    }
+                    else {
+                        tempArrayName = varNameCreator.create("array");
+                        tempArrayRef = new CReferenceExpression(tempArrayName);
+                        bodyBuilder.append(new CVarDefinitionStatement(new CVariable(tempArrayName, cArrayDeclarationType)));
+                    }
+
+                    final CExpression source = (outOffset == 0)? outArrayValuesRef : new CAdditionExpression(outArrayValuesRef, new CIntLiteralExpression("" + outOffset));
+                    bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(tempArrayRef), source));
+
+                    final ImmutableList.Builder<CExpression> paramsBuilder = new ImmutableList.Builder<CExpression>()
+                            .append(new CDereferenceExpression(tempArrayRef));
+
+                    final ImmutableMap<String, PersistenceChecker.Persistence> funcPersistence = mPersistenceChecker.obtainExpressionPersistence(targetSpaceName.append(functionName), funcDefExp.getBody(), mPersistenceChecker.full);
+                    for (int paramIndex = 0; paramIndex < exp.getParameters().size(); paramIndex++) {
+                        final FunctionParameter funcParameter = funcDefExp.getParameters().valueAt(paramIndex);
+                        final String paramName = funcParameter.getName();
+                        final PersistenceChecker.Persistence paramPersistence = funcPersistence.get(paramName, null);
+                        if (paramPersistence == null) {
+                            paramsBuilder.append(traverseExpression(exp.getParameters().valueAt(paramIndex), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer));
+                        }
+                        else if (paramPersistence == PersistenceChecker.fullPersistence) {
+                            // Assuming that the variable exists and has name outArray
+                            // TODO: Adjust this logic to get the correct variable name
+                            final CReferenceExpression newOutArrayRef = new CReferenceExpression("outArray");
+                            assignExpressionToArray(exp.getParameters().valueAt(paramIndex), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer, newOutArrayRef, true);
+                            paramsBuilder.append(newOutArrayRef);
+                        }
+                        else if (paramPersistence instanceof PersistenceChecker.ArrayItemPersistence arrayItemParamPersistence) {
+                            if (arrayItemParamPersistence.getItemPersistence() == PersistenceChecker.fullPersistence) {
+                                final String arrayName = varNameCreator.create("array");
+                                bodyBuilder.append(new CVarDefinitionStatement(new CVariable(arrayName, cArrayDeclarationType)));
+
+                                final CReferenceExpression newOutArrayRef = new CReferenceExpression(arrayName);
+                                assignExpressionToArray(exp.getParameters().valueAt(paramIndex), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer, newOutArrayRef, false);
+                                paramsBuilder.append(new CDereferenceExpression(newOutArrayRef));
+                            }
+                            else {
+                                throw new UnsupportedOperationException("Unimplemented");
+                            }
+                        }
+                        else {
+                            throw new UnsupportedOperationException("Unimplemented");
+                        }
+                    }
+
+                    final CExpression funcExp = traverseExpression(exp.getFunction(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+                    ensureValidState(mTypeMap.get(exp) instanceof ArrayType);
+                    bodyBuilder.append(new CFunctionExecutionStatement(funcExp, paramsBuilder.build()));
+                }
+                else {
+                    throw new UnsupportedOperationException("Unimplemented");
+                }
+            }
+            else if (expression instanceof ReferenceExpression exp) {
+                final CReferenceExpression valueRef = new CReferenceExpression(exp.getReference());
+                final Type resultingType = mTypeMap.get(exp);
+                if (resultingType instanceof ArrayType resultingArrayType) {
+                    bodyBuilder.append(new CFunctionExecutionStatement(new CReferenceExpression("memcpy"), new ImmutableList.Builder<CExpression>()
+                            .append((outOffset > 0)? new CAdditionExpression(outArrayValuesRef, new CIntLiteralExpression("" + outOffset)) : outArrayValuesRef)
+                            .append(refIsPointer.contains(exp.getReference())? newArrayValuesPointerAccessExpression(valueRef) : newArrayValuesAccessExpression(valueRef))
+                            .append(new CMultiplicationExpression(refIsPointer.contains(exp.getReference())? newArrayLengthPointerAccessExpression(valueRef) : newArrayLengthAccessExpression(valueRef), new CSizeofExpression(new CPointerType(cType(resultingArrayType.getItemType(), definedStructs)))))
+                            .build()));
+                }
+                else {
+                    throw new UnsupportedOperationException("Unimplemented");
+                }
+            }
+            else if (expression instanceof StringLiteralExpression exp) {
+                final int arrayLength = exp.getArrayLength();
+                final ArrayType type = (ArrayType) mTypeMap.get(exp);
+                if (arrayShouldBeString(type)) {
+                    if (arrayLength <= MEMCPY_THRESHOLD) {
+                        for (int i = 0; i < arrayLength; i++) {
+                            bodyBuilder.append(new CAssignmentStatement(
+                                    new CArrayValueAtExpression(outArrayValuesRef, new CIntLiteralExpression("" + (outOffset + i))),
+                                    new CCharLiteralExpression(exp.getCharAt(i))));
+                        }
+                    }
+                    else {
+                        final int index = mStringPool.getIndexes().get(exp);
+                        bodyBuilder.append(new CFunctionExecutionStatement(new CReferenceExpression("memcpy"), new ImmutableList.Builder<CExpression>()
+                                .append((outOffset > 0)? new CAdditionExpression(outArrayValuesRef, new CIntLiteralExpression("" + outOffset)) : outArrayValuesRef)
+                                .append((index > 0)? new CAdditionExpression(STRING_POOL_REF, new CIntLiteralExpression("" + index)) : STRING_POOL_REF)
+                                .append(new CIntLiteralExpression("" + type.getLengthType().getMax()))
+                                .build()));
+                    }
+                }
+                else {
+                    for (int i = 0; i < arrayLength; i++) {
+                        final String ch = exp.getCharAt(i);
+                        final int chIndex = mStringPool.getPool().indexOf(ch);
+                        ensureValidState(chIndex >= 0);
+                        bodyBuilder.append(new CAssignmentStatement(new CArrayValueAtExpression(outArrayValuesRef, new CIntLiteralExpression("" + (outOffset + i))), new CAdditionExpression(STRING_POOL_REF, new CIntLiteralExpression("" + chIndex))));
+                    }
+                }
+            }
+            else {
+                throw new UnsupportedOperationException("Unimplemented");
+            }
+        }
+
+        private void assignExpressionToArrayPointer(
+                Expression expression,
+                ImmutableList<String> spaceName,
+                MutableMap<RegisterType.Definition, RegisterStructTypes> definedStructs,
+                ImmutableList.Builder<CInFunctionStatement> bodyBuilder,
+                Map<String, DefinedType> definedTypes,
+                MutableMap<String, Expression> definedConstants,
+                VariableNameCreator varNameCreator,
+                Set<String> refIsPointer,
+                String outArrayPointer) {
+            if (expression instanceof IfExpression exp) {
+                final CExpression condition = traverseExpression(exp.getCondition(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+                final ImmutableList.Builder<CInFunctionStatement> thenClauseBuilder = new ImmutableList.Builder<>();
+                final ImmutableList.Builder<CInFunctionStatement> elseClauseBuilder = new ImmutableList.Builder<>();
+                assignExpressionToArrayPointer(exp.getThenClause(), spaceName, definedStructs, thenClauseBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer, outArrayPointer);
+                assignExpressionToArrayPointer(exp.getElseClause(), spaceName, definedStructs, elseClauseBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer, outArrayPointer);
+                bodyBuilder.append(new CIfStatement(condition, thenClauseBuilder.build(), elseClauseBuilder.build()));
+            }
+            else if (expression instanceof ReferenceExpression exp) {
+                final String ref = exp.getReference();
+                final CReferenceExpression sourceRef = new CReferenceExpression(ref);
+                final CExpression source = refIsPointer.contains(ref)? sourceRef : new CDereferenceExpression(sourceRef);
+                bodyBuilder.append(new CAssignmentStatement(new CReferenceExpression(outArrayPointer), source));
+            }
+            else {
+                throw new UnsupportedOperationException("Unimplemented");
+            }
+        }
+
+        /**
+         * Add the corresponding statements in the current body to fill the given array.
+         * <p>
+         * This method assumes that the method calling here has already provided an Array structure matching the outArray name, and that its values fields has been initialized with enough room to the store the result.
+         */
+        private void assignExpressionToArray(
+                Expression expression,
+                ImmutableList<String> spaceName,
+                MutableMap<RegisterType.Definition, RegisterStructTypes> definedStructs,
+                ImmutableList.Builder<CInFunctionStatement> bodyBuilder,
+                Map<String, DefinedType> definedTypes,
+                MutableMap<String, Expression> definedConstants,
+                VariableNameCreator varNameCreator,
+                Set<String> refIsPointer,
+                CReferenceExpression outArrayRef,
+                boolean outArrayIsPointer) {
+            if (expression instanceof ArrayConcatenationExpression exp) {
+                final ArrayType arrayType = (ArrayType) mTypeMap.get(expression);
+                final IntType lengthType = arrayType.getLengthType();
+                final CAssignableExpression lengthAccessExpression = outArrayIsPointer? newArrayLengthPointerAccessExpression(outArrayRef) : newArrayLengthAccessExpression(outArrayRef);
+                final CAssignableExpression valuesAccessExpression = outArrayIsPointer? newArrayValuesPointerAccessExpression(outArrayRef) : newArrayValuesAccessExpression(outArrayRef);
+
+                if (lengthType.getMin().equals(lengthType.getMax())) {
+                    bodyBuilder.append(new CAssignmentStatement(lengthAccessExpression, new CIntLiteralExpression(lengthType.getMin())));
+                    assignExpressionToArrayValues(exp, spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer, valuesAccessExpression, 0);
+                }
+                else {
+                    assignExpressionToArray(exp.getLeftExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer, outArrayRef, outArrayIsPointer);
+                    final String tempVarName;
+                    if (arrayShouldBeString(arrayType)) {
+                        tempVarName = varNameCreator.create("string");
+                        bodyBuilder.append(new CVarDefinitionStatement(new CVariable(tempVarName, cStringDeclarationType)));
+                    }
+                    else {
+                        tempVarName = varNameCreator.create("array");
+                        bodyBuilder.append(new CVarDefinitionStatement(new CVariable(tempVarName, cArrayDeclarationType)));
+                    }
+
+                    final CReferenceExpression tempVarRef = new CReferenceExpression(tempVarName);
+                    bodyBuilder.append(new CAssignmentStatement(
+                            new CStructFieldAccessExpression(tempVarRef, ARRAY_FIELD_VALUES),
+                            new CAdditionExpression(valuesAccessExpression, lengthAccessExpression)));
+                    assignExpressionToArray(exp.getRightExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer, tempVarRef, false);
+                    bodyBuilder.append(new CAdditionStatement(lengthAccessExpression, newArrayLengthAccessExpression(tempVarRef)));
+                }
+            }
+            else if (expression instanceof ArrayConstructionExpression exp) {
+                final ImmutableList<CExpression> params = exp.getValues().map(paramValue -> {
+                    if (paramValue instanceof StringLiteralExpression paramStrLiteral) {
+                        final int index = mStringPool.getIndexes().get(paramStrLiteral);
+                        final String stringVarName = varNameCreator.create("string");
+                        final CReferenceExpression arrayRef = new CReferenceExpression(stringVarName);
+                        bodyBuilder.append(new CVarDefinitionStatement(new CVariable(stringVarName, cStringDeclarationType)));
+                        bodyBuilder.append(new CAssignmentStatement(newArrayLengthAccessExpression(arrayRef), new CIntLiteralExpression("" + paramStrLiteral.getArrayLength())));
+                        bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(arrayRef), (index > 0)? new CAdditionExpression(STRING_POOL_REF, new CIntLiteralExpression("" + index)) : STRING_POOL_REF));
+
+                        return new CDereferenceExpression(arrayRef);
+                    }
+                    else {
+                        return traverseExpression(paramValue, spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+                    }
+                });
+
+                final CAssignableExpression lengthTarget = outArrayIsPointer? newArrayLengthPointerAccessExpression(outArrayRef) : newArrayLengthAccessExpression(outArrayRef);
+                final CExpression valuesTarget = outArrayIsPointer? newArrayValuesPointerAccessExpression(outArrayRef) : newArrayValuesAccessExpression(outArrayRef);
+
+                final int arrayLength = params.size();
+                for (int i = 0; i < arrayLength; i++) {
+                    bodyBuilder.append(new CAssignmentStatement(new CArrayValueAtExpression(valuesTarget, new CIntLiteralExpression("" + i)), params.valueAt(i)));
+                }
+
+                bodyBuilder.append(new CAssignmentStatement(lengthTarget, new CIntLiteralExpression("" + arrayLength)));
+            }
+            else if (expression instanceof ArrayValueAtExpression exp) {
+                final CExpression arrayExp = traverseExpression(exp.getArray(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+                final CExpression indexExp = traverseExpression(exp.getIndex(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+                final ArrayType resultingType = (ArrayType) mTypeMap.get(exp);
+                final IntType resultingLengthType = resultingType.getLengthType();
+                final boolean sourceIsPointer = exp.getArray() instanceof ReferenceExpression refExp && refIsPointer.contains(refExp.getReference());
+                final CAssignableExpression outLength = outArrayIsPointer? newArrayLengthPointerAccessExpression(outArrayRef) : newArrayLengthAccessExpression(outArrayRef);
+                final CExpression outValues = outArrayIsPointer? newArrayValuesPointerAccessExpression(outArrayRef) : newArrayValuesAccessExpression(outArrayRef);
+                final boolean sourceIsString = arrayShouldBeString(resultingType);
+                final CTypeDeclaration sourceType = new CPointerType(sourceIsString? cStringDeclarationType : cArrayDeclarationType);
+                final CExpression source = new CCastExpression(sourceType, new CArrayValueAtExpression(sourceIsPointer? newArrayValuesPointerAccessExpression(arrayExp) : newArrayValuesAccessExpression(arrayExp), indexExp));
+
+                if (resultingLengthType.getMax().equals(resultingLengthType.getMin())) {
+                    final CIntLiteralExpression lengthExpression = new CIntLiteralExpression(resultingLengthType.getMax());
+                    bodyBuilder.append(new CAssignmentStatement(outLength, lengthExpression));
+                    final int length = Integer.parseInt(resultingLengthType.getMax());
+                    if (length == 1) {
+                        final CIntLiteralExpression indexLiteral = new CIntLiteralExpression(TypeConstants.zeroText);
+                        bodyBuilder.append(new CAssignmentStatement(
+                                new CArrayValueAtExpression(outValues, indexLiteral),
+                                new CArrayValueAtExpression(newArrayValuesPointerAccessExpression(source), indexLiteral)));
+                    }
+                    else if (length <= MEMCPY_THRESHOLD) {
+                        final String sourceHolderName = varNameCreator.create("source");
+                        final CReferenceExpression sourceHolderRef = new CReferenceExpression(sourceHolderName);
+                        bodyBuilder.append(new CVarDefinitionStatement(new CVariable(sourceHolderName,
+                                sourceIsString? CPointerType.getCharPtrInstance() : CPointerType.getVoidPtrPtrInstance())));
+                        bodyBuilder.append(new CAssignmentStatement(sourceHolderRef, newArrayValuesPointerAccessExpression(source)));
+                        for (int index = 0; index < length; index++) {
+                            final CIntLiteralExpression indexLiteral = new CIntLiteralExpression("" + index);
+                            bodyBuilder.append(new CAssignmentStatement(
+                                    new CArrayValueAtExpression(outValues, indexLiteral),
+                                    new CArrayValueAtExpression(sourceHolderRef, indexLiteral)));
+                        }
+                    }
+                    else {
+                        bodyBuilder.append(new CFunctionExecutionStatement(new CReferenceExpression("memcpy"), new ImmutableList.Builder<CExpression>()
+                                .append(outValues)
+                                .append(newArrayValuesPointerAccessExpression(source))
+                                .append(new CMultiplicationExpression(lengthExpression, new CSizeofExpression(new CPointerType(cType(resultingType, definedStructs)))))
+                                .build()));
+                    }
+                }
+                else {
+                    final String sourceTempVarName = varNameCreator.create(sourceIsString? "string" : "array");
+                    final CReferenceExpression sourceTempVarRef = new CReferenceExpression(sourceTempVarName);
+                    bodyBuilder.append(new CVarDefinitionStatement(new CVariable(sourceTempVarName, sourceType)));
+                    bodyBuilder.append(new CAssignmentStatement(sourceTempVarRef, source));
+                    bodyBuilder.append(new CAssignmentStatement(outLength, newArrayLengthPointerAccessExpression(sourceTempVarRef)));
+                    bodyBuilder.append(new CFunctionExecutionStatement(new CReferenceExpression("memcpy"), new ImmutableList.Builder<CExpression>()
+                            .append(outValues)
+                            .append(newArrayValuesPointerAccessExpression(sourceTempVarRef))
+                            .append(sourceIsString? outLength : new CMultiplicationExpression(outLength, new CSizeofExpression(new CPointerType(cType(resultingType, definedStructs)))))
+                            .build()));
+                }
+            }
+            else if (expression instanceof ComplexExpression exp) {
+                final MutableMap<String, DefinedType> newDefinedTypes = definedTypes.mutate();
+                for (Statement statement : exp.getStatements()) {
+                    if (statement instanceof TypeDefinitionStatement typeDef) {
+                        traverseTypeDefinitionStatement(typeDef, spaceName, definedStructs, newDefinedTypes);
+                        if (typeDef.getType() instanceof EnumType enumType) {
+                            mSourceEnumPreprocessorDefines.put(spaceName.append(statement.getName()), enumType.getDefinition());
+                        }
+                    }
+                }
+
+                final MutableSet<String> newRefIsPointer = refIsPointer.mutate();
+                traverseStatements(exp.getStatements(), spaceName, definedStructs, bodyBuilder, newDefinedTypes, definedConstants, varNameCreator, newRefIsPointer);
+                assignExpressionToArray(exp.getExpression(), spaceName, definedStructs, bodyBuilder, newDefinedTypes, definedConstants, varNameCreator, newRefIsPointer, outArrayRef, outArrayIsPointer);
+            }
+            else if (expression instanceof FunctionExecutionExpression exp) {
+                final CExpression funcExp = traverseExpression(exp.getFunction(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+                final ImmutableList<CExpression> paramsExp = exp.getParameters().map(e -> traverseExpression(e, spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer));
+                final Type resultingType = mTypeMap.get(exp);
+                if (resultingType instanceof ArrayType) {
+                    bodyBuilder.append(new CFunctionExecutionStatement(funcExp, paramsExp.prepend(outArrayIsPointer? outArrayRef : new CDereferenceExpression(outArrayRef))));
+                }
+                else {
+                    throw new UnsupportedOperationException("Unimplemented");
+                }
+            }
+            else if (expression instanceof IfExpression exp) {
+                final CExpression condition = traverseExpression(exp.getCondition(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+                final ImmutableList.Builder<CInFunctionStatement> thenClauseBuilder = new ImmutableList.Builder<>();
+                final ImmutableList.Builder<CInFunctionStatement> elseClauseBuilder = new ImmutableList.Builder<>();
+                assignExpressionToArray(exp.getThenClause(), spaceName, definedStructs, thenClauseBuilder, definedTypes, definedConstants, varNameCreator.duplicate(), refIsPointer, outArrayRef, outArrayIsPointer);
+                assignExpressionToArray(exp.getElseClause(), spaceName, definedStructs, elseClauseBuilder, definedTypes, definedConstants, varNameCreator.duplicate(), refIsPointer, outArrayRef, outArrayIsPointer);
+                bodyBuilder.append(new CIfStatement(condition, thenClauseBuilder.build(), elseClauseBuilder.build()));
+            }
+            else if (expression instanceof ReferenceExpression exp) {
+                final CReferenceExpression valueRef = new CReferenceExpression(exp.getReference());
+                final Type resultingType = mTypeMap.get(exp);
+                if (resultingType instanceof ArrayType resultingArrayType) {
+                    final CExpression lengthExpression = refIsPointer.contains(exp.getReference())? newArrayLengthPointerAccessExpression(valueRef) : newArrayLengthAccessExpression(valueRef);
+                    final CExpression countExp = arrayShouldBeString(resultingArrayType)? lengthExpression :
+                            new CMultiplicationExpression(lengthExpression, new CSizeofExpression(new CPointerType(cType(resultingArrayType.getItemType(), definedStructs))));
+
+                    bodyBuilder.append(new CFunctionExecutionStatement(new CReferenceExpression("memcpy"), new ImmutableList.Builder<CExpression>()
+                            .append(outArrayIsPointer? newArrayValuesPointerAccessExpression(outArrayRef) : newArrayValuesAccessExpression(outArrayRef))
+                            .append(refIsPointer.contains(exp.getReference())? newArrayValuesPointerAccessExpression(valueRef) : newArrayValuesAccessExpression(valueRef))
+                            .append(countExp)
+                            .build()));
+                    bodyBuilder.append(new CAssignmentStatement(newArrayLengthAccessExpression(outArrayRef), lengthExpression));
+                }
+                else {
+                    throw new UnsupportedOperationException("Unimplemented");
+                }
+            }
+            else if (expression instanceof StringLiteralExpression exp) {
+                final CAssignableExpression target = outArrayIsPointer? newArrayLengthPointerAccessExpression(outArrayRef) :
+                        newArrayLengthAccessExpression(outArrayRef);
+                bodyBuilder.append(new CAssignmentStatement(target, new CIntLiteralExpression("" + exp.getArrayLength())));
+
+                final CAssignableExpression targetValues = outArrayIsPointer? newArrayValuesPointerAccessExpression(outArrayRef) :
+                        newArrayValuesAccessExpression(outArrayRef);
+                assignExpressionToArrayValues(exp, spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer, targetValues, 0);
+            }
+            else {
+                throw new UnsupportedOperationException("Unimplemented");
+            }
+        }
+
+        private void assignExpressionToRegister(
+                Expression expression,
+                ImmutableList<String> spaceName,
+                MutableMap<RegisterType.Definition, RegisterStructTypes> definedStructs,
+                ImmutableList.Builder<CInFunctionStatement> bodyBuilder,
+                Map<String, DefinedType> definedTypes,
+                MutableMap<String, Expression> definedConstants,
+                VariableNameCreator varNameCreator,
+                Set<String> refIsPointer,
+                CReferenceExpression outRegisterRef) {
+            if (expression instanceof ComplexExpression exp) {
+                final MutableMap<String, Expression> scopeDefinitions = MutableHashMap.empty();
+                final MutableMap<String, DefinedType> newDefinedTypes = definedTypes.mutate();
+                for (Statement statement : exp.getStatements()) {
+                    if (statement instanceof TypeDefinitionStatement typeDef) {
+                        traverseTypeDefinitionStatement(typeDef, spaceName, definedStructs, newDefinedTypes);
+                        if (typeDef.getType() instanceof EnumType enumType) {
+                            mSourceEnumPreprocessorDefines.put(spaceName.append(statement.getName()), enumType.getDefinition());
+                        }
+                    }
+                }
+
+                final MutableSet<String> newRefIsPointer = refIsPointer.mutate();
+                traverseStatements(exp.getStatements(), spaceName, definedStructs, bodyBuilder, newDefinedTypes, scopeDefinitions, varNameCreator, newRefIsPointer);
+                assignExpressionToRegister(exp.getExpression(), spaceName, definedStructs, bodyBuilder, newDefinedTypes, definedConstants, varNameCreator, newRefIsPointer, outRegisterRef);
+            }
+            else if (expression instanceof IfExpression exp) {
+                final CExpression condition = traverseExpression(exp.getCondition(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+                final ImmutableList.Builder<CInFunctionStatement> thenClauseBuilder = new ImmutableList.Builder<>();
+                final ImmutableList.Builder<CInFunctionStatement> elseClauseBuilder = new ImmutableList.Builder<>();
+                assignExpressionToRegister(exp.getThenClause(), spaceName, definedStructs, thenClauseBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer, outRegisterRef);
+                assignExpressionToRegister(exp.getElseClause(), spaceName, definedStructs, elseClauseBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer, outRegisterRef);
+                bodyBuilder.append(new CIfStatement(condition, thenClauseBuilder.build(), elseClauseBuilder.build()));
+            }
+            else if (expression instanceof RegisterConstructionExpression exp) {
+                final RegisterType regType = (RegisterType) definedTypes.get(exp.getType()).getType();
+                final ImmutableSet<String> fieldNames = regType.getFields().keySet();
+                final MutableSet<String> newRefIsPointer = refIsPointer.mutate();
+                for (Statement statement : exp.getStatements()) {
+                    if (statement instanceof ConstantDefinitionStatement constDef) {
+                        final String name = constDef.getName();
+                        if (fieldNames.contains(name)) {
+                            bodyBuilder.append(new CAssignmentStatement(new CStructFieldPointerAccessExpression(outRegisterRef, name), traverseExpression(constDef.getExpression(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, newRefIsPointer)));
+                        }
+                        else {
+                            traverseConstantDefinitionStatement(constDef, spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, newRefIsPointer);
+                        }
+                    }
+                    else {
+                        throw new UnsupportedOperationException("Unimplemented");
+                    }
+                }
+            }
+            else if (expression instanceof FunctionExecutionExpression exp) {
+                if (exp.getFunction() instanceof ReferenceExpression refExp) {
+                    final String functionName = refExp.getReference();
+                    ImmutableList<String> targetSpaceName = spaceName;
+                    FunctionDefinitionExpression tempFuncDefExp;
+                    do {
+                        tempFuncDefExp = mFunctionMap.get(targetSpaceName.append(functionName), null);
+                        if (tempFuncDefExp == null) {
+                            ensureValidState(!targetSpaceName.isEmpty());
+                            targetSpaceName = targetSpaceName.skipLast(1);
+                        }
+                    }
+                    while (tempFuncDefExp == null);
+
+                    final FunctionDefinitionExpression funcDefExp = tempFuncDefExp;
+                    ensureValidState(exp.getParameters().size() == funcDefExp.getParameters().size());
+
+                    final ImmutableMap<String, PersistenceChecker.Persistence> funcPersistence = mPersistenceChecker.obtainExpressionPersistence(targetSpaceName.append(functionName), funcDefExp.getBody(), mPersistenceChecker.full);
+                    final ImmutableList.Builder<CExpression> paramsBuilder = new ImmutableList.Builder<CExpression>()
+                            .append(outRegisterRef);
+
+                    for (int paramIndex = 0; paramIndex < exp.getParameters().size(); paramIndex++) {
+                        final String paramName = funcDefExp.getParameters().valueAt(paramIndex).getName();
+                        final PersistenceChecker.Persistence paramPersistence = funcPersistence.get(paramName, null);
+                        if (paramPersistence == PersistenceChecker.fullPersistence) {
+                            // Assuming that the variable exists and has name outString0
+                            // TODO: Adjust this logic to get the correct variable name
+                            final CReferenceExpression outArrayRef = new CReferenceExpression("outString0");
+                            assignExpressionToArray(exp.getParameters().valueAt(paramIndex), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer, outArrayRef, true);
+                            paramsBuilder.append(outArrayRef);
+                        }
+                        else if (paramPersistence instanceof PersistenceChecker.ArrayItemPersistence arrayItemParamPersistence) {
+                            if (arrayItemParamPersistence.getItemPersistence() == PersistenceChecker.fullPersistence) {
+                                final String arrayName = varNameCreator.create("array");
+                                bodyBuilder.append(new CVarDefinitionStatement(new CVariable(arrayName, cArrayDeclarationType)));
+
+                                final CReferenceExpression outArrayRef = new CReferenceExpression(arrayName);
+                                assignExpressionToArray(exp.getParameters().valueAt(paramIndex), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer, outArrayRef, false);
+                                paramsBuilder.append(new CDereferenceExpression(outArrayRef));
+                            }
+                            else {
+                                throw new UnsupportedOperationException("Unimplemented");
+                            }
+                        }
+                        else {
+                            throw new UnsupportedOperationException("Unimplemented");
+                        }
+                    }
+
+                    final CExpression funcExp = traverseExpression(exp.getFunction(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+                    ensureValidState(mTypeMap.get(exp) instanceof RegisterType);
+                    bodyBuilder.append(new CFunctionExecutionStatement(funcExp, paramsBuilder.build()));
+                }
+                else {
+                    throw new UnsupportedOperationException("Unimplemented");
+                }
+            }
+            else {
+                throw new UnsupportedOperationException("Unimplemented");
+            }
+        }
+
+        private void returnEnumFromExpression(
+                Expression expression,
+                ImmutableList<String> spaceName,
+                MutableMap<RegisterType.Definition, RegisterStructTypes> definedStructs,
+                ImmutableList.Builder<CInFunctionStatement> bodyBuilder,
+                Map<String, DefinedType> definedTypes,
+                MutableMap<String, Expression> definedConstants,
+                VariableNameCreator varNameCreator,
+                Set<String> refIsPointer) {
+            if (expression instanceof EnumValueLiteralExpression) {
+                final CExpression cExp = traverseExpression(expression, spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+                bodyBuilder.append(new CReturnStatement(cExp));
+            }
+            else if (expression instanceof IfExpression exp) {
+                final CExpression condition = traverseExpression(exp.getCondition(), spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+                final ImmutableList.Builder<CInFunctionStatement> thenClauseBuilder = new ImmutableList.Builder<>();
+                final ImmutableList.Builder<CInFunctionStatement> elseClauseBuilder = new ImmutableList.Builder<>();
+                returnEnumFromExpression(exp.getThenClause(), spaceName, definedStructs, thenClauseBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+                returnEnumFromExpression(exp.getElseClause(), spaceName, definedStructs, elseClauseBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+                bodyBuilder.append(new CIfStatement(condition, thenClauseBuilder.build(), elseClauseBuilder.build()));
+            }
+            else {
+                throw new UnsupportedOperationException("Unimplemented");
+            }
+        }
+
+        private void traverseConstantDefinitionStatement(
+                ConstantDefinitionStatement statement,
+                ImmutableList<String> spaceName,
+                MutableMap<RegisterType.Definition, RegisterStructTypes> definedStructs,
+                ImmutableList.Builder<CInFunctionStatement> bodyBuilder,
+                Map<String, DefinedType> definedTypes,
+                MutableMap<String, Expression> definedConstants,
+                VariableNameCreator varNameCreator,
+                MutableSet<String> refIsPointer) {
+            final Expression constDefExp = statement.getExpression();
+            if (constDefExp instanceof FunctionDefinitionExpression funcExpression) {
+                final boolean isPublic = spaceName.isEmpty();
+                final ImmutableList<String> innerSpaceName = spaceName.append(statement.getName());
+
+                final RequiredAllocationsChecker.Result funcRequiredAllocations = mRequiredAllocationsChecker.obtainCheckedExpression(innerSpaceName, funcExpression.getBody(), mPersistenceChecker.full);
+                final MutableMap<String, Type> paramTypes = MutableHashMap.empty();
+                final MutableSet<String> newRefIsPointer = MutableHashSet.empty();
+                for (FunctionParameter funcParam : funcExpression.getParameters()) {
+                    final Type paramType = funcParam.getType();
+                    paramTypes.put(funcParam.getName(), paramType);
+                    if (paramType instanceof RegisterType || paramType instanceof ArrayType) {
+                        newRefIsPointer.add(funcParam.getName());
+                    }
+                }
+
+                final Type resultType = mTypeMap.get(funcExpression.getBody());
+                final ImmutableList.Builder<CVariable> paramsBuilder = new ImmutableList.Builder<>();
+                boolean resultAsParameter = false;
+                boolean resultIsArray = false;
+                boolean resultIsString = false;
+                if (resultType instanceof ArrayType resultArrayType) {
+                    if (arrayShouldBeString(resultArrayType)) {
+                        if (!funcRequiredAllocations.getCharsInString().isEmpty()) {
+                            paramsBuilder.append(new CVariable(OUT_RESULT, new CPointerType(cStringDeclarationType)));
+                            newRefIsPointer.add(OUT_RESULT);
+                            resultAsParameter = true;
+                            resultIsString = true;
+                        }
+                    }
+                    else if (!funcRequiredAllocations.getPointersInArray().isEmpty()) {
+                        paramsBuilder.append(new CVariable(OUT_RESULT, new CPointerType(cArrayDeclarationType)));
+                        newRefIsPointer.add(OUT_RESULT);
+                        resultAsParameter = true;
+                        resultIsArray = true;
+                    }
+                }
+                else if (resultType instanceof RegisterType regType && funcRequiredAllocations.getStructs().containsKey(regType.getDefinition())) {
+                    paramsBuilder.append(new CVariable(OUT_RESULT, new CPointerType(cType(resultType, definedStructs))));
+                    newRefIsPointer.add(OUT_RESULT);
+                    resultAsParameter = true;
+                }
+
+                for (IntValueMap.Entry<RegisterType.Definition> entry : funcRequiredAllocations.getStructs().entries()) {
+                    for (int i = 0; i < entry.value(); i++) {
+                        if (resultType instanceof RegisterType regType && regType.getDefinition() == entry.key() && i == 0) {
+                            // Result as parameter already added
+                        }
+                        else {
+                            final String varName = "outRegister" + i;
+                            paramsBuilder.append(new CVariable(varName, new CPointerType(definedStructs.get(entry.key()).getDeclaration())));
+                            newRefIsPointer.add(varName);
+                        }
+                    }
+                }
+
+                for (int index : funcRequiredAllocations.getPointersInArray().indexes()) {
+                    if (resultType instanceof ArrayType && resultIsArray && index == 0) {
+                        // Result as parameter already added
+                    }
+                    else {
+                        final String varName = "outArray" + index;
+                        paramsBuilder.append(new CVariable(varName, new CPointerType(cArrayDeclarationType)));
+                        newRefIsPointer.add(varName);
+                    }
+                }
+
+                for (int index : funcRequiredAllocations.getCharsInString().indexes()) {
+                    if (resultType instanceof ArrayType && resultIsString && index == 0) {
+                        // Result as parameter already added
+                    }
+                    else {
+                        final String varName = "outString" + index;
+                        paramsBuilder.append(new CVariable(varName, new CPointerType(cStringDeclarationType)));
+                        newRefIsPointer.add(varName);
+                    }
+                }
+
+                for (String dependency : funcExpression.dependencies()) {
+                    final Expression dependencyExp = definedConstants.get(dependency);
+                    if (!(dependencyExp instanceof StringLiteralExpression || dependencyExp instanceof ArrayConstructionExpression depArrayCons && depArrayCons.getValues().allMatch(v -> v instanceof StringLiteralExpression))) {
+                        final Type dependencyType = mTypeMap.get(dependencyExp);
+                        final CTypeDeclaration cParamType;
+                        if (dependencyType instanceof ArrayType arrayType) {
+                            final String lengthMinText = arrayType.getLengthType().getMin();
+                            final String lengthMaxText = arrayType.getLengthType().getMax();
+                            cParamType = new CPointerType(lengthMinText.equals(lengthMaxText) ?
+                                    cType(arrayType.getItemType(), definedStructs) :
+                                    cType(dependencyType, definedStructs));
+                        }
+                        else {
+                            cParamType = cType(dependencyType, definedStructs);
+                        }
+
+                        paramsBuilder.append(new CVariable(dependency, cParamType));
+                        if (dependencyType instanceof ArrayType || dependencyType instanceof RegisterType) {
+                            newRefIsPointer.add(dependency);
+                        }
+                    }
+                }
+
+                final ImmutableList.Builder<CInFunctionStatement> innerBodyBuilder = new ImmutableList.Builder<>();
+                if (resultType instanceof ArrayType arrayType) {
+                    if (arrayShouldBeString(arrayType)) {
+                        ensureValidState(!funcRequiredAllocations.getCharsInString().isEmpty());
+                        if (arrayType.getLengthType().getMin().equals(arrayType.getLengthType().getMax())) {
+                            assignExpressionToArray(funcExpression.getBody(), innerSpaceName, definedStructs, innerBodyBuilder, definedTypes, definedConstants, new DefaultVariableNameCreator(), newRefIsPointer, OUT_RESULT_REF, true);
+                        }
+                        else {
+                            throw new UnsupportedOperationException("Unimplemented for non-fixed length array");
+                        }
+                    }
+                    else {
+                        ensureValidState(!funcRequiredAllocations.getPointersInArray().isEmpty());
+                        if (arrayType.getLengthType().getMin().equals(arrayType.getLengthType().getMax())) {
+                            assignExpressionToArray(funcExpression.getBody(), innerSpaceName, definedStructs, innerBodyBuilder, definedTypes, definedConstants, new DefaultVariableNameCreator(), newRefIsPointer, OUT_RESULT_REF, true);
+                        }
+                        else {
+                            throw new UnsupportedOperationException("Unimplemented for non-fixed length array");
+                        }
+                    }
+                }
+                else if (resultType instanceof RegisterType regType && funcRequiredAllocations.getStructs().containsKey(regType.getDefinition())) {
+                    assignExpressionToRegister(funcExpression.getBody(), innerSpaceName, definedStructs, innerBodyBuilder, definedTypes, definedConstants, new DefaultVariableNameCreator(), newRefIsPointer, OUT_RESULT_REF);
+                }
+                else if (resultType instanceof EnumType) {
+                    returnEnumFromExpression(funcExpression.getBody(), innerSpaceName, definedStructs, innerBodyBuilder, definedTypes, definedConstants, new DefaultVariableNameCreator(), newRefIsPointer);
+                }
+                else {
+                    traverseExpression(funcExpression.getBody(), innerSpaceName, definedStructs, innerBodyBuilder, definedTypes, definedConstants, new DefaultVariableNameCreator(), newRefIsPointer);
+                }
+
+                for (FunctionParameter param : funcExpression.getParameters()) {
+                    final Type paramType = param.getType();
+                    final CTypeDeclaration cType = cType(paramType, definedStructs);
+                    final CTypeDeclaration ptrType = (paramType instanceof ArrayType || paramType instanceof RegisterType)? new CPointerType(cType) : cType;
+                    paramsBuilder.append(new CVariable(param.getName(), ptrType));
+                }
+
+                final String functionName = innerSpaceName.reduce((a, b) -> a + "_" + b);
+                final CTypeDeclaration resultCType = resultAsParameter? CVoidType.getInstance() : cType(resultType, definedStructs);
+                mCFunctionsBuilder.append(new CFunction(functionName, paramsBuilder.build(), resultCType, innerBodyBuilder.build(), !isPublic));
+            }
+            else if (constDefExp instanceof IfExpression ifExpression) {
+                final Type ifResultingType = mTypeMap.get(ifExpression);
+                if (ifResultingType instanceof ArrayType arrayResultingType) {
+                    final CTypeDeclaration targetType = cType(arrayResultingType, definedStructs);
+                    if (isPointerEnough(ifExpression)) {
+                        refIsPointer.add(statement.getName());
+                        bodyBuilder.append(new CVarDefinitionStatement(new CVariable(statement.getName(), new CPointerType(targetType))));
+                        assignExpressionToArrayPointer(ifExpression, spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer, statement.getName());
+                    }
+                    else {
+                        final String maxLengthText = arrayResultingType.getLengthType().getMax();
+                        if (maxLengthText.equals(TypeConstants.unboundText)) {
+                            throw new UnsupportedOperationException("Unimplemented");
+                        }
+                        else {
+                            final CReferenceExpression ifResultRef = new CReferenceExpression(statement.getName());
+                            final String valuesVarName = varNameCreator.create("values");
+                            final int arrayLength = Integer.parseInt(maxLengthText);
+                            final Type itemType = arrayResultingType.getItemType();
+                            final CTypeDeclaration cItemType = cType(itemType, definedStructs);
+                            if (arrayShouldBeString(arrayResultingType)) {
+                                bodyBuilder.append(new CArrayDefinitionStatement(new CVariable(valuesVarName, cItemType), arrayLength));
+                                bodyBuilder.append(new CVarDefinitionStatement(new CVariable(statement.getName(), targetType)));
+                                bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(ifResultRef), new CReferenceExpression(valuesVarName)));
+                            }
+                            else {
+                                final CTypeDeclaration cItemPtrType = new CPointerType(cItemType);
+                                bodyBuilder.append(new CArrayDefinitionStatement(new CVariable(valuesVarName, cItemPtrType), arrayLength));
+                                bodyBuilder.append(new CVarDefinitionStatement(new CVariable(statement.getName(), targetType)));
+                                bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(ifResultRef), newCastToVoidPtrPtr(valuesVarName)));
+                            }
+                            assignExpressionToArray(ifExpression, spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer, ifResultRef, false);
+                        }
+                    }
+                }
+                else {
+                    throw new UnsupportedOperationException("Unimplemented");
+                }
+            }
+            else {
+                final Type constType = mTypeMap.get(constDefExp);
+                bodyBuilder.append(new CVarDefinitionStatement(new CVariable(statement.getName(), cType(constType, definedStructs))));
+
+                final CReferenceExpression varRef = new CReferenceExpression(statement.getName());
+                if (constType instanceof RegisterType) {
+                    assignExpressionToRegister(constDefExp, spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer, varRef);
+                }
+                else if (constType instanceof ArrayType arrayType) {
+                    final IntType resultLength = arrayType.getLengthType();
+                    final String newValuesName = varNameCreator.create("values");
+                    final boolean isString = arrayShouldBeString(arrayType);
+                    bodyBuilder.append(new CArrayDefinitionStatement(new CVariable(newValuesName, isString? CCharType.getInstance() : new CPointerType(cType(arrayType.getItemType(), definedStructs))), Integer.parseInt(resultLength.getMax())));
+                    bodyBuilder.append(new CAssignmentStatement(newArrayValuesAccessExpression(new CReferenceExpression(statement.getName())), isString? new CReferenceExpression(newValuesName) : newCastToVoidPtrPtr(newValuesName)));
+                    assignExpressionToArray(constDefExp, spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer, varRef, false);
+                }
+                else {
+                    final CExpression resultExpression = traverseExpression(constDefExp, spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+                    bodyBuilder.append(new CAssignmentStatement(varRef, resultExpression));
+                }
+            }
+
+            definedConstants.put(statement.getName(), constDefExp);
+        }
+
+        void traverseStatements(
+                ImmutableList<Statement> statements,
+                ImmutableList<String> spaceName,
+                MutableMap<RegisterType.Definition, RegisterStructTypes> definedStructs,
+                ImmutableList.Builder<CInFunctionStatement> bodyBuilder,
+                Map<String, DefinedType> definedTypes,
+                MutableMap<String, Expression> definedConstants,
+                VariableNameCreator varNameCreator,
+                MutableSet<String> refIsPointer) {
+            for (Statement statement : statements) {
+                if (statement instanceof ConstantDefinitionStatement constDef) {
+                    traverseConstantDefinitionStatement(constDef, spaceName, definedStructs, bodyBuilder, definedTypes, definedConstants, varNameCreator, refIsPointer);
+                }
+            }
+        }
     }
 
     private static final class DefinedType {
