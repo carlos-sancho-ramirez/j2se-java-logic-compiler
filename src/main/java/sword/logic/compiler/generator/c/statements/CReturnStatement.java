@@ -15,6 +15,6 @@ public final class CReturnStatement implements CInFunctionStatement {
 
     @Override
     public String getText(Formatter formatter) {
-        return "return " + mExpression.getText() + ";";
+        return formatter.getIndentation() + "return " + mExpression.getText() + ";";
     }
 }
