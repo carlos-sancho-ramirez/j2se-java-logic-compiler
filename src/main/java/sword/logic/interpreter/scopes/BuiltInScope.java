@@ -1,16 +1,16 @@
 package sword.logic.interpreter.scopes;
 
 import sword.collections.ImmutableHashSet;
+import sword.collections.ImmutableList;
 import sword.collections.ImmutableMap;
-import sword.collections.ImmutableSet;
 import sword.collections.ImmutableTransformable;
 import sword.collections.Map;
 import sword.logic.compiler.UnresolvedReferenceException;
+import sword.logic.interpreter.Token;
 import sword.logic.interpreter.UnresolvedEnumValueException;
 import sword.logic.interpreter.UnresolvedTypeReferenceException;
 import sword.logic.interpreter.expressions.Expression;
 import sword.logic.interpreter.statements.Statement;
-import sword.logic.interpreter.Token;
 import sword.logic.types.ArrayType;
 import sword.logic.types.EnumType;
 import sword.logic.types.IntType;
@@ -33,12 +33,12 @@ public final class BuiltInScope extends AbstractScope {
         return mInstance;
     }
 
-    private final ImmutableSet<String> mBooleanTypeValues = new ImmutableHashSet.Builder<String>()
-            .add(TypeConstants.BOOLEAN_VALUE_TRUE)
-            .add(TypeConstants.BOOLEAN_VALUE_FALSE)
+    private final ImmutableList<String> mBooleanTypeValues = new ImmutableList.Builder<String>()
+            .append(TypeConstants.BOOLEAN_VALUE_FALSE)
+            .append(TypeConstants.BOOLEAN_VALUE_TRUE)
             .build();
 
-    private final EnumType mBooleanType = new EnumType(new EnumType.Definition(mBooleanTypeValues), mBooleanTypeValues);
+    private final EnumType mBooleanType = new EnumType(new EnumType.Definition(mBooleanTypeValues), mBooleanTypeValues.toSet());
 
     private final ArrayType mStringType = new ArrayType(
             new IntType(TypeConstants.zeroText, TypeConstants.unboundText),

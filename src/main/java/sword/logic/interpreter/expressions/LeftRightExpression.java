@@ -1,6 +1,11 @@
 package sword.logic.interpreter.expressions;
 
-import sword.collections.*;
+import sword.collections.ImmutableHashSet;
+import sword.collections.ImmutableList;
+import sword.collections.ImmutableMap;
+import sword.collections.ImmutableSet;
+import sword.collections.Map;
+import sword.collections.MutableMap;
 import sword.logic.compiler.IntegerLiteralOperations;
 import sword.logic.compiler.SemanticErrorException;
 import sword.logic.compiler.UnresolvedReferenceException;
@@ -20,14 +25,13 @@ import sword.logic.expressions.OrExpression;
 import sword.logic.expressions.SubtractionExpression;
 import sword.logic.interpreter.Finder;
 import sword.logic.interpreter.ImpossibleSituationException;
+import sword.logic.interpreter.Token;
 import sword.logic.interpreter.UnresolvedTypeReferenceException;
 import sword.logic.interpreter.scopes.BuiltInScope;
 import sword.logic.interpreter.scopes.Scope;
 import sword.logic.interpreter.type.definitions.TypeAliasResolver;
-import sword.logic.interpreter.Token;
 import sword.logic.types.ArrayType;
 import sword.logic.types.EnumType;
-import sword.logic.types.FunctionType;
 import sword.logic.types.IntType;
 import sword.logic.types.Type;
 import sword.logic.types.TypeConstants;
@@ -897,7 +901,7 @@ public final class LeftRightExpression implements Expression {
                                     return mLeft.restrictionMap(new EnumType(leftEnumType.getDefinition(), newValues), resolvedExpressions, restrictionMap);
                                 }
                                 else if (resultEnumType.getValues().size() == 1 && resultEnumType.getValues().valueAt(0).equals(TypeConstants.BOOLEAN_VALUE_FALSE)) {
-                                    final ImmutableSet<String> newValues = leftEnumType.getDefinition().getPossibleValues().remove(rightValue);
+                                    final ImmutableSet<String> newValues = leftEnumType.getDefinition().getPossibleValues().toSet().remove(rightValue);
                                     return mLeft.restrictionMap(new EnumType(leftEnumType.getDefinition(), newValues), resolvedExpressions, restrictionMap);
                                 }
                                 else {

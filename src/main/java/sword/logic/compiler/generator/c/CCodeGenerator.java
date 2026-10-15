@@ -88,6 +88,7 @@ import sword.logic.expressions.RegisterConstructionExpression;
 import sword.logic.expressions.RegisterFieldAccessExpression;
 import sword.logic.expressions.StringLiteralExpression;
 import sword.logic.expressions.SubtractionExpression;
+import sword.logic.interpreter.scopes.BuiltInScope;
 import sword.logic.statements.ConstantDefinitionStatement;
 import sword.logic.statements.Statement;
 import sword.logic.statements.TypeDefinitionStatement;
@@ -220,9 +221,15 @@ public final class CCodeGenerator {
         final MutableMap<RegisterType.Definition, RegisterStructTypes> definedStructs = MutableHashMap.empty();
         final ImmutableList.Builder<CFunction> cFunctionsBuilder = new ImmutableList.Builder<>();
         final MutableMap<String, DefinedType> definedTypes = MutableHashMap.empty();
+        final EnumType booleanType = BuiltInScope.getInstance().getBooleanType();
+        final ImmutableList<String> booleanTypeScopedName = new ImmutableList.Builder<String>()
+                .append(TypeConstants.BOOLEAN_TYPE_TEXT)
+                .build();
+        definedTypes.put(TypeConstants.BOOLEAN_TYPE_TEXT, new DefinedType(booleanTypeScopedName, booleanType));
 
         final MutableMap<String, EnumType.Definition> headerEnumPreprocessorDefines = MutableHashMap.empty();
         final ImmutableMap.Builder<ImmutableList<String>, EnumType.Definition> sourceEnumPreprocessorDefines = new ImmutableHashMap.Builder<>();
+        sourceEnumPreprocessorDefines.put(booleanTypeScopedName, booleanType.getDefinition());
 
         for (Statement statement : statements) {
             if (statement instanceof TypeDefinitionStatement typeDef) {
@@ -500,7 +507,7 @@ public final class CCodeGenerator {
                     }
                 }
 
-                return new CIntLiteralExpression(TypeConstants.BOOLEAN_VALUE_TRUE.equals(exp.getValue())? "1" : "0");
+                throw new RuntimeException("The code should not be reached");
             }
             else if (expression instanceof ComplexExpression exp) {
                 final MutableMap<String, Expression> scopeDefinitions = MutableHashMap.empty();

@@ -2,7 +2,6 @@ package sword.logic.compiler.generator.c;
 
 import sword.collections.ImmutableList;
 import sword.collections.ImmutableMap;
-import sword.collections.ImmutableSet;
 import sword.collections.Map;
 import sword.logic.compiler.generator.c.statements.CFileRootStatement;
 import sword.logic.types.EnumType;
@@ -27,7 +26,7 @@ public final class CCodeWriter {
 
             for (Map.Entry<String, EnumType.Definition> entry : enums.entries()) {
                 out.println();
-                final ImmutableSet<String> possibleValues = entry.value().getPossibleValues();
+                final ImmutableList<String> possibleValues = entry.value().getPossibleValues();
                 for (int i = 0; i < possibleValues.size(); i++) {
                     out.println("#define " + entry.key() + "_" + possibleValues.valueAt(i) + " " + i);
                 }
@@ -55,7 +54,7 @@ public final class CCodeWriter {
 
             for (Map.Entry<ImmutableList<String>, EnumType.Definition> entry : enums.entries()) {
                 out.println();
-                final ImmutableSet<String> possibleValues = entry.value().getPossibleValues();
+                final ImmutableList<String> possibleValues = entry.value().getPossibleValues();
                 for (int i = 0; i < possibleValues.size(); i++) {
                     out.println("#define " + entry.key().reduce((a, b) -> a + "_" + b) + "_" + possibleValues.valueAt(i) + " " + i);
                 }

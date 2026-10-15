@@ -1,7 +1,6 @@
 package sword.logic.interpreter.type.definitions;
 
 import sword.collections.ImmutableList;
-import sword.collections.ImmutableSet;
 import sword.logic.interpreter.Token;
 import sword.logic.types.EnumType;
 
@@ -24,7 +23,7 @@ public final class EnumTypeDefinition implements TypeDefinition {
 
     @Override
     public EnumType resolve(TypeAliasResolver resolver) {
-        final ImmutableSet<String> values = mValues.map(Token::getText).toSet();
-        return new EnumType(new EnumType.Definition(values), values);
+        final ImmutableList<String> values = mValues.map(Token::getText);
+        return new EnumType(new EnumType.Definition(values), values.toSet());
     }
 }

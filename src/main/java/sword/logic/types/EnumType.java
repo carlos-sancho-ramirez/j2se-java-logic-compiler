@@ -1,5 +1,6 @@
 package sword.logic.types;
 
+import sword.collections.ImmutableList;
 import sword.collections.ImmutableSet;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
@@ -107,14 +108,14 @@ public final class EnumType implements Type {
      * Allow to distinguish among enums.
      */
     public static final class Definition {
-        private final ImmutableSet<String> mPossibleValues;
+        private final ImmutableList<String> mPossibleValues;
 
-        public Definition(ImmutableSet<String> possibleValues) {
+        public Definition(ImmutableList<String> possibleValues) {
             ensureValidArguments(possibleValues.size() >= 2 && possibleValues.allMatch(EnumType::validEnumValueName));
             mPossibleValues = possibleValues;
         }
 
-        public ImmutableSet<String> getPossibleValues() {
+        public ImmutableList<String> getPossibleValues() {
             return mPossibleValues;
         }
     }
