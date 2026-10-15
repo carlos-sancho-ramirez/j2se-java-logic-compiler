@@ -46,12 +46,20 @@ public final class CCodeWriter {
         }
     }
 
-    public void writeSource(String path, ImmutableList<CFileRootStatement> statements) {
+    public void writeSource(String path, ImmutableMap<ImmutableList<String>, EnumType.Definition> enums, ImmutableList<CFileRootStatement> statements) {
         final String filename = extractFilename(path);
         try (FileOutputStream outStream = new FileOutputStream(path + ".c")) {
             final PrintWriter out = new PrintWriter(outStream, true);
             out.println("#include \"" + filename + ".h\"");
-            out.println("#include <string.h>\n"); // Required for memcpy
+            out.println("#include <string.h>"); // Required for memcpy
+
+            for (Map.Entry<ImmutableList<String>, EnumType.Definition> entry : enums.entries()) {
+                out.println();
+                final ImmutableSet<String> possibleValues = entry.value().getPossibleValues();
+                for (int i = 0; i < possibleValues.size(); i++) {
+                    out.println("#define " + entry.key().reduce((a, b) -> a + "_" + b) + "_" + possibleValues.valueAt(i) + " " + i);
+                }
+            }
 
             final Formatter formatter = new DefaultFormatter();
             for (CFileRootStatement statement : statements) {

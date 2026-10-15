@@ -44,7 +44,7 @@ public final class Main {
                 final CCodeWriter codeWriter = new CCodeWriter();
                 final String path = "build" + File.separator + "output";
                 codeWriter.writeHeader(path, codeGenerationResult.getHeaderEnums(), codeGenerationResult.getHeaderStatements());
-                codeWriter.writeSource(path, codeGenerationResult.getSourceStatements());
+                codeWriter.writeSource(path, codeGenerationResult.getSourceEnums(), codeGenerationResult.getSourceStatements());
             }
             catch (UnexpectedEndOfFileException e) {
                 System.err.println("Unexpected end of file " + fileName + ". " + e.getMessage());

@@ -1,6 +1,5 @@
 Byte = Int[0..255];
 Word = Int[0..65535];
-Segment = ES | CS | SS | DS;
 Result = {
   valid: Boolean;
   message: String;
@@ -9,6 +8,8 @@ Result = {
 disasmInstruction = (code: Array[Byte]) -> {
   byteRegister = Array ("al", "cl", "dl", "bl", "ah", "ch", "dh", "bh");
   wordRegister = Array ("ax", "cx", "dx", "bx", "sp", "bp", "si", "di");
+  Segment = ES | CS | SS | DS;
+
   segmentFromInt = (s : Int[0..3]) -> {
     if s == 0 then ES
     else if s == 1 then CS
