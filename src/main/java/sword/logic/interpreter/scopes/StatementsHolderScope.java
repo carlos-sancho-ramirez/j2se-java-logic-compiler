@@ -26,15 +26,13 @@ import static sword.logic.compiler.PreconditionUtils.ensureValidState;
 /**
  * Holds new constants defined.
  */
-public final class StatementsHolderScope extends AbstractScope {
-    private final AbstractScope mParent;
+public final class StatementsHolderScope extends AbstractChildScope {
     private final ImmutableSet<Statement> mStatements;
     private final MutableMap<TypeDefinitionStatement, Type> mResolvedTypeAlias = MutableHashMap.empty();
 
     StatementsHolderScope(AbstractScope parent, ImmutableSet<Statement> statements) {
-        ensureNonNull(parent);
+        super(parent);
         ensureValidArguments(!statements.isEmpty() && ImmutableListExtensions.noneRepeated(statements.map(Statement::getName)));
-        mParent = parent;
         mStatements = statements;
     }
 

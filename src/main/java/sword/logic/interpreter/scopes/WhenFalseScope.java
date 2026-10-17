@@ -19,13 +19,12 @@ import static sword.logic.compiler.PreconditionUtils.ensureValidState;
  * Scope holding a expression, that should result in a Boolean expression,
  * that allow restricting the existing scope assuming that the expression will return false.
  */
-public final class WhenFalseScope extends AbstractScope {
-    private final AbstractScope mParent;
+public final class WhenFalseScope extends AbstractChildScope {
     private final Expression mCondition;
 
     WhenFalseScope(AbstractScope parent, Expression condition) {
-        ensureNonNull(parent, condition);
-        mParent = parent;
+        super(parent);
+        ensureNonNull(condition);
         mCondition = condition;
     }
 

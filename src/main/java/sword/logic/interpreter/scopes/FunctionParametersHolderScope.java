@@ -20,14 +20,12 @@ import static sword.logic.compiler.PreconditionUtils.ensureValidState;
 /**
  * Scope for a function body, where new parameters and its types has been added to the existing ones.
  */
-public final class FunctionParametersHolderScope extends AbstractScope {
-    private final AbstractScope mParent;
+public final class FunctionParametersHolderScope extends AbstractChildScope {
     private final ImmutableSet<FunctionParameter> mParameters;
 
     FunctionParametersHolderScope(AbstractScope parent, ImmutableSet<FunctionParameter> parameters) {
-        ensureNonNull(parent);
+        super(parent);
         ensureValidArguments(!parameters.isEmpty() && ImmutableListExtensions.noneRepeated(parameters.map(FunctionParameter::getName)));
-        mParent = parent;
         mParameters = parameters;
     }
 

@@ -1,13 +1,6 @@
 package sword.logic.interpreter;
 
-import sword.collections.ImmutableHashMap;
-import sword.collections.ImmutableHashSet;
-import sword.collections.ImmutableList;
-import sword.collections.ImmutableMap;
-import sword.collections.ImmutableSet;
-import sword.collections.MutableHashMap;
-import sword.collections.MutableList;
-import sword.collections.MutableMap;
+import sword.collections.*;
 import sword.logic.compiler.SemanticErrorException;
 import sword.logic.compiler.SyntaxErrorException;
 import sword.logic.compiler.TokenParser;
@@ -31,6 +24,8 @@ import sword.logic.interpreter.statements.ConstantDefinitionStatement;
 import sword.logic.interpreter.statements.Statement;
 import sword.logic.interpreter.statements.TypeDefinitionStatement;
 import sword.logic.interpreter.type.definitions.*;
+import sword.logic.types.FunctionType;
+import sword.logic.types.RegisterType;
 import sword.logic.types.Type;
 import sword.logic.types.TypeConstants;
 
@@ -952,7 +947,7 @@ public final class LogicInterpreter {
         return scopeMap.toImmutable();
     }
 
-    private ImmutableMap<Expression, Type> obtainTypeExpressions(ImmutableMap<Finder, Scope> scopeMap) throws UnresolvedTypeReferenceException, UnresolvedReferenceException, UnresolvedEnumValueException, SemanticErrorException {
+    private OptimizationResult obtainTypeExpressions(ImmutableMap<Finder, Scope> scopeMap) throws UnresolvedTypeReferenceException, UnresolvedReferenceException, UnresolvedEnumValueException, SemanticErrorException {
         final ImmutableSet<Expression> allExpressions = scopeMap.keySet().filter(k -> k instanceof Expression).map(k -> (Expression) k).toSet();
         final MutableMap<Expression, Type> typedExpressions = MutableHashMap.empty();
 
@@ -973,13 +968,190 @@ public final class LogicInterpreter {
         }
         while (typedExpressions.size() < allExpressions.size());
 
-        return typedExpressions.toImmutable();
+        return optimizeTypeExpressions(new OptimizationResult(scopeMap, typedExpressions.toImmutable()), System.err::println);
+    }
+
+    private interface Logger {
+        void log(String message);
+    }
+
+    private static final class OptimizationResult {
+        private final ImmutableMap<Finder, Scope> mScopeMap;
+        private final ImmutableMap<Expression, Type> mTypeMap;
+
+        OptimizationResult(ImmutableMap<Finder, Scope> scopeMap, ImmutableMap<Expression, Type> typeMap) {
+            ensureNonNull(scopeMap, typeMap);
+            mScopeMap = scopeMap;
+            mTypeMap = typeMap;
+        }
+
+        ImmutableMap<Finder, Scope> getScopeMap() {
+            return mScopeMap;
+        }
+
+        ImmutableMap<Expression, Type> getTypeMap() {
+            return mTypeMap;
+        }
+    }
+
+    private OptimizationResult reevaluateBodyExpressions(Expression expression, Scope scope, OptimizationResult result) {
+        if (expression instanceof ArrayValueAtExpression exp) {
+            final OptimizationResult halfResult = reevaluateBodyExpressions(exp.getArray(), scope, result);
+            final OptimizationResult bothResult = reevaluateBodyExpressions(exp.getIndex(), scope, halfResult);
+            try {
+                final Type newType = exp.resolveType(scope, bothResult.getTypeMap());
+                return new OptimizationResult(
+                        result.getScopeMap().put(expression, scope),
+                        result.getTypeMap().put(expression, newType));
+            }
+            catch (UnresolvedTypeReferenceException | UnresolvedReferenceException | SemanticErrorException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        else if (expression instanceof RegisterConstructionExpression exp) {
+            final Scope newScope = scope.createSubscopeWithStatements(exp.getStatements());
+            for (Statement statement : exp.getStatements()) {
+                if (statement instanceof ConstantDefinitionStatement constDef) {
+                    result = reevaluateBodyExpressions(constDef.getExpression(), newScope, result);
+                }
+            }
+
+            final RegisterType currentRegisterType = (RegisterType) result.getTypeMap().get(expression);
+            final ImmutableMap.Builder<String, Type> builder = new ImmutableHashMap.Builder<>();
+            for (String fieldName : currentRegisterType.getFields().keySet()) {
+                for (Statement statement : exp.getStatements()) {
+                    if (statement instanceof ConstantDefinitionStatement constDef && constDef.getName().getText().equals(fieldName)) {
+                        builder.put(fieldName, result.getTypeMap().get(constDef.getExpression()));
+                    }
+                }
+            }
+
+            return new OptimizationResult(
+                    result.getScopeMap().put(expression, scope),
+                    result.getTypeMap().put(expression, new RegisterType(currentRegisterType.getDefinition(), builder.build())));
+        }
+        else if (expression instanceof LeftRightExpression exp) {
+            final OptimizationResult leftAppliedResult = reevaluateBodyExpressions(exp.getLeft(), scope, result);
+            final OptimizationResult bothSidesAppliedResult = reevaluateBodyExpressions(exp.getRight(), scope, leftAppliedResult);
+            try {
+                final Type newType = exp.resolveType(scope, bothSidesAppliedResult.getTypeMap());
+                return new OptimizationResult(
+                        bothSidesAppliedResult.getScopeMap().put(expression, scope),
+                        bothSidesAppliedResult.getTypeMap().put(expression, newType));
+            }
+            catch (UnresolvedTypeReferenceException | UnresolvedReferenceException | SemanticErrorException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        else if (expression instanceof LiteralExpression) {
+            return new OptimizationResult(
+                    result.getScopeMap().put(expression, scope),
+                    result.getTypeMap());
+        }
+        else if (expression instanceof ReferenceExpression exp) {
+            try {
+                return new OptimizationResult(
+                        result.getScopeMap().put(expression, scope),
+                        result.getTypeMap().put(expression, scope.resolveType(exp.getReference(), result.getTypeMap())));
+            }
+            catch (Throwable t) {
+                throw new RuntimeException("Type should be already resolved", t);
+            }
+        }
+        else {
+            throw new UnsupportedOperationException("Unimplemented for " + expression.getClass().getSimpleName());
+        }
+    }
+
+    private OptimizationResult optimizeTypeExpressions(OptimizationResult optimizationResult, Logger logger) {
+        int iteration = 0;
+        boolean somethingChanged;
+        do {
+            if (++iteration >= 50) {
+                throw new RuntimeException("Infinite loop?");
+            }
+
+            somethingChanged = false;
+            final ImmutableMap<Expression, Type> currentTypeMap = optimizationResult.getTypeMap();
+            final ImmutableMap<Finder, Scope> currentScopeMap = optimizationResult.getScopeMap();
+
+            final ImmutableSet<ConstantDefinitionStatement> allFunctions = currentScopeMap.keySet()
+                    .filter(f -> f instanceof ConstantDefinitionStatement constDef && constDef.getExpression() instanceof FunctionDefinitionExpression)
+                    .map(f -> (ConstantDefinitionStatement) f)
+                    .toSet();
+
+            for (ConstantDefinitionStatement funcDefStatement : allFunctions) {
+                final Scope funcDefScope = currentScopeMap.get(funcDefStatement);
+                final Token funcNameToken = funcDefStatement.getName();
+                final String funcName = funcNameToken.getText();
+                final FunctionDefinitionExpression funcDefExp = (FunctionDefinitionExpression) funcDefStatement.getExpression();
+                if (funcDefScope.isFileRootScope()) {
+                    logger.log("[iteration #" + iteration + "] Skipping optimization for function " + funcName + " defined at " + funcNameToken.getLine() + ":" + funcNameToken.getColumn() + ". It is defined in the source file root, so it is considered public and function params should not be optimized.");
+                }
+                else {
+                    final ImmutableSet<FunctionExecutionExpression> allFunctionCalls = currentScopeMap.keySet()
+                            .filter(f ->
+                                    f instanceof FunctionExecutionExpression funcExec &&
+                                    funcExec.getFunction() instanceof ReferenceExpression funcRef &&
+                                    funcRef.getReference().getText().equals(funcName) &&
+                                    (funcDefScope == currentScopeMap.get(f) || funcDefScope.contains(currentScopeMap.get(f))))
+                            .map(f -> (FunctionExecutionExpression) f)
+                            .toSet();
+                    final ImmutableSet<ReferenceExpression> allFunctionCallRefs = allFunctionCalls
+                            .map(exp -> (ReferenceExpression) exp.getFunction())
+                            .toSet();
+                    final ImmutableSet<ReferenceExpression> allFuncRefs = currentScopeMap.keySet()
+                            .filter(f ->
+                                    f instanceof ReferenceExpression refExp &&
+                                    refExp.getReference().getText().equals(funcName) &&
+                                    (funcDefScope == currentScopeMap.get(f) || funcDefScope.contains(currentScopeMap.get(f))))
+                            .map(f -> (ReferenceExpression) f)
+                            .toSet();
+
+                    if (allFunctionCalls.isEmpty()) {
+                        logger.log("[iteration #" + iteration + "] Function " + funcName + ", defined at " + funcNameToken.getLine() + ":" + funcNameToken.getColumn() + ", is never called");
+                    }
+                    else if (allFuncRefs.equalSet(allFunctionCallRefs)) {
+                        final FunctionType funcType = (FunctionType) currentTypeMap.get(funcDefExp);
+                        final ImmutableList<Type> definedParamTypes = funcType.getParameterTypes();
+                        final ImmutableList<Type> delimitedParamTypes = definedParamTypes.indexes().map(paramIndex -> allFunctionCalls
+                                .map(call -> currentTypeMap.get(call.getParameters().valueAt(paramIndex)))
+                                .reduce(Type::getUnion));
+                        if (definedParamTypes.indexes().allMatch(i -> definedParamTypes.valueAt(i).equals(delimitedParamTypes.valueAt(i)))) {
+                            logger.log("[iteration #" + iteration + "] Function params for " + funcName + ", defined at " + funcNameToken.getLine() + ":" + funcNameToken.getColumn() + ", are already optimal. Skipping the optimization of this function");
+                        }
+                        else {
+                            logger.log("[iteration #" + iteration + "] Function params for " + funcName + " can be delimited to (" + delimitedParamTypes.map(Object::toString).reduce((a, b) -> a + ", " + b) + ")");
+                            final ImmutableMap.Builder<Token, Type> newParamsBuilder = new ImmutableHashMap.Builder<>();
+                            for (int paramIndex : funcDefExp.getParameters().indexes()) {
+                                newParamsBuilder.put(funcDefExp.getParameters().valueAt(paramIndex).getName(), delimitedParamTypes.valueAt(paramIndex));
+                            }
+
+                            final Scope newScope = funcDefScope.createSubscopeWithResolvedParameters(newParamsBuilder.build());
+                            final OptimizationResult bodyOptimizationResult = reevaluateBodyExpressions(funcDefExp.getBody(), newScope, optimizationResult);
+                            optimizationResult = new OptimizationResult(bodyOptimizationResult.getScopeMap(), bodyOptimizationResult.getTypeMap().put(funcDefExp,
+                                    new FunctionType(delimitedParamTypes, bodyOptimizationResult.getTypeMap().get(funcDefExp.getBody()))));
+                            somethingChanged = true;
+                            break;
+                        }
+                    }
+                    else {
+                        logger.log("[iteration #" + iteration + "] Skipping param optimization for function " + funcName + " defined at " + funcNameToken.getLine() + ":" + funcNameToken.getColumn() + ". Found references outside function executions.");
+                    }
+                }
+            }
+        }
+        while (somethingChanged);
+
+        return optimizationResult;
     }
 
     public Result interpret() throws IOException, SyntaxErrorException, SemanticErrorException, UnexpectedEndOfFileException, UnresolvedTypeReferenceException, UnresolvedEnumValueException, UnresolvedReferenceException {
         final ImmutableList<Statement> statements = obtainSyntaxTree();
-        final ImmutableMap<Finder, Scope> scopeMap = obtainScopeMap(statements);
-        final ImmutableMap<Expression, Type> resolvedExpressions = obtainTypeExpressions(scopeMap);
+        final ImmutableMap<Finder, Scope> initialScopeMap = obtainScopeMap(statements);
+        final OptimizationResult optimizationResult = obtainTypeExpressions(initialScopeMap);
+        final ImmutableMap<Finder, Scope> scopeMap = optimizationResult.getScopeMap();
+        final ImmutableMap<Expression, Type> resolvedExpressions = optimizationResult.getTypeMap();
         final MutableMap<Expression, sword.logic.expressions.Expression> expressionMap = MutableHashMap.empty();
         final ImmutableList<sword.logic.statements.Statement> resultStatements = statements.map(st -> st.untokenize(scopeMap, resolvedExpressions, expressionMap));
         final ImmutableSet<Expression> allExpressions = resolvedExpressions.keySet();

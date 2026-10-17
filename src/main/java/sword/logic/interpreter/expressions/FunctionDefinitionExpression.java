@@ -29,6 +29,14 @@ public final class FunctionDefinitionExpression implements Expression {
         mBody = body;
     }
 
+    public ImmutableList<FunctionParameter> getParameters() {
+        return mParameters;
+    }
+
+    public Expression getBody() {
+        return mBody;
+    }
+
     @Override
     public void findAllFinders(MutableMap<Finder, Scope> outMap, Scope scope) {
         outMap.put(this, scope);

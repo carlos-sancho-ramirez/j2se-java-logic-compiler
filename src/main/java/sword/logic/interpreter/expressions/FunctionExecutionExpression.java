@@ -29,6 +29,14 @@ public final class FunctionExecutionExpression implements Expression {
         mParameters = parameters;
     }
 
+    public Expression getFunction() {
+        return mFunction;
+    }
+
+    public ImmutableList<Expression> getParameters() {
+        return mParameters;
+    }
+
     @Override
     public void findAllFinders(MutableMap<Finder, Scope> outMap, Scope scope) {
         outMap.put(this, scope);

@@ -109,4 +109,8 @@ public final class ArrayType implements Type {
                 mLength.equals(that.mLength) &&
                 mItemType.equals(that.mItemType);
     }
+
+    public String toString() {
+        return "ArrayType[length=" + mLength.toString() + ", " + mItemType.toString() + "]";
+    }
 }

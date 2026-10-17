@@ -1,5 +1,6 @@
 package sword.logic.interpreter.scopes;
 
+import sword.collections.ImmutableMap;
 import sword.collections.ImmutableTransformable;
 import sword.collections.Map;
 import sword.logic.compiler.UnresolvedReferenceException;
@@ -14,6 +15,21 @@ import sword.logic.types.EnumType;
 import sword.logic.types.Type;
 
 public interface Scope extends TypeAliasResolver {
+
+    /**
+     * Whether the scope is the source file root.
+     */
+    boolean isFileRootScope();
+
+    /**
+     * Whether the given scope is included inside this scope.
+     * <p>
+     * Note that this will return false if passing itself as parameter.
+     * @param other Scope to be checked
+     * @return Whether the given scope is included inside this scope.
+     */
+    boolean contains(Scope other);
+
     /**
      * Whether the given constant name is found within this scope.
      * @param constantName Name for the constant.
@@ -52,5 +68,6 @@ public interface Scope extends TypeAliasResolver {
     Scope whenTrue(Expression condition);
     Scope whenFalse(Expression condition);
     Scope createSubscopeWithParameters(ImmutableTransformable<FunctionParameter> parameters);
+    Scope createSubscopeWithResolvedParameters(ImmutableMap<Token, Type> parameters);
     Scope createSubscopeWithStatements(ImmutableTransformable<Statement> statements);
 }

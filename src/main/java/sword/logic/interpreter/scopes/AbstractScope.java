@@ -39,10 +39,17 @@ abstract class AbstractScope implements Scope {
         return new WhenFalseScope(this, condition);
     }
 
+    @Override
     public Scope createSubscopeWithParameters(ImmutableTransformable<FunctionParameter> parameters) {
         return new FunctionParametersHolderScope(this, parameters.toSet());
     }
 
+    @Override
+    public Scope createSubscopeWithResolvedParameters(ImmutableMap<Token, Type> parameters) {
+        return new FunctionResolvedParametersHolderScope(this, parameters);
+    }
+
+    @Override
     public Scope createSubscopeWithStatements(ImmutableTransformable<Statement> statements) {
         return new StatementsHolderScope(this, statements.toSet());
     }

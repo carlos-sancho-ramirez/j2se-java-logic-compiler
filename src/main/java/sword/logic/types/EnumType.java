@@ -100,6 +100,11 @@ public final class EnumType implements Type {
                 mValues.equalSet(that.mValues);
     }
 
+    @Override
+    public String toString() {
+        return mDefinition.mPossibleValues.filter(mValues::contains).reduce((a, b) -> a + " | " + b);
+    }
+
     public Definition getDefinition() {
         return mDefinition;
     }

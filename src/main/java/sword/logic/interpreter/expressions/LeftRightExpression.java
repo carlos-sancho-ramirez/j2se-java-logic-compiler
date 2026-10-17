@@ -66,6 +66,14 @@ public final class LeftRightExpression implements Expression {
         mRight = right;
     }
 
+    public Expression getLeft() {
+        return mLeft;
+    }
+
+    public Expression getRight() {
+        return mRight;
+    }
+
     @Override
     public void findAllFinders(MutableMap<Finder, Scope> outMap, Scope scope) {
         outMap.put(this, scope);

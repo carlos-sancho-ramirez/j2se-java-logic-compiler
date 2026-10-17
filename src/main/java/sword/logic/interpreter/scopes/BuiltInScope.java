@@ -18,7 +18,7 @@ import sword.logic.types.Type;
 import sword.logic.types.TypeConstants;
 
 /**
- * Base scope that any program witten in this language will use.
+ * Base scope that any program written in this language will use.
  * <p>
  * This contains implicit definitions of the language, like the Boolean type.
  */
@@ -66,6 +66,16 @@ public final class BuiltInScope extends AbstractScope {
 
     public EnumType getAlwaysFalseType() {
         return mAlwaysFalseType;
+    }
+
+    @Override
+    public boolean isFileRootScope() {
+        return false;
+    }
+
+    @Override
+    public boolean contains(Scope other) {
+        return this != other;
     }
 
     @Override
