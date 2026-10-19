@@ -951,12 +951,43 @@ public final class LogicInterpreter {
 
         final ImmutableList<Statement> result = builder.build();
         if (result.anyMatch(Statement::isPublic)) {
-            // TODO: Check that all private members are reachable and no dead code is present
             return result;
         }
         else {
             throw new UnexpectedEndOfFileException("No public constant or type found. This makes this code useless as nobody can access it.");
         }
+    }
+
+    private ImmutableList<Statement> removeUnusedStatements(ImmutableList<Statement> statements, Logger logger) {
+        // TODO: Check types as well
+
+        final ImmutableSet<ConstantDefinitionStatement> allConstantDefinitions = statements
+                .filter(st -> st instanceof ConstantDefinitionStatement)
+                .map(st -> (ConstantDefinitionStatement) st)
+                .toSet();
+        final MutableSet<ConstantDefinitionStatement> constantDefinitionsInUse = allConstantDefinitions.filter(Statement::isPublic).mutate();
+
+        boolean somethingChanged = constantDefinitionsInUse.size() < allConstantDefinitions.size();
+        while (somethingChanged) {
+            somethingChanged = false;
+            for (ConstantDefinitionStatement targetConstDef : allConstantDefinitions.filterNot(constantDefinitionsInUse::contains)) {
+                final Token targetToken = targetConstDef.getName();
+                final String targetText = targetToken.getText();
+                if (constantDefinitionsInUse.anyMatch(constDef -> constDef.getExpression().dependencies().contains(targetText))) {
+                    constantDefinitionsInUse.add(targetConstDef);
+                    somethingChanged = true;
+                    break;
+                }
+            }
+        }
+
+        for (ConstantDefinitionStatement constDef : allConstantDefinitions.filterNot(constantDefinitionsInUse::contains)) {
+            final Token token = constDef.getName();
+            final String text = token.getText();
+            logger.log("Private constant '" + text + "', defined at " + token.getLine() + ":" + token.getColumn() + ", is unused. Removing it.");
+        }
+
+        return statements.filter(st -> !(st instanceof ConstantDefinitionStatement constDef) || constantDefinitionsInUse.contains(constDef));
     }
 
     private ImmutableMap<Finder, Scope> obtainScopeMap(ImmutableList<Statement> statements) {
@@ -972,7 +1003,7 @@ public final class LogicInterpreter {
         return scopeMap.toImmutable();
     }
 
-    private OptimizationResult obtainTypeExpressions(ImmutableMap<Finder, Scope> scopeMap) throws UnresolvedTypeReferenceException, UnresolvedReferenceException, UnresolvedEnumValueException, SemanticErrorException {
+    private OptimizationResult obtainTypeExpressions(ImmutableMap<Finder, Scope> scopeMap, Logger logger) throws UnresolvedTypeReferenceException, UnresolvedReferenceException, UnresolvedEnumValueException, SemanticErrorException {
         final ImmutableSet<Expression> allExpressions = scopeMap.keySet().filter(k -> k instanceof Expression).map(k -> (Expression) k).toSet();
         final MutableMap<Expression, Type> typedExpressions = MutableHashMap.empty();
 
@@ -993,7 +1024,7 @@ public final class LogicInterpreter {
         }
         while (typedExpressions.size() < allExpressions.size());
 
-        return optimizeTypeExpressions(new OptimizationResult(scopeMap, typedExpressions.toImmutable()), System.err::println);
+        return optimizeTypeExpressions(new OptimizationResult(scopeMap, typedExpressions.toImmutable()), logger);
     }
 
     private interface Logger {
@@ -1172,9 +1203,11 @@ public final class LogicInterpreter {
     }
 
     public Result interpret() throws IOException, SyntaxErrorException, SemanticErrorException, UnexpectedEndOfFileException, UnresolvedTypeReferenceException, UnresolvedEnumValueException, UnresolvedReferenceException {
-        final ImmutableList<Statement> statements = obtainSyntaxTree();
+        final ImmutableList<Statement> allStatements = obtainSyntaxTree();
+        final Logger logger = System.err::println;
+        final ImmutableList<Statement> statements = removeUnusedStatements(allStatements, logger);
         final ImmutableMap<Finder, Scope> initialScopeMap = obtainScopeMap(statements);
-        final OptimizationResult optimizationResult = obtainTypeExpressions(initialScopeMap);
+        final OptimizationResult optimizationResult = obtainTypeExpressions(initialScopeMap, logger);
         final ImmutableMap<Finder, Scope> scopeMap = optimizationResult.getScopeMap();
         final ImmutableMap<Expression, Type> resolvedExpressions = optimizationResult.getTypeMap();
         final MutableMap<Expression, sword.logic.expressions.Expression> expressionMap = MutableHashMap.empty();
