@@ -1214,7 +1214,7 @@ public final class CCodeGenerator {
                 MutableSet<String> refIsPointer) {
             final Expression constDefExp = statement.getExpression();
             if (constDefExp instanceof FunctionDefinitionExpression funcExpression) {
-                final boolean isPublic = spaceName.isEmpty();
+                final boolean isPublic = spaceName.isEmpty() && statement.isPublic();
                 final ImmutableList<String> innerSpaceName = spaceName.append(statement.getName());
 
                 final RequiredAllocationsChecker.Result funcRequiredAllocations = mRequiredAllocationsChecker.obtainCheckedExpression(innerSpaceName, funcExpression.getBody(), mPersistenceChecker.full);

@@ -10,6 +10,7 @@ import sword.logic.interpreter.Token;
 import sword.logic.types.Type;
 
 public interface Statement extends Finder {
+    boolean isPublic();
     Token getName();
 
     /**

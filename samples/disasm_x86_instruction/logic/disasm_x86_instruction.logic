@@ -1,11 +1,12 @@
-Byte = Int[0..255];
-Word = Int[0..65535];
-Result = {
+public Byte = Int[0..255];
+public Result = {
   valid: Boolean;
   message: String;
 };
 
-disasmInstruction = (code: Array[Byte]) -> {
+public disasmInstruction = (code: Array[Byte]) -> {
+  Word = Int[0..65535];
+
   byteRegister = Array ("al", "cl", "dl", "bl", "ah", "ch", "dh", "bh");
   wordRegister = Array ("ax", "cx", "dx", "bx", "sp", "bp", "si", "di");
   Segment = ES | CS | SS | DS;

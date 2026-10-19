@@ -314,7 +314,7 @@ public final class LogicInterpreter {
 
                     if (assigningName != null) {
                         if (tokenText.equals(";")) {
-                            assignments.append(new ConstantDefinitionStatement(assigningName, expression[0]));
+                            assignments.append(new ConstantDefinitionStatement(null, assigningName, expression[0]));
                             assigningName = null;
                             accumulated = 0;
                         }
@@ -353,7 +353,7 @@ public final class LogicInterpreter {
                                     return new ExpressionInterpretationResult(functionExpression, funcExpressionResult.closingToken);
                                 }
                                 else if (funcExpressionResult.closingToken.getText().equals(";")) {
-                                    assignments.append(new ConstantDefinitionStatement(assigningName, functionExpression));
+                                    assignments.append(new ConstantDefinitionStatement(null, assigningName, functionExpression));
                                     assigningName = null;
                                 }
                                 else {
@@ -516,47 +516,52 @@ public final class LogicInterpreter {
                 }
             }
             else if (validTypeName(tokenText)) {
-                Token operatorToken = mParser.next();
-                if (operatorToken.getText().equals("=")) {
-                    if (assigningName != null) {
-                        throwSemanticError("Unexpected operator '='. There is already an assignment pending", token);
-                    }
-                    else if (accumulated != 0) {
-                        throwSemanticError("Unexpected operator '='. Assignments must be at the beginning of the statement", token);
-                    }
-                    else {
-                        final TypeDefinitionInterpretationResult typeDefResult = interpretTypeDefinition();
-                        if (typeDefResult.closingToken.getText().equals(";")) {
-                            assignments.append(new TypeDefinitionStatement(token, typeDefResult.typeDefinition));
-                        }
-                        else {
-                            throwSemanticError("Expected ';' after type definition", typeDefResult.closingToken);
-                        }
-                    }
-                }
-                else if (operatorToken.getText().equals("{")) {
-                    final ExpressionInterpretationResult result = interpretExpression();
-                    if (result.closingToken.getText().equals("}")) {
-                        if (accumulated == 0) {
-                            if (result.result instanceof StatementSetInterpretation statementSet) {
-                                final ImmutableList<Statement> statements = statementSet.getStatements();
-                                expression[0] = new RegisterConstructionExpression(token, statements);
-                                accumulated = 1;
-                            }
-                            else {
-                                throwSemanticError("Invalid register construction", result.closingToken);
-                            }
-                        }
-                        else {
-                            throw new UnsupportedOperationException("Unimplemented");
-                        }
-                    }
-                    else {
-                        throwSemanticError("Expected '}'", result.closingToken);
-                    }
+                if (accumulated == 1 && expression[0] instanceof ReferenceExpression refExp && refExp.getReference().getText().equals(Keywords.PUBLIC)) {
+                    throwSemanticError("Internal types cannot be public", refExp.getReference());
                 }
                 else {
-                    throwSemanticError("Expected '{' or '=' after type reference", operatorToken);
+                    Token operatorToken = mParser.next();
+                    if (operatorToken.getText().equals("=")) {
+                        if (assigningName != null) {
+                            throwSemanticError("Unexpected operator '='. There is already an assignment pending", token);
+                        }
+                        else if (accumulated != 0) {
+                            throwSemanticError("Unexpected operator '='. Assignments must be at the beginning of the statement", token);
+                        }
+                        else {
+                            final TypeDefinitionInterpretationResult typeDefResult = interpretTypeDefinition();
+                            if (typeDefResult.closingToken.getText().equals(";")) {
+                                assignments.append(new TypeDefinitionStatement(null, token, typeDefResult.typeDefinition));
+                            }
+                            else {
+                                throwSemanticError("Expected ';' after type definition", typeDefResult.closingToken);
+                            }
+                        }
+                    }
+                    else if (operatorToken.getText().equals("{")) {
+                        final ExpressionInterpretationResult result = interpretExpression();
+                        if (result.closingToken.getText().equals("}")) {
+                            if (accumulated == 0) {
+                                if (result.result instanceof StatementSetInterpretation statementSet) {
+                                    final ImmutableList<Statement> statements = statementSet.getStatements();
+                                    expression[0] = new RegisterConstructionExpression(token, statements);
+                                    accumulated = 1;
+                                }
+                                else {
+                                    throwSemanticError("Invalid register construction", result.closingToken);
+                                }
+                            }
+                            else {
+                                throw new UnsupportedOperationException("Unimplemented");
+                            }
+                        }
+                        else {
+                            throwSemanticError("Expected '}'", result.closingToken);
+                        }
+                    }
+                    else {
+                        throwSemanticError("Expected '{' or '=' after type reference", operatorToken);
+                    }
                 }
             }
             else if (tokenText.equals(Keywords.IF)) {
@@ -574,7 +579,7 @@ public final class LogicInterpreter {
                                         final Token newElseToken = new Token(thenClauseResult.closingToken.getLine(), thenClauseResult.closingToken.getColumn(), Keywords.ELSE);
                                         final IfExpression ifExpression = new IfExpression(newIfToken, newThenToken, newElseToken, conditionExp, thenExp, elseExp);
                                         if (assigningName != null && elseClauseResult.closingToken.getText().equals(";")) {
-                                            assignments.append(new ConstantDefinitionStatement(assigningName, ifExpression));
+                                            assignments.append(new ConstantDefinitionStatement(null, assigningName, ifExpression));
                                             assigningName = null;
                                         }
                                         else {
@@ -805,7 +810,10 @@ public final class LogicInterpreter {
                 }
             }
             else if (validConstantName(tokenText)) {
-                if (accumulated % 2 == 1) {
+                if (accumulated == 1 && expression[0] instanceof ReferenceExpression refExp && refExp.getReference().getText().equals(Keywords.PUBLIC)) {
+                    throwSemanticError("Internal constants cannot be public", refExp.getReference());
+                }
+                else if (accumulated % 2 == 1) {
                     throwSemanticError("Operator expected", token);
                 }
                 else if (accumulated > 1 && operator[accumulated / 2 - 1].getText().equals(".")) {
@@ -864,6 +872,7 @@ public final class LogicInterpreter {
         ImmutableSet<String> knownConstants = ImmutableHashSet.empty();
         ImmutableSet<String> knownTypes = ImmutableHashSet.empty();
         final ImmutableList.Builder<Statement> builder = new ImmutableList.Builder<>();
+        Token publicKeywordToken = null;
         Token assignmentName = null;
         boolean assigningType = false; // Only relevant when assignmentName != null
         Token token;
@@ -871,7 +880,7 @@ public final class LogicInterpreter {
             final String tokenText = token.getText();
             if (assignmentName == null) {
                 if (validConstantName(tokenText)) {
-                    if (knownConstants.contains(tokenText)) {
+                    if (!tokenText.equals(Keywords.PUBLIC) && knownConstants.contains(tokenText)) {
                         throwSemanticError("Constant \"" + tokenText + "\" already declared in this scope", token);
                     }
                     else {
@@ -896,8 +905,9 @@ public final class LogicInterpreter {
                 if (assigningType) {
                     final TypeDefinitionInterpretationResult result = interpretTypeDefinition();
                     if (result.closingToken.getText().equals(";")) {
-                        builder.append(new TypeDefinitionStatement(assignmentName, result.typeDefinition));
+                        builder.append(new TypeDefinitionStatement(publicKeywordToken, assignmentName, result.typeDefinition));
                         knownTypes = knownTypes.add(assignmentName.getText());
+                        publicKeywordToken = null;
                         assignmentName = null;
                     }
                     else {
@@ -908,8 +918,9 @@ public final class LogicInterpreter {
                     final ExpressionInterpretationResult result = interpretExpression();
                     if (result.result instanceof Expression resultExp) {
                         if (result.closingToken.getText().equals(";")) {
-                            builder.append(new ConstantDefinitionStatement(assignmentName, resultExp));
+                            builder.append(new ConstantDefinitionStatement(publicKeywordToken, assignmentName, resultExp));
                             knownConstants = knownConstants.add(assignmentName.getText());
+                            publicKeywordToken = null;
                             assignmentName = null;
                         }
                         else {
@@ -921,6 +932,13 @@ public final class LogicInterpreter {
                     }
                 }
             }
+            else if (publicKeywordToken == null &&
+                    (validConstantName(tokenText) || validTypeName(tokenText)) &&
+                    assignmentName.getText().equals(Keywords.PUBLIC)) {
+                publicKeywordToken = assignmentName;
+                assignmentName = token;
+                assigningType = validTypeName(tokenText);
+            }
             else {
                 if (assigningType) {
                     throwSemanticError("Expected '=' after type name", token);
@@ -931,7 +949,14 @@ public final class LogicInterpreter {
             }
         }
 
-        return builder.build();
+        final ImmutableList<Statement> result = builder.build();
+        if (result.anyMatch(Statement::isPublic)) {
+            // TODO: Check that all private members are reachable and no dead code is present
+            return result;
+        }
+        else {
+            throw new UnexpectedEndOfFileException("No public constant or type found. This makes this code useless as nobody can access it.");
+        }
     }
 
     private ImmutableMap<Finder, Scope> obtainScopeMap(ImmutableList<Statement> statements) {

@@ -4,6 +4,7 @@ import sword.collections.ImmutableMap;
 import sword.collections.Map;
 import sword.collections.MutableMap;
 import sword.logic.interpreter.Finder;
+import sword.logic.interpreter.Keywords;
 import sword.logic.interpreter.UnresolvedTypeReferenceException;
 import sword.logic.interpreter.expressions.Expression;
 import sword.logic.interpreter.scopes.Scope;
@@ -17,15 +18,23 @@ import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 import static sword.logic.statements.TypeDefinitionStatement.validTypeName;
 
 public final class TypeDefinitionStatement implements Statement {
+    private final Token mPublicKeywordToken;
     private final Token mName;
     private final TypeDefinition mDefinition;
 
-    public TypeDefinitionStatement(Token name, TypeDefinition definition) {
+    public TypeDefinitionStatement(Token publicKeywordToken, Token name, TypeDefinition definition) {
+        ensureValidArguments(publicKeywordToken == null || publicKeywordToken.getText().equals(Keywords.PUBLIC));
         ensureNonNull(name, definition);
         ensureValidArguments(validTypeName(name.getText()));
 
+        mPublicKeywordToken = publicKeywordToken;
         mName = name;
         mDefinition = definition;
+    }
+
+    @Override
+    public boolean isPublic() {
+        return mPublicKeywordToken != null;
     }
 
     @Override
@@ -39,7 +48,7 @@ public final class TypeDefinitionStatement implements Statement {
             Map<Expression, Type> resolvedExpressions,
             MutableMap<Expression, sword.logic.expressions.Expression> outExpressionMap) {
         try {
-            return new sword.logic.statements.TypeDefinitionStatement(mName.getText(), typeAliasResolverMap.get(this).resolveTypeAlias(mName));
+            return new sword.logic.statements.TypeDefinitionStatement(mName.getText(), typeAliasResolverMap.get(this).resolveTypeAlias(mName), isPublic());
         }
         catch (UnresolvedTypeReferenceException e) {
             throw new RuntimeException("Unable to untokenize type", e);

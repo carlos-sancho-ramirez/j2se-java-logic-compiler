@@ -4,6 +4,7 @@ import sword.collections.ImmutableMap;
 import sword.collections.Map;
 import sword.collections.MutableMap;
 import sword.logic.interpreter.Finder;
+import sword.logic.interpreter.Keywords;
 import sword.logic.interpreter.scopes.Scope;
 import sword.logic.interpreter.expressions.Expression;
 import sword.logic.interpreter.type.definitions.TypeAliasResolver;
@@ -15,14 +16,23 @@ import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 import static sword.logic.statements.ConstantDefinitionStatement.validConstantName;
 
 public final class ConstantDefinitionStatement implements Statement {
+    private final Token mPublicKeywordToken;
     private final Token mName;
     private final Expression mExpression;
 
-    public ConstantDefinitionStatement(Token name, Expression expression) {
+    public ConstantDefinitionStatement(Token publicKeywordToken, Token name, Expression expression) {
+        ensureValidArguments(publicKeywordToken == null || publicKeywordToken.getText().equals(Keywords.PUBLIC));
         ensureValidArguments(validConstantName(name.getText()));
         ensureNonNull(expression);
+
+        mPublicKeywordToken = publicKeywordToken;
         mName = name;
         mExpression = expression;
+    }
+
+    @Override
+    public boolean isPublic() {
+        return mPublicKeywordToken != null;
     }
 
     @Override
@@ -35,7 +45,7 @@ public final class ConstantDefinitionStatement implements Statement {
             ImmutableMap<Finder, ? extends TypeAliasResolver> typeAliasResolverMap,
             Map<Expression, Type> resolvedExpressions,
             MutableMap<Expression, sword.logic.expressions.Expression> outExpressionMap) {
-        return new sword.logic.statements.ConstantDefinitionStatement(mName.getText(), mExpression.untokenize(typeAliasResolverMap, resolvedExpressions, outExpressionMap));
+        return new sword.logic.statements.ConstantDefinitionStatement(mName.getText(), mExpression.untokenize(typeAliasResolverMap, resolvedExpressions, outExpressionMap), isPublic());
     }
 
     public Expression getExpression() {

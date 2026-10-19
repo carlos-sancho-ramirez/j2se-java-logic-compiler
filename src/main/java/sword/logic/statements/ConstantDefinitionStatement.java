@@ -25,12 +25,19 @@ public final class ConstantDefinitionStatement implements Statement {
 
     private final String mName;
     private final Expression mExpression;
+    private final boolean mIsPublic;
 
-    public ConstantDefinitionStatement(String name, Expression expression) {
+    public ConstantDefinitionStatement(String name, Expression expression, boolean isPublic) {
         ensureValidArguments(validConstantName(name));
         ensureNonNull(expression);
         mName = name;
         mExpression = expression;
+        mIsPublic = isPublic;
+    }
+
+    @Override
+    public boolean isPublic() {
+        return mIsPublic;
     }
 
     @Override
