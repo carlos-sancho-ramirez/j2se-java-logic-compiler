@@ -982,9 +982,7 @@ public final class LogicInterpreter {
         }
 
         for (ConstantDefinitionStatement constDef : allConstantDefinitions.filterNot(constantDefinitionsInUse::contains)) {
-            final Token token = constDef.getName();
-            final String text = token.getText();
-            logger.log("Private constant '" + text + "', defined at " + token.getLine() + ":" + token.getColumn() + ", is unused. Removing it.");
+            logger.logActionTaken(constDef.getName(), "Private constant is unused", "Removing constant");
         }
 
         return statements.filter(st -> !(st instanceof ConstantDefinitionStatement constDef) || constantDefinitionsInUse.contains(constDef));
@@ -1028,7 +1026,32 @@ public final class LogicInterpreter {
     }
 
     private interface Logger {
-        void log(String message);
+        void logActionTaken(Token token, String reason, String actionTaken);
+        void logSkippingReason(Token token, String reason);
+    }
+
+    private static final class LoggerImpl implements Logger {
+        private final boolean mDisplaySkipped;
+
+        LoggerImpl(boolean displayIgnored) {
+            mDisplaySkipped = displayIgnored;
+        }
+
+        private String composeMessage(Token token, String reason) {
+            return "['" + token.getText() + "' at " + token.getLine() + ":" + token.getColumn() + "] " + reason;
+        }
+
+        @Override
+        public void logActionTaken(Token token, String reason, String actionTaken) {
+            System.err.println(composeMessage(token, reason) + ". " + actionTaken);
+        }
+
+        @Override
+        public void logSkippingReason(Token token, String reason) {
+            if (mDisplaySkipped) {
+                System.err.println(composeMessage(token, reason) + ". Skipped");
+            }
+        }
     }
 
     private static final class OptimizationResult {
@@ -1145,8 +1168,8 @@ public final class LogicInterpreter {
                 final Token funcNameToken = funcDefStatement.getName();
                 final String funcName = funcNameToken.getText();
                 final FunctionDefinitionExpression funcDefExp = (FunctionDefinitionExpression) funcDefStatement.getExpression();
-                if (funcDefScope.isFileRootScope()) {
-                    logger.log("[iteration #" + iteration + "] Skipping optimization for function " + funcName + " defined at " + funcNameToken.getLine() + ":" + funcNameToken.getColumn() + ". It is defined in the source file root, so it is considered public and function params should not be optimized.");
+                if (funcDefStatement.isPublic()) {
+                    logger.logSkippingReason(funcNameToken, "Function is public, so params should not be optimized");
                 }
                 else {
                     final ImmutableSet<FunctionExecutionExpression> allFunctionCalls = currentScopeMap.keySet()
@@ -1168,8 +1191,8 @@ public final class LogicInterpreter {
                             .map(f -> (ReferenceExpression) f)
                             .toSet();
 
-                    if (allFunctionCalls.isEmpty()) {
-                        logger.log("[iteration #" + iteration + "] Function " + funcName + ", defined at " + funcNameToken.getLine() + ":" + funcNameToken.getColumn() + ", is never called");
+                    if (allFuncRefs.isEmpty()) {
+                        throw new RuntimeException("Unused function should have been removed in a previous optimization stage");
                     }
                     else if (allFuncRefs.equalSet(allFunctionCallRefs)) {
                         final FunctionType funcType = (FunctionType) currentTypeMap.get(funcDefExp);
@@ -1178,10 +1201,10 @@ public final class LogicInterpreter {
                                 .map(call -> currentTypeMap.get(call.getParameters().valueAt(paramIndex)))
                                 .reduce(Type::getUnion));
                         if (definedParamTypes.indexes().allMatch(i -> definedParamTypes.valueAt(i).equals(delimitedParamTypes.valueAt(i)))) {
-                            logger.log("[iteration #" + iteration + "] Function params for " + funcName + ", defined at " + funcNameToken.getLine() + ":" + funcNameToken.getColumn() + ", are already optimal. Skipping the optimization of this function");
+                            logger.logSkippingReason(funcNameToken, "Function params are already optimal");
                         }
                         else {
-                            logger.log("[iteration #" + iteration + "] Function params for " + funcName + " can be delimited to (" + delimitedParamTypes.map(Object::toString).reduce((a, b) -> a + ", " + b) + ")");
+                            logger.logActionTaken(funcNameToken, "function params can be delimited to (" + delimitedParamTypes.map(Object::toString).reduce((a, b) -> a + ", " + b) + ")", "Adjusting params");
                             final ImmutableMap.Builder<Token, Type> newParamsBuilder = new ImmutableHashMap.Builder<>();
                             for (int paramIndex : funcDefExp.getParameters().indexes()) {
                                 newParamsBuilder.put(funcDefExp.getParameters().valueAt(paramIndex).getName(), delimitedParamTypes.valueAt(paramIndex));
@@ -1196,7 +1219,7 @@ public final class LogicInterpreter {
                         }
                     }
                     else {
-                        logger.log("[iteration #" + iteration + "] Skipping param optimization for function " + funcName + " defined at " + funcNameToken.getLine() + ":" + funcNameToken.getColumn() + ". Found references outside function executions.");
+                        logger.logSkippingReason(funcNameToken, "There are references to this method that are not used directly as a function call");
                     }
                 }
             }
@@ -1208,7 +1231,7 @@ public final class LogicInterpreter {
 
     public Result interpret() throws IOException, SyntaxErrorException, SemanticErrorException, UnexpectedEndOfFileException, UnresolvedTypeReferenceException, UnresolvedEnumValueException, UnresolvedReferenceException {
         final ImmutableList<Statement> allStatements = obtainSyntaxTree();
-        final Logger logger = System.err::println;
+        final Logger logger = new LoggerImpl(true);
         final ImmutableList<Statement> statements = removeUnusedStatements(allStatements, logger);
         final ImmutableMap<Finder, Scope> initialScopeMap = obtainScopeMap(statements);
         final ImmutableMap<Expression, Type> obtainedTypeExpressions = obtainTypeExpressions(initialScopeMap);
