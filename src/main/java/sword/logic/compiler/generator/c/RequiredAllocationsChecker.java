@@ -46,7 +46,6 @@ final class RequiredAllocationsChecker {
     private final ImmutableMap<Expression, Type> mTypeMap;
     private final ImmutableMap<ImmutableList<String>, FunctionDefinitionExpression> mFunctionMap;
     private final PersistenceChecker mPersistenceChecker;
-    private final Result mEmptyResult = new Result(ImmutableIntValueHashMap.empty(), ImmutableIntList.empty(), ImmutableIntList.empty());
     private final MutableMap<KeyPair, Result> mResultMap = MutableHashMap.empty();
 
     RequiredAllocationsChecker(
@@ -137,7 +136,7 @@ final class RequiredAllocationsChecker {
             return new Result(newStructCount, newPointersInArray, newCharsInString);
         }
         else if (expression instanceof ArrayValueAtExpression) {
-            return mEmptyResult;
+            return NOTHING;
         }
         else if (expression instanceof ComplexExpression exp) {
             final ImmutableSet<ConstantDefinitionStatement> constDefs = exp.getStatements()
@@ -225,11 +224,11 @@ final class RequiredAllocationsChecker {
             return new Result(additionalStructs, pointersInArray, charsInString);
         }
         else if (expression instanceof EnumValueLiteralExpression) {
-            return mEmptyResult;
+            return NOTHING;
         }
         else if (expression instanceof FunctionDefinitionExpression exp) {
             obtainCheckedExpression(spaceName, exp.getBody(), inPersistence);
-            return mEmptyResult;
+            return NOTHING;
         }
         else if (expression instanceof FunctionExecutionExpression exp) {
             if (exp.getFunction() instanceof ReferenceExpression refExp) {
@@ -291,6 +290,44 @@ final class RequiredAllocationsChecker {
             final Result thenResult = obtainCheckedExpression(spaceName, exp.getThenClause(), inPersistence);
             final Result elseResult = obtainCheckedExpression(spaceName, exp.getElseClause(), inPersistence);
 
+            if (thenResult == NOTHING) {
+                return elseResult;
+            }
+            else if (thenResult instanceof StringResult thenStringResult) {
+                if (elseResult == NOTHING) {
+                    return thenResult;
+                }
+                else {
+                    final StringResult elseStringResult = (StringResult) elseResult;
+                    return (thenStringResult.getAllocatedChars() >= elseStringResult.getAllocatedChars())? thenStringResult : elseStringResult;
+                }
+            }
+            else if (thenResult instanceof ArrayResult thenArrayResult) {
+                if (elseResult == NOTHING) {
+                    return thenResult;
+                }
+                else {
+                    final ArrayResult elseArrayResult = (ArrayResult) elseResult;
+                    final ImmutableSet<Result> allocatedChildren;
+                    if (thenArrayResult.getAllocatedChildren().isEmpty()) {
+                        allocatedChildren = elseArrayResult.getAllocatedChildren();
+                    }
+                    else if (elseArrayResult.getAllocatedChildren().isEmpty()) {
+                        allocatedChildren = thenArrayResult.getAllocatedChildren();
+                    }
+                    else {
+                        final Result first = thenArrayResult.getAllocatedChildren().valueAt(0);
+                        if (first instanceof StringResult firstString) {
+                            final ImmutableSet<StringResult> thenAllocatedChildren = thenArrayResult.getAllocatedChildren().map(r -> (StringResult) r)
+                            ensureValidState(elseArrayResult.getAllocatedChildren().valueAt(0) instanceof StringResult);
+                        }
+                        ensureValidState(thenArrayResult.getAllocatedChildren().valueAt(0).getClass() == elseArrayResult.getAllocatedChildren().valueAt(0).getClass());
+
+                    }
+                    return new ArrayResult(Math.max(thenArrayResult.getAllocatedPointers(), elseArrayResult.getAllocatedPointers()), allocatedChildren);
+                }
+            }
+
             final ImmutableIntValueMap<RegisterType.Definition> additionalStructs = thenResult.mStructs.keySet().addAll(elseResult.mStructs.keySet()).assignToInt(k ->
                     Math.max(thenResult.mStructs.get(k, 0), elseResult.mStructs.get(k, 0)));
             return new Result(additionalStructs,
@@ -298,16 +335,16 @@ final class RequiredAllocationsChecker {
                     getUnionOfPointersInArray(thenResult.getCharsInString(), elseResult.getCharsInString()));
         }
         else if (expression instanceof IntegerLiteralExpression) {
-            return mEmptyResult;
+            return NOTHING;
         }
         else if (expression instanceof LeftRightExpression) {
             // The only LeftRightExpression that should not return empty is the ArrayConcatenation,
             // the rest results in integer or boolean values, which are never referenced but copied.
             // Logic for ArrayConcatenation is above in this if chain.
-            return mEmptyResult;
+            return NOTHING;
         }
         else if (expression instanceof ReferenceExpression) {
-            return mEmptyResult;
+            return NOTHING;
         }
         else if (expression instanceof RegisterConstructionExpression exp) {
             final RegisterType regType = (RegisterType) mTypeMap.get(exp);
@@ -327,12 +364,12 @@ final class RequiredAllocationsChecker {
                 return obtainCheckedExpression(spaceName, exp.getRegister(), new PersistenceChecker.FieldInPersistence(inPersistence, exp.getFieldName()));
             }
             else {
-                return mEmptyResult;
+                return NOTHING;
             }
         }
         else if (expression instanceof StringLiteralExpression exp) {
             if (inPersistence == mPersistenceChecker.arrayConcatenationInPersistence || inPersistence instanceof PersistenceChecker.ArrayItemInPersistence) {
-                return mEmptyResult;
+                return NOTHING;
             }
             else {
                 final ImmutableIntList charsInString = new ImmutableIntList.Builder()
@@ -367,7 +404,7 @@ final class RequiredAllocationsChecker {
             Statement statement,
             PersistenceChecker.InPersistence inPersistence) {
         return (statement instanceof ConstantDefinitionStatement constDef)?
-                obtainCheckedExpression(spaceName.append(constDef.getName()), constDef.getExpression(), inPersistence) : mEmptyResult;
+                obtainCheckedExpression(spaceName.append(constDef.getName()), constDef.getExpression(), inPersistence) : NOTHING;
     }
 
     ImmutableMap<KeyPair, Result> check(ImmutableList<Statement> statements) {
@@ -378,50 +415,56 @@ final class RequiredAllocationsChecker {
         return mResultMap.toImmutable();
     }
 
-    static final class Result {
-        private final ImmutableIntValueMap<RegisterType.Definition> mStructs;
-        private final ImmutableIntList mPointersInArray;
-        private final ImmutableIntList mCharsInString;
+    interface Result {
+    }
 
-        private Result(
-                ImmutableIntValueMap<RegisterType.Definition> structs,
-                ImmutableIntList pointersInArrays,
-                ImmutableIntList charsInStrings) {
-            ensureValidArguments(structs.keySet().allMatch(Objects::nonNull) && structs.allMatch(v -> v > 0));
-            ensureValidArguments(pointersInArrays.allMatch(v -> v >= 0));
-            ensureValidArguments(charsInStrings.allMatch(v -> v >= 0));
-            mStructs = structs;
-            mPointersInArray = pointersInArrays;
-            mCharsInString = charsInStrings;
+    static final Result NOTHING = new Result() {
+    };
+
+    static final class StringResult implements Result {
+        private final int mAllocatedChars;
+
+        StringResult(int allocatedChars) {
+            ensureValidArguments(allocatedChars >= 0);
+            mAllocatedChars = allocatedChars;
         }
 
-        /**
-         * Return the map assigning to each register type the number of instances that should be allocated
-         */
-        public ImmutableIntValueMap<RegisterType.Definition> getStructs() {
-            return mStructs;
+        int getAllocatedChars() {
+            return mAllocatedChars;
+        }
+    }
+
+    static final class ArrayResult implements Result {
+        private final int mAllocatedPointers;
+        private final ImmutableSet<Result> mAllocatedChildren;
+
+        ArrayResult(int allocatedPointers, ImmutableSet<Result> allocatedChildren) {
+            ensureValidArguments(allocatedPointers >= 0);
+            ensureValidArguments(allocatedChildren != null && allocatedChildren.size() <= allocatedPointers && allocatedChildren.allMatch(child -> child != null && child != NOTHING));
+            ensureValidArguments(allocatedChildren.isEmpty() || allocatedChildren.skip(1).allMatch(child -> child.getClass() == allocatedChildren.valueAt(0).getClass()));
+            mAllocatedPointers = allocatedPointers;
+            mAllocatedChildren = allocatedChildren;
         }
 
-        /**
-         * Return how many Array structs should be allocated and how many pointers should be allocated for each inside.
-         */
-        public ImmutableIntList getPointersInArray() {
-            return mPointersInArray;
+        int getAllocatedPointers() {
+            return mAllocatedPointers;
         }
 
-        /**
-         * Return how many String structs should be allocated and how many characters should be allocated for each inside.
-         * <p>
-         * It is possible to find the value 0 withing the list.
-         * In that case, it means that the String struct must be allocated but not
-         * the values inside it. This is the normal scenario where either the string
-         * is empty or the string is a constant and values can point directly to the
-         * string pool.
-         * <p>
-         * This list will not include a negative number in any case.
-         */
-        public ImmutableIntList getCharsInString() {
-            return mCharsInString;
+        ImmutableSet<Result> getAllocatedChildren() {
+            return mAllocatedChildren;
+        }
+    }
+
+    static final class RegisterResult implements Result {
+        private final RegisterType.Definition mDefinition;
+        private final ImmutableMap<String, Result> mAllocatedFields;
+
+        RegisterResult(RegisterType.Definition definition, ImmutableMap<String, Result> allocatedFields) {
+            ensureNonNull(definition, allocatedFields);
+            ensureValidArguments(allocatedFields.keySet().allMatch(definition.getFields().keySet()::contains));
+            ensureValidArguments(allocatedFields.allMatch(Objects::nonNull));
+            mDefinition = definition;
+            mAllocatedFields = allocatedFields;
         }
     }
 }
