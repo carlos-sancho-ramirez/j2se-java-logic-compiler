@@ -1080,8 +1080,24 @@ public final class LogicInterpreter {
             try {
                 final Type newType = exp.resolveType(scope, bothResult.getTypeMap());
                 return new OptimizationResult(
-                        result.getScopeMap().put(expression, scope),
-                        result.getTypeMap().put(expression, newType));
+                        bothResult.getScopeMap().put(expression, scope),
+                        bothResult.getTypeMap().put(expression, newType));
+            }
+            catch (UnresolvedTypeReferenceException | UnresolvedReferenceException | SemanticErrorException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        else if (expression instanceof FunctionExecutionExpression exp) {
+            OptimizationResult partialResult = reevaluateBodyExpressions(exp.getFunction(), scope, result);
+            for (Expression paramExp : exp.getParameters()) {
+                partialResult = reevaluateBodyExpressions(paramExp, scope, partialResult);
+            }
+
+            try {
+                final Type newType = exp.resolveType(scope, partialResult.getTypeMap());
+                return new OptimizationResult(
+                        partialResult.getScopeMap().put(expression, scope),
+                        partialResult.getTypeMap().put(expression, newType));
             }
             catch (UnresolvedTypeReferenceException | UnresolvedReferenceException | SemanticErrorException e) {
                 throw new RuntimeException(e);
