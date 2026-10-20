@@ -1003,7 +1003,7 @@ public final class LogicInterpreter {
         return scopeMap.toImmutable();
     }
 
-    private OptimizationResult obtainTypeExpressions(ImmutableMap<Finder, Scope> scopeMap, Logger logger) throws UnresolvedTypeReferenceException, UnresolvedReferenceException, UnresolvedEnumValueException, SemanticErrorException {
+    private ImmutableMap<Expression, Type> obtainTypeExpressions(ImmutableMap<Finder, Scope> scopeMap) throws UnresolvedTypeReferenceException, UnresolvedReferenceException, UnresolvedEnumValueException, SemanticErrorException {
         final ImmutableSet<Expression> allExpressions = scopeMap.keySet().filter(k -> k instanceof Expression).map(k -> (Expression) k).toSet();
         final MutableMap<Expression, Type> typedExpressions = MutableHashMap.empty();
 
@@ -1024,7 +1024,7 @@ public final class LogicInterpreter {
         }
         while (typedExpressions.size() < allExpressions.size());
 
-        return optimizeTypeExpressions(new OptimizationResult(scopeMap, typedExpressions.toImmutable()), logger);
+        return typedExpressions.toImmutable();
     }
 
     private interface Logger {
@@ -1119,7 +1119,11 @@ public final class LogicInterpreter {
         }
     }
 
-    private OptimizationResult optimizeTypeExpressions(OptimizationResult optimizationResult, Logger logger) {
+    private OptimizationResult optimizeTypeExpressions(
+            ImmutableMap<Finder, Scope> scopeMap,
+            ImmutableMap<Expression, Type> typeMap,
+            Logger logger) {
+        OptimizationResult result = new OptimizationResult(scopeMap, typeMap);
         int iteration = 0;
         boolean somethingChanged;
         do {
@@ -1128,8 +1132,8 @@ public final class LogicInterpreter {
             }
 
             somethingChanged = false;
-            final ImmutableMap<Expression, Type> currentTypeMap = optimizationResult.getTypeMap();
-            final ImmutableMap<Finder, Scope> currentScopeMap = optimizationResult.getScopeMap();
+            final ImmutableMap<Expression, Type> currentTypeMap = result.getTypeMap();
+            final ImmutableMap<Finder, Scope> currentScopeMap = result.getScopeMap();
 
             final ImmutableSet<ConstantDefinitionStatement> allFunctions = currentScopeMap.keySet()
                     .filter(f -> f instanceof ConstantDefinitionStatement constDef && constDef.getExpression() instanceof FunctionDefinitionExpression)
@@ -1184,8 +1188,8 @@ public final class LogicInterpreter {
                             }
 
                             final Scope newScope = funcDefScope.createSubscopeWithResolvedParameters(newParamsBuilder.build());
-                            final OptimizationResult bodyOptimizationResult = reevaluateBodyExpressions(funcDefExp.getBody(), newScope, optimizationResult);
-                            optimizationResult = new OptimizationResult(bodyOptimizationResult.getScopeMap(), bodyOptimizationResult.getTypeMap().put(funcDefExp,
+                            final OptimizationResult bodyOptimizationResult = reevaluateBodyExpressions(funcDefExp.getBody(), newScope, result);
+                            result = new OptimizationResult(bodyOptimizationResult.getScopeMap(), bodyOptimizationResult.getTypeMap().put(funcDefExp,
                                     new FunctionType(delimitedParamTypes, bodyOptimizationResult.getTypeMap().get(funcDefExp.getBody()))));
                             somethingChanged = true;
                             break;
@@ -1199,7 +1203,7 @@ public final class LogicInterpreter {
         }
         while (somethingChanged);
 
-        return optimizationResult;
+        return result;
     }
 
     public Result interpret() throws IOException, SyntaxErrorException, SemanticErrorException, UnexpectedEndOfFileException, UnresolvedTypeReferenceException, UnresolvedEnumValueException, UnresolvedReferenceException {
@@ -1207,7 +1211,8 @@ public final class LogicInterpreter {
         final Logger logger = System.err::println;
         final ImmutableList<Statement> statements = removeUnusedStatements(allStatements, logger);
         final ImmutableMap<Finder, Scope> initialScopeMap = obtainScopeMap(statements);
-        final OptimizationResult optimizationResult = obtainTypeExpressions(initialScopeMap, logger);
+        final ImmutableMap<Expression, Type> obtainedTypeExpressions = obtainTypeExpressions(initialScopeMap);
+        final OptimizationResult optimizationResult = optimizeTypeExpressions(initialScopeMap, obtainedTypeExpressions, logger);
         final ImmutableMap<Finder, Scope> scopeMap = optimizationResult.getScopeMap();
         final ImmutableMap<Expression, Type> resolvedExpressions = optimizationResult.getTypeMap();
         final MutableMap<Expression, sword.logic.expressions.Expression> expressionMap = MutableHashMap.empty();
