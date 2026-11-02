@@ -1,6 +1,5 @@
 package sword.logic.compiler.generator.c;
 
-import sword.collections.ImmutableIntValueMap;
 import sword.collections.ImmutableList;
 import sword.collections.MutableIntValueHashMap;
 import sword.collections.MutableIntValueMap;
@@ -20,8 +19,6 @@ import sword.logic.expressions.RegisterFieldAccessExpression;
 import sword.logic.expressions.StringLiteralExpression;
 import sword.logic.statements.ConstantDefinitionStatement;
 import sword.logic.statements.Statement;
-
-import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 
 final class StringPoolGenerator {
 
@@ -131,32 +128,13 @@ final class StringPoolGenerator {
                 findStringLiteralsInExpression(constDef.getExpression(), stringPool, stringPoolIndexes) : stringPool;
     }
 
-    Result generate(ImmutableList<Statement> statements) {
+    StringPool generate(ImmutableList<Statement> statements) {
         String stringPool = "";
         final MutableIntValueMap<StringLiteralExpression> stringPoolIndexes = MutableIntValueHashMap.empty();
         for (Statement statement : statements) {
             stringPool = findStringLiteralsInStatement(statement, stringPool, stringPoolIndexes);
         }
 
-        return new Result(stringPool, stringPoolIndexes.toImmutable());
-    }
-
-    static final class Result {
-        private final String mPool;
-        private final ImmutableIntValueMap<StringLiteralExpression> mIndexes;
-
-        Result(String pool, ImmutableIntValueMap<StringLiteralExpression> indexes) {
-            ensureNonNull(pool, indexes);
-            mPool = pool;
-            mIndexes = indexes;
-        }
-
-        String getPool() {
-            return mPool;
-        }
-
-        ImmutableIntValueMap<StringLiteralExpression> getIndexes() {
-            return mIndexes;
-        }
+        return new StringPool(stringPool, stringPoolIndexes.toImmutable());
     }
 }

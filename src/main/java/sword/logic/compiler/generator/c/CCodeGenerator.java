@@ -210,7 +210,7 @@ public final class CCodeGenerator {
 
     public Result generate(ImmutableList<Statement> statements) {
         final StringPoolGenerator stringPoolGenerator = new StringPoolGenerator();
-        final StringPoolGenerator.Result stringPoolGeneratorResult = stringPoolGenerator.generate(statements);
+        final StringPool stringPool = stringPoolGenerator.generate(statements);
 
         final FunctionFinding functionFinding = new FunctionFinding();
         final ImmutableMap<ImmutableList<String>, FunctionDefinitionExpression> foundFunctions = functionFinding.find(statements);
@@ -250,7 +250,7 @@ public final class CCodeGenerator {
             }
         }
 
-        final Generation generation = new Generation(foundFunctions.toImmutable(), persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, sourceEnumPreprocessorDefines, stringPoolGeneratorResult);
+        final Generation generation = new Generation(foundFunctions.toImmutable(), persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, sourceEnumPreprocessorDefines, stringPool);
         generation.traverseStatements(statements, ImmutableList.empty(), definedStructs, new ImmutableList.Builder<>(), definedTypes, MutableHashMap.empty(), new DefaultVariableNameCreator(), refIsPointer);
 
         final ImmutableList<CStructType> cStructs = definedStructs.toList().map(RegisterStructTypes::getType).toImmutable();
@@ -276,9 +276,9 @@ public final class CCodeGenerator {
         }
 
         final ImmutableList.Builder<CFileRootStatement> sourceStatementsBuilder = new ImmutableList.Builder<>();
-        final String stringPool = stringPoolGeneratorResult.getPool();
-        if (!stringPool.isEmpty()) {
-            sourceStatementsBuilder.append(new CConstantDefinitionStatement(STRING_POOL, new CPointerType(CCharType.getInstance()), new CStringLiteralExpression(stringPool)));
+        final String stringPoolData = stringPool.getData();
+        if (!stringPoolData.isEmpty()) {
+            sourceStatementsBuilder.append(new CConstantDefinitionStatement(STRING_POOL, new CPointerType(CCharType.getInstance()), new CStringLiteralExpression(stringPoolData)));
         }
 
         for (CFunction cFunction : cFunctions) {
@@ -379,7 +379,7 @@ public final class CCodeGenerator {
         private final RequiredAllocationsChecker mRequiredAllocationsChecker;
         private final ImmutableList.Builder<CFunction> mCFunctionsBuilder;
         private final ImmutableMap.Builder<ImmutableList<String>, EnumType.Definition> mSourceEnumPreprocessorDefines;
-        private final StringPoolGenerator.Result mStringPool;
+        private final StringPool mStringPool;
 
         Generation(
                 ImmutableMap<ImmutableList<String>, FunctionDefinitionExpression> functionMap,
@@ -387,7 +387,7 @@ public final class CCodeGenerator {
                 RequiredAllocationsChecker requiredAllocationsChecker,
                 ImmutableList.Builder<CFunction> cFunctionsBuilder,
                 ImmutableMap.Builder<ImmutableList<String>, EnumType.Definition> sourceEnumPreprocessorDefines,
-                StringPoolGenerator.Result stringPool) {
+                StringPool stringPool) {
             ensureNonNull(functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, sourceEnumPreprocessorDefines, stringPool);
             mFunctionMap = functionMap;
             mPersistenceChecker = persistenceChecker;
@@ -628,7 +628,7 @@ public final class CCodeGenerator {
                 bodyBuilder.append(new CArrayDefinitionStatement(new CVariable(valuesVarName, new CPointerType(cType(itemType, definedStructs))), arrayLength));
                 for (int i = 0; i < arrayLength; i++) {
                     final String ch = exp.getCharAt(i);
-                    final int index = mStringPool.getPool().indexOf(ch);
+                    final int index = mStringPool.getData().indexOf(ch);
                     ensureValidState(index >= 0);
                     bodyBuilder.append(new CAssignmentStatement(new CArrayValueAtExpression(new CReferenceExpression(valuesVarName), new CIntLiteralExpression("" + i)), new CAdditionExpression(STRING_POOL_REF, new CIntLiteralExpression("" + index))));
                 }
@@ -826,7 +826,7 @@ public final class CCodeGenerator {
                 else {
                     for (int i = 0; i < arrayLength; i++) {
                         final String ch = exp.getCharAt(i);
-                        final int chIndex = mStringPool.getPool().indexOf(ch);
+                        final int chIndex = mStringPool.getData().indexOf(ch);
                         ensureValidState(chIndex >= 0);
                         bodyBuilder.append(new CAssignmentStatement(new CArrayValueAtExpression(outArrayValuesRef, new CIntLiteralExpression("" + (outOffset + i))), new CAdditionExpression(STRING_POOL_REF, new CIntLiteralExpression("" + chIndex))));
                     }
