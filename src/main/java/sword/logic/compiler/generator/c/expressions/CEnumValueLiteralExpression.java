@@ -1,23 +1,23 @@
 package sword.logic.compiler.generator.c.expressions;
 
-import sword.collections.ImmutableList;
+import sword.logic.compiler.generator.c.namespace.NamespaceItem;
 
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 import static sword.logic.statements.TypeDefinitionStatement.validTypeName;
 import static sword.logic.types.EnumType.validEnumValueName;
 
 public final class CEnumValueLiteralExpression implements CAssignableExpression {
-    private final ImmutableList<String> mScopedTypeName;
+    private final NamespaceItem mScopedTypeName;
     private final String mValue;
 
-    public CEnumValueLiteralExpression(ImmutableList<String> scopedTypeName, String value) {
+    public CEnumValueLiteralExpression(NamespaceItem scopedTypeName, String value) {
         ensureValidArguments(validTypeName(scopedTypeName.last()));
         ensureValidArguments(validEnumValueName(value));
         mScopedTypeName = scopedTypeName;
         mValue = value;
     }
 
-    public ImmutableList<String> getScopedTypeName() {
+    public NamespaceItem getScopedTypeName() {
         return mScopedTypeName;
     }
 
@@ -27,6 +27,6 @@ public final class CEnumValueLiteralExpression implements CAssignableExpression 
 
     @Override
     public String getText() {
-        return mScopedTypeName.reduce((a, b) -> a + "_" + b) + "_" + mValue;
+        return mScopedTypeName.symbolText() + "_" + mValue;
     }
 }
