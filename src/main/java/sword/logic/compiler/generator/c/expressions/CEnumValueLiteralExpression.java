@@ -1,23 +1,23 @@
 package sword.logic.compiler.generator.c.expressions;
 
-import sword.logic.compiler.generator.c.namespace.NamespaceItem;
+import sword.logic.compiler.generator.c.namespace.ScopedTypeName;
 
+import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
-import static sword.logic.statements.TypeDefinitionStatement.validTypeName;
 import static sword.logic.types.EnumType.validEnumValueName;
 
 public final class CEnumValueLiteralExpression implements CAssignableExpression {
-    private final NamespaceItem mScopedTypeName;
+    private final ScopedTypeName mScopedTypeName;
     private final String mValue;
 
-    public CEnumValueLiteralExpression(NamespaceItem scopedTypeName, String value) {
-        ensureValidArguments(validTypeName(scopedTypeName.last()));
+    public CEnumValueLiteralExpression(ScopedTypeName scopedTypeName, String value) {
+        ensureNonNull(scopedTypeName);
         ensureValidArguments(validEnumValueName(value));
         mScopedTypeName = scopedTypeName;
         mValue = value;
     }
 
-    public NamespaceItem getScopedTypeName() {
+    public ScopedTypeName getScopedTypeName() {
         return mScopedTypeName;
     }
 

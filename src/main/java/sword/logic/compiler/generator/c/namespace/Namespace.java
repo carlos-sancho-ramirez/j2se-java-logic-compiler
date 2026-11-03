@@ -5,5 +5,7 @@ public interface Namespace {
         return FileRootNamespace.getInstance();
     }
 
-    NamespaceItem append(String item);
+    NameSubspace newSubspace(String name);
+    ScopedTypeName newType(String typeName);
+    ScopedConstantName newConstant(String constantName);
 }

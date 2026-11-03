@@ -11,7 +11,8 @@ import sword.collections.Map;
 import sword.collections.MutableHashMap;
 import sword.collections.MutableMap;
 import sword.logic.compiler.generator.c.namespace.Namespace;
-import sword.logic.compiler.generator.c.namespace.NamespaceItem;
+import sword.logic.compiler.generator.c.namespace.NameSubspace;
+import sword.logic.compiler.generator.c.namespace.ScopedConstantName;
 import sword.logic.expressions.ArrayConcatenationExpression;
 import sword.logic.expressions.ArrayConstructionExpression;
 import sword.logic.expressions.ArrayValueAtExpression;
@@ -46,14 +47,14 @@ import static sword.logic.compiler.generator.c.PersistenceChecker.getUnionOfPers
 
 final class RequiredAllocationsChecker {
     private final ImmutableMap<Expression, Type> mTypeMap;
-    private final ImmutableMap<NamespaceItem, FunctionDefinitionExpression> mFunctionMap;
+    private final ImmutableMap<ScopedConstantName, FunctionDefinitionExpression> mFunctionMap;
     private final PersistenceChecker mPersistenceChecker;
     private final Result mEmptyResult = new Result(ImmutableIntValueHashMap.empty(), ImmutableIntList.empty(), ImmutableIntList.empty());
     private final MutableMap<KeyPair, Result> mResultMap = MutableHashMap.empty();
 
     RequiredAllocationsChecker(
             ImmutableMap<Expression, Type> typeMap,
-            ImmutableMap<NamespaceItem, FunctionDefinitionExpression> functionMap,
+            ImmutableMap<ScopedConstantName, FunctionDefinitionExpression> functionMap,
             PersistenceChecker persistenceChecker) {
         ensureNonNull(typeMap, functionMap, persistenceChecker);
         mTypeMap = typeMap;
@@ -239,15 +240,15 @@ final class RequiredAllocationsChecker {
                 Namespace targetSpaceName = spaceName;
                 FunctionDefinitionExpression tempFuncDefExp = null;
                 do {
-                    tempFuncDefExp = mFunctionMap.get(targetSpaceName.append(functionName), null);
+                    tempFuncDefExp = mFunctionMap.get(targetSpaceName.newConstant(functionName), null);
                     if (tempFuncDefExp == null) {
-                        targetSpaceName = ((NamespaceItem) targetSpaceName).getParent();
+                        targetSpaceName = ((NameSubspace) targetSpaceName).getParent();
                     }
                 }
                 while (tempFuncDefExp == null);
 
                 final FunctionDefinitionExpression funcDefExp = tempFuncDefExp;
-                final NamespaceItem funcQualifiedName = targetSpaceName.append(functionName);
+                final NameSubspace funcQualifiedName = targetSpaceName.newSubspace(functionName);
                 ensureValidState(exp.getParameters().size() == funcDefExp.getParameters().size());
 
                 final ImmutableMap<String, PersistenceChecker.Persistence> funcPersistences = mPersistenceChecker.obtainExpressionPersistence(funcQualifiedName, funcDefExp.getBody(), inPersistence);
@@ -368,7 +369,7 @@ final class RequiredAllocationsChecker {
             Statement statement,
             PersistenceChecker.InPersistence inPersistence) {
         return (statement instanceof ConstantDefinitionStatement constDef)?
-                obtainCheckedExpression(spaceName.append(constDef.getName()), constDef.getExpression(), inPersistence) : mEmptyResult;
+                obtainCheckedExpression(spaceName.newSubspace(constDef.getName()), constDef.getExpression(), inPersistence) : mEmptyResult;
     }
 
     ImmutableMap<KeyPair, Result> check(ImmutableList<Statement> statements) {

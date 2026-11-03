@@ -40,8 +40,10 @@ import sword.logic.compiler.generator.c.expressions.CStringLiteralExpression;
 import sword.logic.compiler.generator.c.expressions.CStructFieldAccessExpression;
 import sword.logic.compiler.generator.c.expressions.CStructFieldPointerAccessExpression;
 import sword.logic.compiler.generator.c.expressions.CSubtractionExpression;
+import sword.logic.compiler.generator.c.namespace.NameSubspace;
 import sword.logic.compiler.generator.c.namespace.Namespace;
-import sword.logic.compiler.generator.c.namespace.NamespaceItem;
+import sword.logic.compiler.generator.c.namespace.ScopedConstantName;
+import sword.logic.compiler.generator.c.namespace.ScopedTypeName;
 import sword.logic.compiler.generator.c.statements.CAdditionStatement;
 import sword.logic.compiler.generator.c.statements.CArrayDefinitionStatement;
 import sword.logic.compiler.generator.c.statements.CAssignmentStatement;
@@ -105,11 +107,9 @@ import sword.logic.types.TypeConstants;
 import static sword.logic.compiler.IntegerLiteralOperations.greaterOrEqualThan;
 import static sword.logic.compiler.IntegerLiteralOperations.lowerThan;
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
-import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 import static sword.logic.compiler.PreconditionUtils.ensureValidState;
 import static sword.logic.compiler.generator.c.StringPoolGenerator.canBeOptimizedInStringPool;
 import static sword.logic.expressions.RegisterFieldAccessExpression.ARRAY_FIELD_LENGTH;
-import static sword.logic.statements.TypeDefinitionStatement.validTypeName;
 
 public final class CCodeGenerator {
     private static final String ARRAY = TypeConstants.ARRAY_TYPE_TEXT;
@@ -207,7 +207,7 @@ public final class CCodeGenerator {
             }));
             definedStructs.put(regType.getDefinition(), new RegisterStructTypes(new CStructDeclarationType(typeName), newType));
         }
-        definedTypes.put(typeName, new DefinedType(spaceName.append(typeName), type));
+        definedTypes.put(typeName, new DefinedType(spaceName.newType(typeName), type));
     }
 
     public Result generate(ImmutableList<Statement> statements) {
@@ -215,7 +215,7 @@ public final class CCodeGenerator {
         final StringPool stringPool = stringPoolGenerator.generate(statements);
 
         final FunctionFinding functionFinding = new FunctionFinding();
-        final ImmutableMap<NamespaceItem, FunctionDefinitionExpression> foundFunctions = functionFinding.find(statements);
+        final ImmutableMap<ScopedConstantName, FunctionDefinitionExpression> foundFunctions = functionFinding.find(statements);
 
         final PersistenceChecker persistenceChecker = new PersistenceChecker(mTypeMap, foundFunctions);
         final RequiredAllocationsChecker requiredAllocationsChecker = new RequiredAllocationsChecker(mTypeMap, foundFunctions, persistenceChecker);
@@ -224,11 +224,11 @@ public final class CCodeGenerator {
         final ImmutableList.Builder<CFunction> cFunctionsBuilder = new ImmutableList.Builder<>();
         final MutableMap<String, DefinedType> definedTypes = MutableHashMap.empty();
         final EnumType booleanType = BuiltInScope.getInstance().getBooleanType();
-        final NamespaceItem booleanTypeScopedName = Namespace.getFileRoot().append(TypeConstants.BOOLEAN_TYPE_TEXT);
+        final ScopedTypeName booleanTypeScopedName = Namespace.getFileRoot().newType(TypeConstants.BOOLEAN_TYPE_TEXT);
         definedTypes.put(TypeConstants.BOOLEAN_TYPE_TEXT, new DefinedType(booleanTypeScopedName, booleanType));
 
         final MutableMap<String, EnumType.Definition> headerEnumPreprocessorDefines = MutableHashMap.empty();
-        final ImmutableMap.Builder<NamespaceItem, EnumType.Definition> sourceEnumPreprocessorDefines = new ImmutableHashMap.Builder<>();
+        final ImmutableMap.Builder<ScopedTypeName, EnumType.Definition> sourceEnumPreprocessorDefines = new ImmutableHashMap.Builder<>();
         sourceEnumPreprocessorDefines.put(booleanTypeScopedName, booleanType.getDefinition());
 
         for (Statement statement : statements) {
@@ -292,21 +292,21 @@ public final class CCodeGenerator {
     }
 
     private static final class FunctionFinding {
-        private final MutableMap<NamespaceItem, FunctionDefinitionExpression> mOutFunctions = MutableHashMap.empty();
+        private final MutableMap<ScopedConstantName, FunctionDefinitionExpression> mOutFunctions = MutableHashMap.empty();
         private boolean mConsumed;
 
         private void findFunctionDefinitionsInStatement(
                 Statement statement,
                 Namespace spaceName) {
             if (statement instanceof ConstantDefinitionStatement constDef) {
-                final NamespaceItem innerSpaceName = spaceName.append(statement.getName());
+                final NameSubspace innerSpaceName = spaceName.newSubspace(statement.getName());
                 findFunctionDefinitionsInExpression(constDef.getExpression(), innerSpaceName);
             }
         }
 
         private void findFunctionDefinitionsInExpression(
                 Expression expression,
-                NamespaceItem spaceName) {
+                NameSubspace spaceName) {
             if (expression instanceof ArrayConstructionExpression exp) {
                 for (Expression parameter : exp.getValues()) {
                     findFunctionDefinitionsInExpression(parameter, spaceName);
@@ -324,7 +324,8 @@ public final class CCodeGenerator {
                 findFunctionDefinitionsInExpression(exp.getExpression(), spaceName);
             }
             else if (expression instanceof FunctionDefinitionExpression exp) {
-                mOutFunctions.put(spaceName, exp);
+                final ScopedConstantName scopedName = spaceName.getParent().newConstant(spaceName.last());
+                mOutFunctions.put(scopedName, exp);
                 findFunctionDefinitionsInExpression(exp.getBody(), spaceName);
             }
             else if (expression instanceof FunctionExecutionExpression exp) {
@@ -359,7 +360,7 @@ public final class CCodeGenerator {
             }
         }
 
-        ImmutableMap<NamespaceItem, FunctionDefinitionExpression> find(List<Statement> statements) {
+        ImmutableMap<ScopedConstantName, FunctionDefinitionExpression> find(List<Statement> statements) {
             ensureValidState(!mConsumed);
             mConsumed = true;
 
@@ -374,19 +375,19 @@ public final class CCodeGenerator {
     }
 
     private final class Generation {
-        private final ImmutableMap<NamespaceItem, FunctionDefinitionExpression> mFunctionMap;
+        private final ImmutableMap<ScopedConstantName, FunctionDefinitionExpression> mFunctionMap;
         private final PersistenceChecker mPersistenceChecker;
         private final RequiredAllocationsChecker mRequiredAllocationsChecker;
         private final ImmutableList.Builder<CFunction> mCFunctionsBuilder;
-        private final ImmutableMap.Builder<NamespaceItem, EnumType.Definition> mSourceEnumPreprocessorDefines;
+        private final ImmutableMap.Builder<ScopedTypeName, EnumType.Definition> mSourceEnumPreprocessorDefines;
         private final StringPool mStringPool;
 
         Generation(
-                ImmutableMap<NamespaceItem, FunctionDefinitionExpression> functionMap,
+                ImmutableMap<ScopedConstantName, FunctionDefinitionExpression> functionMap,
                 PersistenceChecker persistenceChecker,
                 RequiredAllocationsChecker requiredAllocationsChecker,
                 ImmutableList.Builder<CFunction> cFunctionsBuilder,
-                ImmutableMap.Builder<NamespaceItem, EnumType.Definition> sourceEnumPreprocessorDefines,
+                ImmutableMap.Builder<ScopedTypeName, EnumType.Definition> sourceEnumPreprocessorDefines,
                 StringPool stringPool) {
             ensureNonNull(functionMap, persistenceChecker, requiredAllocationsChecker, cFunctionsBuilder, sourceEnumPreprocessorDefines, stringPool);
             mFunctionMap = functionMap;
@@ -516,7 +517,7 @@ public final class CCodeGenerator {
                     if (statement instanceof TypeDefinitionStatement typeDef) {
                         traverseTypeDefinitionStatement(typeDef, spaceName, definedStructs, newDefinedTypes);
                         if (typeDef.getType() instanceof EnumType enumType) {
-                            mSourceEnumPreprocessorDefines.put(spaceName.append(statement.getName()), enumType.getDefinition());
+                            mSourceEnumPreprocessorDefines.put(spaceName.newType(statement.getName()), enumType.getDefinition());
                         }
                     }
                 }
@@ -588,9 +589,10 @@ public final class CCodeGenerator {
             else if (expression instanceof ReferenceExpression exp) {
                 final String reference = exp.getReference();
                 Namespace targetSpaceName = spaceName;
-                while (targetSpaceName instanceof NamespaceItem item) {
-                    if (mFunctionMap.containsKey(targetSpaceName.append(reference))) {
-                        return new CReferenceExpression(targetSpaceName.append(reference).symbolText());
+                while (targetSpaceName instanceof NameSubspace item) {
+                    final ScopedConstantName constName = targetSpaceName.newConstant(reference);
+                    if (mFunctionMap.containsKey(constName)) {
+                        return new CReferenceExpression(constName.symbolText());
                     }
 
                     targetSpaceName = item.getParent();
@@ -717,9 +719,9 @@ public final class CCodeGenerator {
                     Namespace targetSpaceName = spaceName;
                     FunctionDefinitionExpression tempFuncDefExp;
                     do {
-                        tempFuncDefExp = mFunctionMap.get(targetSpaceName.append(functionName), null);
+                        tempFuncDefExp = mFunctionMap.get(targetSpaceName.newConstant(functionName), null);
                         if (tempFuncDefExp == null) {
-                            targetSpaceName = ((NamespaceItem) targetSpaceName).getParent();
+                            targetSpaceName = ((NameSubspace) targetSpaceName).getParent();
                         }
                     }
                     while (tempFuncDefExp == null);
@@ -747,7 +749,7 @@ public final class CCodeGenerator {
                     final ImmutableList.Builder<CExpression> paramsBuilder = new ImmutableList.Builder<CExpression>()
                             .append(new CDereferenceExpression(tempArrayRef));
 
-                    final ImmutableMap<String, PersistenceChecker.Persistence> funcPersistence = mPersistenceChecker.obtainExpressionPersistence(targetSpaceName.append(functionName), funcDefExp.getBody(), mPersistenceChecker.full);
+                    final ImmutableMap<String, PersistenceChecker.Persistence> funcPersistence = mPersistenceChecker.obtainExpressionPersistence(targetSpaceName.newSubspace(functionName), funcDefExp.getBody(), mPersistenceChecker.full);
                     for (int paramIndex = 0; paramIndex < exp.getParameters().size(); paramIndex++) {
                         final FunctionParameter funcParameter = funcDefExp.getParameters().valueAt(paramIndex);
                         final String paramName = funcParameter.getName();
@@ -1000,7 +1002,7 @@ public final class CCodeGenerator {
                     if (statement instanceof TypeDefinitionStatement typeDef) {
                         traverseTypeDefinitionStatement(typeDef, spaceName, definedStructs, newDefinedTypes);
                         if (typeDef.getType() instanceof EnumType enumType) {
-                            mSourceEnumPreprocessorDefines.put(spaceName.append(statement.getName()), enumType.getDefinition());
+                            mSourceEnumPreprocessorDefines.put(spaceName.newType(statement.getName()), enumType.getDefinition());
                         }
                     }
                 }
@@ -1078,7 +1080,7 @@ public final class CCodeGenerator {
                     if (statement instanceof TypeDefinitionStatement typeDef) {
                         traverseTypeDefinitionStatement(typeDef, spaceName, definedStructs, newDefinedTypes);
                         if (typeDef.getType() instanceof EnumType enumType) {
-                            mSourceEnumPreprocessorDefines.put(spaceName.append(statement.getName()), enumType.getDefinition());
+                            mSourceEnumPreprocessorDefines.put(spaceName.newType(statement.getName()), enumType.getDefinition());
                         }
                     }
                 }
@@ -1120,9 +1122,9 @@ public final class CCodeGenerator {
                     Namespace targetSpaceName = spaceName;
                     FunctionDefinitionExpression tempFuncDefExp;
                     do {
-                        tempFuncDefExp = mFunctionMap.get(targetSpaceName.append(functionName), null);
+                        tempFuncDefExp = mFunctionMap.get(targetSpaceName.newConstant(functionName), null);
                         if (tempFuncDefExp == null) {
-                            targetSpaceName = ((NamespaceItem) targetSpaceName).getParent();
+                            targetSpaceName = ((NameSubspace) targetSpaceName).getParent();
                         }
                     }
                     while (tempFuncDefExp == null);
@@ -1130,7 +1132,7 @@ public final class CCodeGenerator {
                     final FunctionDefinitionExpression funcDefExp = tempFuncDefExp;
                     ensureValidState(exp.getParameters().size() == funcDefExp.getParameters().size());
 
-                    final ImmutableMap<String, PersistenceChecker.Persistence> funcPersistence = mPersistenceChecker.obtainExpressionPersistence(targetSpaceName.append(functionName), funcDefExp.getBody(), mPersistenceChecker.full);
+                    final ImmutableMap<String, PersistenceChecker.Persistence> funcPersistence = mPersistenceChecker.obtainExpressionPersistence(targetSpaceName.newSubspace(functionName), funcDefExp.getBody(), mPersistenceChecker.full);
                     final ImmutableList.Builder<CExpression> paramsBuilder = new ImmutableList.Builder<CExpression>()
                             .append(outRegisterRef);
 
@@ -1212,8 +1214,8 @@ public final class CCodeGenerator {
                 MutableSet<String> refIsPointer) {
             final Expression constDefExp = statement.getExpression();
             if (constDefExp instanceof FunctionDefinitionExpression funcExpression) {
-                final boolean isPublic = !(spaceName instanceof NamespaceItem) && statement.isPublic();
-                final NamespaceItem innerSpaceName = spaceName.append(statement.getName());
+                final boolean isPublic = !(spaceName instanceof NameSubspace) && statement.isPublic();
+                final NameSubspace innerSpaceName = spaceName.newSubspace(statement.getName());
 
                 final RequiredAllocationsChecker.Result funcRequiredAllocations = mRequiredAllocationsChecker.obtainCheckedExpression(innerSpaceName, funcExpression.getBody(), mPersistenceChecker.full);
                 final MutableMap<String, Type> paramTypes = MutableHashMap.empty();
@@ -1435,17 +1437,16 @@ public final class CCodeGenerator {
     }
 
     private static final class DefinedType {
-        private final NamespaceItem mScopedName;
+        private final ScopedTypeName mScopedName;
         private final Type mType;
 
-        DefinedType(NamespaceItem scopedName, Type type) {
+        DefinedType(ScopedTypeName scopedName, Type type) {
             ensureNonNull(scopedName, type);
-            ensureValidArguments(validTypeName(scopedName.last()));
             mScopedName = scopedName;
             mType = type;
         }
 
-        NamespaceItem getScopedName() {
+        ScopedTypeName getScopedName() {
             return mScopedName;
         }
 
@@ -1457,13 +1458,13 @@ public final class CCodeGenerator {
     public static final class Result {
         private final ImmutableMap<String, EnumType.Definition> mHeaderEnums;
         private final ImmutableList<CFileRootStatement> mHeaderStatements;
-        private final ImmutableMap<NamespaceItem, EnumType.Definition> mSourceEnums;
+        private final ImmutableMap<ScopedTypeName, EnumType.Definition> mSourceEnums;
         private final ImmutableList<CFileRootStatement> mSourceStatements;
 
         Result(
                 ImmutableMap<String, EnumType.Definition> headerEnums,
                 ImmutableList<CFileRootStatement> headerStatements,
-                ImmutableMap<NamespaceItem, EnumType.Definition> sourceEnums,
+                ImmutableMap<ScopedTypeName, EnumType.Definition> sourceEnums,
                 ImmutableList<CFileRootStatement> sourceStatements) {
             ensureNonNull(headerEnums, headerStatements, sourceEnums, sourceStatements);
             mHeaderEnums = headerEnums;
@@ -1480,7 +1481,7 @@ public final class CCodeGenerator {
             return mHeaderStatements;
         }
 
-        public ImmutableMap<NamespaceItem, EnumType.Definition> getSourceEnums() {
+        public ImmutableMap<ScopedTypeName, EnumType.Definition> getSourceEnums() {
             return mSourceEnums;
         }
 

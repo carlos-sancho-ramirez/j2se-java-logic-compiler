@@ -1,14 +1,16 @@
 package sword.logic.compiler.generator.c.namespace;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
+import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
+import static sword.logic.statements.ConstantDefinitionStatement.validConstantName;
 
-public final class NamespaceItem implements Namespace {
+public final class NameSubspace extends AbstractNamespace {
     private final Namespace mParent;
     private final String mLast;
 
-    NamespaceItem(Namespace parent, String item) {
-        // TODO: Check if item is valid
+    NameSubspace(Namespace parent, String item) {
         ensureNonNull(parent, item);
+        ensureValidArguments(validConstantName(item));
         mParent = parent;
         mLast = item;
     }
@@ -22,12 +24,12 @@ public final class NamespaceItem implements Namespace {
     }
 
     @Override
-    public NamespaceItem append(String last) {
-        return new NamespaceItem(this, last);
+    public NameSubspace newSubspace(String name) {
+        return new NameSubspace(this, name);
     }
 
     public String symbolText() {
-        return (mParent instanceof NamespaceItem parentItem)?
+        return (mParent instanceof NameSubspace parentItem)?
                 parentItem.symbolText() + "_" + mLast : mLast;
     }
 
@@ -38,7 +40,7 @@ public final class NamespaceItem implements Namespace {
 
     @Override
     public boolean equals(Object obj) {
-        return this == obj || obj instanceof NamespaceItem that &&
+        return this == obj || obj instanceof NameSubspace that &&
                 mParent.equals(that.mParent) &&
                 mLast.equals(that.mLast);
     }

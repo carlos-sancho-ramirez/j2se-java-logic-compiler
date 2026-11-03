@@ -8,7 +8,8 @@ import sword.collections.Map;
 import sword.collections.MutableHashMap;
 import sword.collections.MutableMap;
 import sword.logic.compiler.generator.c.namespace.Namespace;
-import sword.logic.compiler.generator.c.namespace.NamespaceItem;
+import sword.logic.compiler.generator.c.namespace.NameSubspace;
+import sword.logic.compiler.generator.c.namespace.ScopedConstantName;
 import sword.logic.expressions.ArrayConcatenationExpression;
 import sword.logic.expressions.ArrayConstructionExpression;
 import sword.logic.expressions.ArrayValueAtExpression;
@@ -34,12 +35,12 @@ import static sword.logic.expressions.RegisterFieldAccessExpression.ARRAY_FIELD_
 
 final class PersistenceChecker {
     private final ImmutableMap<Expression, Type> mTypeMap;
-    private final ImmutableMap<NamespaceItem, FunctionDefinitionExpression> mFunctionMap;
+    private final ImmutableMap<ScopedConstantName, FunctionDefinitionExpression> mFunctionMap;
     private final MutableMap<KeyPair, ImmutableMap<String, Persistence>> mResultMap = MutableHashMap.empty();
 
     PersistenceChecker(
             ImmutableMap<Expression, Type> typeMap,
-            ImmutableMap<NamespaceItem, FunctionDefinitionExpression> functionMap) {
+            ImmutableMap<ScopedConstantName, FunctionDefinitionExpression> functionMap) {
         ensureNonNull(typeMap, functionMap);
         mTypeMap = typeMap;
         mFunctionMap = functionMap;
@@ -277,9 +278,9 @@ final class PersistenceChecker {
                 Namespace targetSpaceName = spaceName;
                 FunctionDefinitionExpression tempFuncDefExp = null;
                 do {
-                    tempFuncDefExp = mFunctionMap.get(targetSpaceName.append(functionName), null);
+                    tempFuncDefExp = mFunctionMap.get(targetSpaceName.newConstant(functionName), null);
                     if (tempFuncDefExp == null) {
-                        targetSpaceName = ((NamespaceItem) targetSpaceName).getParent();
+                        targetSpaceName = ((NameSubspace) targetSpaceName).getParent();
                     }
                 }
                 while (tempFuncDefExp == null);
@@ -287,7 +288,7 @@ final class PersistenceChecker {
                 final FunctionDefinitionExpression funcDefExp = tempFuncDefExp;
                 ensureValidState(exp.getParameters().size() == funcDefExp.getParameters().size());
 
-                final ImmutableMap<String, Persistence> funcPersistence = obtainExpressionPersistence(targetSpaceName.append(functionName), funcDefExp.getBody(), full);
+                final ImmutableMap<String, Persistence> funcPersistence = obtainExpressionPersistence(targetSpaceName.newSubspace(functionName), funcDefExp.getBody(), full);
                 return exp.getParameters().indexes().map(paramIndex -> {
                     final String paramName = funcDefExp.getParameters().valueAt(paramIndex).getName();
                     final ImmutableMap<String, Persistence> result = funcPersistence.containsKey(paramName)?
@@ -359,7 +360,7 @@ final class PersistenceChecker {
             Statement statement,
             InPersistence inPersistence) {
         return (statement instanceof ConstantDefinitionStatement constDef)?
-                obtainExpressionPersistence(spaceName.append(constDef.getName()), constDef.getExpression(), inPersistence) : ImmutableHashMap.empty();
+                obtainExpressionPersistence(spaceName.newSubspace(constDef.getName()), constDef.getExpression(), inPersistence) : ImmutableHashMap.empty();
     }
 
     ImmutableMap<KeyPair, ImmutableMap<String, Persistence>> check(ImmutableList<Statement> statements) {

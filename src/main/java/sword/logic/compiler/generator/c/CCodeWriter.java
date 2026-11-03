@@ -3,8 +3,7 @@ package sword.logic.compiler.generator.c;
 import sword.collections.ImmutableList;
 import sword.collections.ImmutableMap;
 import sword.collections.Map;
-import sword.logic.compiler.generator.c.namespace.Namespace;
-import sword.logic.compiler.generator.c.namespace.NamespaceItem;
+import sword.logic.compiler.generator.c.namespace.ScopedTypeName;
 import sword.logic.compiler.generator.c.statements.CFileRootStatement;
 import sword.logic.types.EnumType;
 
@@ -47,14 +46,14 @@ public final class CCodeWriter {
         }
     }
 
-    public void writeSource(String path, ImmutableMap<NamespaceItem, EnumType.Definition> enums, ImmutableList<CFileRootStatement> statements) {
+    public void writeSource(String path, ImmutableMap<ScopedTypeName, EnumType.Definition> enums, ImmutableList<CFileRootStatement> statements) {
         final String filename = extractFilename(path);
         try (FileOutputStream outStream = new FileOutputStream(path + ".c")) {
             final PrintWriter out = new PrintWriter(outStream, true);
             out.println("#include \"" + filename + ".h\"");
             out.println("#include <string.h>"); // Required for memcpy
 
-            for (Map.Entry<NamespaceItem, EnumType.Definition> entry : enums.entries()) {
+            for (Map.Entry<ScopedTypeName, EnumType.Definition> entry : enums.entries()) {
                 out.println();
                 final ImmutableList<String> possibleValues = entry.value().getPossibleValues();
                 for (int i = 0; i < possibleValues.size(); i++) {

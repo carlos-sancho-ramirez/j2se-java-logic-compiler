@@ -1,6 +1,6 @@
 package sword.logic.compiler.generator.c.namespace;
 
-final class FileRootNamespace implements Namespace {
+final class FileRootNamespace extends AbstractNamespace {
     private static final FileRootNamespace INSTANCE = new FileRootNamespace();
 
     static FileRootNamespace getInstance() {
@@ -11,8 +11,8 @@ final class FileRootNamespace implements Namespace {
     }
 
     @Override
-    public NamespaceItem append(String item) {
-        return new NamespaceItem(this, item);
+    public NameSubspace newSubspace(String name) {
+        return new NameSubspace(this, name);
     }
 
     @Override
