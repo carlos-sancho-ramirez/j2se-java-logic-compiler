@@ -5,30 +5,6 @@ public Result = {
 };
 
 public disasmInstruction = (code: Array[Byte]) -> {
-  Word = Int[0..65535];
-
-  byteRegister = Array ("al", "cl", "dl", "bl", "ah", "ch", "dh", "bh");
-  wordRegister = Array ("ax", "cx", "dx", "bx", "sp", "bp", "si", "di");
-  Segment = ES | CS | SS | DS;
-
-  segmentFromInt = (s : Int[0..3]) -> {
-    if s == 0 then ES
-    else if s == 1 then CS
-    else if s == 2 then SS
-    else DS
-  };
-
-  segmentToString = (s: Segment) -> {
-    if s == ES then "es"
-    else if s == CS then "cs"
-    else if s == SS then "ss"
-    else "ds"
-  };
-
-  hexChars = Array ("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F");
-  toByteHexLiteral = (x: Byte) -> "0x" + hexChars[x / 16] + hexChars[x % 16];
-  toWordHexLiteral = (x: Word) -> "0x" + hexChars[x / 16 / 16 / 16] + hexChars[x / 16 / 16 % 16] + hexChars[x / 16 % 16] + hexChars[x % 16];
-
   validResult = (msg: String) -> Result {
     valid = TRUE;
     message = msg;
@@ -41,6 +17,30 @@ public disasmInstruction = (code: Array[Byte]) -> {
 
   if code.length == 0 then error("Code is empty")
   else {
+    Word = Int[0..65535];
+    Segment = ES | CS | SS | DS;
+
+    byteRegister = Array ("al", "cl", "dl", "bl", "ah", "ch", "dh", "bh");
+    wordRegister = Array ("ax", "cx", "dx", "bx", "sp", "bp", "si", "di");
+
+    segmentFromInt = (s : Int[0..3]) -> {
+      if s == 0 then ES
+      else if s == 1 then CS
+      else if s == 2 then SS
+      else DS
+    };
+
+    segmentToString = (s: Segment) -> {
+      if s == ES then "es"
+      else if s == CS then "cs"
+      else if s == SS then "ss"
+      else "ds"
+    };
+
+    hexChars = Array ("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F");
+    toByteHexLiteral = (x: Byte) -> "0x" + hexChars[x / 16] + hexChars[x % 16];
+    toWordHexLiteral = (x: Word) -> "0x" + hexChars[x / 16 / 16 / 16] + hexChars[x / 16 / 16 % 16] + hexChars[x / 16 % 16] + hexChars[x % 16];
+
     operations = Array ("add", "or", "adc", "sbb", "and", "sub", "xor", "cmp");
     addresses = Array ("bx + si", "bx + di", "bp + si", "bp + di", "si", "di", "bp", "bx");
     ch = code[0];

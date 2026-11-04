@@ -94,12 +94,14 @@ final class RequiredAllocationsChecker {
     }
 
     private Result checkExpression(
-            Namespace spaceName,
             Expression expression,
+            Namespace namespace,
+            IntHolder anonymousCount,
+            String directlyAssignedConstantName,
             PersistenceChecker.InPersistence inPersistence) {
         if (expression instanceof ArrayConcatenationExpression exp) {
-            final Result leftResult = obtainCheckedExpression(spaceName, exp.getLeftExpression(), mPersistenceChecker.arrayConcatenationInPersistence);
-            final Result rightResult = obtainCheckedExpression(spaceName, exp.getRightExpression(), mPersistenceChecker.arrayConcatenationInPersistence);
+            final Result leftResult = obtainCheckedExpression(exp.getLeftExpression(), namespace, anonymousCount, null, mPersistenceChecker.arrayConcatenationInPersistence);
+            final Result rightResult = obtainCheckedExpression(exp.getRightExpression(), namespace, anonymousCount, null, mPersistenceChecker.arrayConcatenationInPersistence);
             final ImmutableIntValueMap<RegisterType.Definition> additionalStructs = leftResult.mStructs.keySet().addAll(rightResult.mStructs.keySet()).assignToInt(k ->
                     leftResult.mStructs.get(k, 0) + rightResult.mStructs.get(k, 0));
             final ArrayType type = (ArrayType) mTypeMap.get(exp);
@@ -125,7 +127,7 @@ final class RequiredAllocationsChecker {
         else if (expression instanceof ArrayConstructionExpression exp) {
             final PersistenceChecker.InPersistence valuesInPersistence = (inPersistence instanceof PersistenceChecker.ArrayItemInPersistence arrayPers)? arrayPers.getWrapped() : mPersistenceChecker.full;
             final ImmutableList<Result> valuesResult = exp.getValues()
-                    .map(v -> obtainCheckedExpression(spaceName, v, valuesInPersistence));
+                    .map(v -> obtainCheckedExpression(v, namespace, anonymousCount, null, valuesInPersistence));
             final ImmutableIntValueMap<RegisterType.Definition> newStructCount = valuesResult
                     .map(r -> r.mStructs)
                     .reduce((a, b) -> a.keySet().addAll(b.keySet()).assignToInt(k -> a.get(k, 0) + b.get(k, 0)), ImmutableIntValueHashMap.empty());
@@ -152,8 +154,11 @@ final class RequiredAllocationsChecker {
                     .toSet();
             final ImmutableMap<String, ConstantDefinitionStatement> constDefsMap = localConstantNames.assign(name ->
                     constDefs.findFirst(st -> st.getName().equals(name), null));
-            final ImmutableMap<String, PersistenceChecker.Persistence> expressionPersistences = mPersistenceChecker.obtainExpressionPersistence(spaceName, exp.getExpression(), inPersistence);
-            final Result expressionResult = obtainCheckedExpression(spaceName, exp.getExpression(), inPersistence);
+            final Namespace newNamespace = namespace.newSubspace((directlyAssignedConstantName != null)? directlyAssignedConstantName :
+                    Integer.toString(anonymousCount.value++));
+            final IntHolder newAnonymousCount = new IntHolder();
+            final ImmutableMap<String, PersistenceChecker.Persistence> expressionPersistences = mPersistenceChecker.obtainExpressionPersistence(exp.getExpression(), newNamespace, newAnonymousCount, null, inPersistence);
+            final Result expressionResult = obtainCheckedExpression(exp.getExpression(), newNamespace, newAnonymousCount, null, inPersistence);
 
             ImmutableIntValueMap<RegisterType.Definition> additionalStructs = expressionResult.getStructs();
             ImmutableIntList pointersInArray = expressionResult.getPointersInArray();
@@ -165,7 +170,7 @@ final class RequiredAllocationsChecker {
                 final int targetIndex = flatPersistences.keySet().indexWhere(localConstantNames::contains);
                 final String target = flatPersistences.keyAt(targetIndex);
                 final PersistenceChecker.Persistence oldPersistence = flatPersistences.valueAt(targetIndex);
-                final ImmutableMap<String, PersistenceChecker.Persistence> statementPersistenceMap = mPersistenceChecker.obtainStatementPersistence(spaceName, constDefsMap.get(target), mPersistenceChecker.toInPersistence(oldPersistence));
+                final ImmutableMap<String, PersistenceChecker.Persistence> statementPersistenceMap = mPersistenceChecker.obtainStatementPersistence(constDefsMap.get(target), namespace, anonymousCount, mPersistenceChecker.toInPersistence(oldPersistence));
                 flatPersistences = flatPersistences.removeAt(targetIndex);
 
                 if (alreadyAccumulated.containsKey(target)) {
@@ -175,7 +180,7 @@ final class RequiredAllocationsChecker {
                 }
                 else {
                     alreadyAccumulated.put(target, oldPersistence);
-                    final Result statementAllocations = obtainCheckedStatement(spaceName, constDefsMap.get(target), mPersistenceChecker.toInPersistence(oldPersistence));
+                    final Result statementAllocations = obtainCheckedStatement(constDefsMap.get(target), newNamespace, newAnonymousCount, mPersistenceChecker.toInPersistence(oldPersistence));
 
                     if (oldPersistence == fullPersistence) {
                         for (IntValueMap.Entry<RegisterType.Definition> entry : statementAllocations.getStructs().entries()) {
@@ -231,18 +236,25 @@ final class RequiredAllocationsChecker {
             return mEmptyResult;
         }
         else if (expression instanceof FunctionDefinitionExpression exp) {
-            obtainCheckedExpression(spaceName, exp.getBody(), inPersistence);
+            // TODO: Rethink how functions names are assigned
+            obtainCheckedExpression(exp.getBody(), namespace, anonymousCount, directlyAssignedConstantName, inPersistence);
             return mEmptyResult;
         }
         else if (expression instanceof FunctionExecutionExpression exp) {
             if (exp.getFunction() instanceof ReferenceExpression refExp) {
                 final String functionName = refExp.getReference();
-                Namespace targetSpaceName = spaceName;
+                Namespace targetSpaceName = namespace;
                 FunctionDefinitionExpression tempFuncDefExp = null;
                 do {
                     tempFuncDefExp = mFunctionMap.get(targetSpaceName.newConstant(functionName), null);
                     if (tempFuncDefExp == null) {
-                        targetSpaceName = ((NameSubspace) targetSpaceName).getParent();
+                        if (targetSpaceName instanceof NameSubspace n) {
+                            targetSpaceName = n.getParent();
+                        }
+                        else {
+                            throw new RuntimeException("Function '" + functionName + "' not found in namespace '" +
+                                    ((namespace instanceof NameSubspace n)? n.symbolText() : "") + "'");
+                        }
                     }
                 }
                 while (tempFuncDefExp == null);
@@ -251,7 +263,7 @@ final class RequiredAllocationsChecker {
                 final NameSubspace funcQualifiedName = targetSpaceName.newSubspace(functionName);
                 ensureValidState(exp.getParameters().size() == funcDefExp.getParameters().size());
 
-                final ImmutableMap<String, PersistenceChecker.Persistence> funcPersistences = mPersistenceChecker.obtainExpressionPersistence(funcQualifiedName, funcDefExp.getBody(), inPersistence);
+                final ImmutableMap<String, PersistenceChecker.Persistence> funcPersistences = mPersistenceChecker.obtainExpressionPersistence(funcDefExp.getBody(), targetSpaceName, anonymousCount, functionName, inPersistence);
                 final ImmutableMap<String, PersistenceChecker.Persistence> paramPersistences = funcPersistences.filterByKey(funcDefExp.getParameters().map(FunctionParameter::getName)::contains);
                 ImmutableIntList pointersInArray = ImmutableIntList.empty();
                 ImmutableIntList charsInString = ImmutableIntList.empty();
@@ -266,7 +278,7 @@ final class RequiredAllocationsChecker {
                             charsInString = charsInString.append(0);
                         }
                         else {
-                            final Result paramResult = obtainCheckedExpression(spaceName, paramExp, inPersistence);
+                            final Result paramResult = obtainCheckedExpression(paramExp, namespace, anonymousCount, null, inPersistence);
                             if (!paramResult.getStructs().isEmpty()) {
                                 throw new UnsupportedOperationException("Unimplemented");
                             }
@@ -280,7 +292,7 @@ final class RequiredAllocationsChecker {
                     }
                 }
 
-                final Result funcResult = obtainCheckedExpression(funcQualifiedName, funcDefExp.getBody(), inPersistence);
+                final Result funcResult = obtainCheckedExpression(funcDefExp.getBody(), funcQualifiedName, anonymousCount, null, inPersistence);
                 return new Result(funcResult.getStructs(),
                         funcResult.getPointersInArray().appendAll(pointersInArray),
                         funcResult.getCharsInString().appendAll(charsInString));
@@ -290,8 +302,8 @@ final class RequiredAllocationsChecker {
             }
         }
         else if (expression instanceof IfExpression exp) {
-            final Result thenResult = obtainCheckedExpression(spaceName, exp.getThenClause(), inPersistence);
-            final Result elseResult = obtainCheckedExpression(spaceName, exp.getElseClause(), inPersistence);
+            final Result thenResult = obtainCheckedExpression(exp.getThenClause(), namespace, anonymousCount, null, inPersistence);
+            final Result elseResult = obtainCheckedExpression(exp.getElseClause(), namespace, anonymousCount, null, inPersistence);
 
             final ImmutableIntValueMap<RegisterType.Definition> additionalStructs = thenResult.mStructs.keySet().addAll(elseResult.mStructs.keySet()).assignToInt(k ->
                     Math.max(thenResult.mStructs.get(k, 0), elseResult.mStructs.get(k, 0)));
@@ -314,7 +326,10 @@ final class RequiredAllocationsChecker {
         else if (expression instanceof RegisterConstructionExpression exp) {
             final RegisterType regType = (RegisterType) mTypeMap.get(exp);
             final RegisterType.Definition regDef = regType.getDefinition();
-            final ImmutableList<Result> results = exp.getStatements().map(st -> obtainCheckedStatement(spaceName, st, inPersistence));
+            final Namespace newNamespace = namespace.newSubspace((directlyAssignedConstantName != null)? directlyAssignedConstantName :
+                    Integer.toString(anonymousCount.value++));
+            final IntHolder newAnonymousCount = new IntHolder();
+            final ImmutableList<Result> results = exp.getStatements().map(st -> obtainCheckedStatement(st, newNamespace, newAnonymousCount, inPersistence));
             final ImmutableIntValueMap<RegisterType.Definition> structsForOutput = results
                     .map(r -> r.mStructs)
                     .reduce((a, b) -> a.keySet().addAll(b.keySet()).assignToInt(k -> a.get(k, 0) + b.get(k, 0)));
@@ -326,7 +341,7 @@ final class RequiredAllocationsChecker {
         else if (expression instanceof RegisterFieldAccessExpression exp) {
             final Type fieldType = mTypeMap.get(exp);
             if (fieldType instanceof RegisterType) {
-                return obtainCheckedExpression(spaceName, exp.getRegister(), new PersistenceChecker.FieldInPersistence(inPersistence, exp.getFieldName()));
+                return obtainCheckedExpression(exp.getRegister(), namespace, anonymousCount, null, new PersistenceChecker.FieldInPersistence(inPersistence, exp.getFieldName()));
             }
             else {
                 return mEmptyResult;
@@ -349,8 +364,10 @@ final class RequiredAllocationsChecker {
     }
 
     Result obtainCheckedExpression(
-            Namespace spaceName,
             Expression expression,
+            Namespace namespace,
+            IntHolder anonymousCount,
+            String directlyAssignedConstantName,
             PersistenceChecker.InPersistence inPersistence) {
         final KeyPair newKeyPair = new KeyPair(expression, inPersistence);
         final Result cachedResult = mResultMap.get(newKeyPair, null);
@@ -358,26 +375,19 @@ final class RequiredAllocationsChecker {
             return cachedResult;
         }
         else {
-            final Result newResult = checkExpression(spaceName, expression, inPersistence);
+            final Result newResult = checkExpression(expression, namespace, anonymousCount, directlyAssignedConstantName, inPersistence);
             mResultMap.put(newKeyPair, newResult);
             return newResult;
         }
     }
 
     private Result obtainCheckedStatement(
-            Namespace spaceName,
             Statement statement,
+            Namespace namespace,
+            IntHolder anonymousCount,
             PersistenceChecker.InPersistence inPersistence) {
         return (statement instanceof ConstantDefinitionStatement constDef)?
-                obtainCheckedExpression(spaceName.newSubspace(constDef.getName()), constDef.getExpression(), inPersistence) : mEmptyResult;
-    }
-
-    ImmutableMap<KeyPair, Result> check(ImmutableList<Statement> statements) {
-        for (Statement statement : statements) {
-            obtainCheckedStatement(Namespace.getFileRoot(), statement, mPersistenceChecker.full);
-        }
-
-        return mResultMap.toImmutable();
+                obtainCheckedExpression(constDef.getExpression(), namespace, anonymousCount, constDef.getName(), inPersistence) : mEmptyResult;
     }
 
     static final class Result {

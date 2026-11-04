@@ -200,12 +200,14 @@ final class PersistenceChecker {
     }
 
     private ImmutableMap<String, Persistence> workOutExpressionPersistence(
-            Namespace spaceName,
             Expression expression,
+            Namespace namespace,
+            IntHolder anonymousCount,
+            String directlyAssignedConstantName,
             InPersistence inPersistence) {
         if (expression instanceof ArrayConcatenationExpression exp) {
-            final ImmutableMap<String, Persistence> leftPersistences = obtainExpressionPersistence(spaceName, exp.getLeftExpression(), arrayConcatenationInPersistence);
-            final ImmutableMap<String, Persistence> rightPersistences = obtainExpressionPersistence(spaceName, exp.getRightExpression(), arrayConcatenationInPersistence);
+            final ImmutableMap<String, Persistence> leftPersistences = obtainExpressionPersistence(exp.getLeftExpression(), namespace, anonymousCount, null, arrayConcatenationInPersistence);
+            final ImmutableMap<String, Persistence> rightPersistences = obtainExpressionPersistence(exp.getRightExpression(), namespace, anonymousCount, null, arrayConcatenationInPersistence);
             return getUnionOfPersistenceMaps(leftPersistences, rightPersistences);
         }
         else if (expression instanceof ArrayConstructionExpression exp) {
@@ -216,13 +218,13 @@ final class PersistenceChecker {
             else {
                 final InPersistence newInPersistence = (inPersistence instanceof ArrayItemInPersistence arrayPers)? arrayPers.mWrapped : full;
                 return exp.getValues()
-                        .map(v -> obtainExpressionPersistence(spaceName, v, newInPersistence))
+                        .map(v -> obtainExpressionPersistence(v, namespace, anonymousCount, null, newInPersistence))
                         .reduce(PersistenceChecker::getUnionOfPersistenceMaps, ImmutableHashMap.empty());
             }
         }
         else if (expression instanceof ArrayValueAtExpression exp) {
             // We do not persist anything from the index... should we check it anyway? If so, which InPersistence should I provide???
-            return obtainExpressionPersistence(spaceName, exp.getArray(), new ArrayItemInPersistence(inPersistence));
+            return obtainExpressionPersistence(exp.getArray(), namespace, anonymousCount, null, new ArrayItemInPersistence(inPersistence));
         }
         else if (expression instanceof ComplexExpression exp) {
             final ImmutableSet<ConstantDefinitionStatement> constDefs = exp.getStatements()
@@ -234,7 +236,10 @@ final class PersistenceChecker {
                     .toSet();
             final ImmutableMap<String, ConstantDefinitionStatement> constDefsMap = localConstantNames.assign(name ->
                     constDefs.findFirst(st -> st.getName().equals(name), null));
-            ImmutableMap<String, Persistence> flatPersistences = obtainExpressionPersistence(spaceName, exp.getExpression(), inPersistence);
+            final Namespace newNamespace = namespace.newSubspace((directlyAssignedConstantName != null)? directlyAssignedConstantName :
+                    Integer.toString(anonymousCount.value++));
+            final IntHolder newAnonymousCount = new IntHolder();
+            ImmutableMap<String, Persistence> flatPersistences = obtainExpressionPersistence(exp.getExpression(), newNamespace, newAnonymousCount, null, inPersistence);
 
             final MutableMap<String, Persistence> alreadyAccumulated = MutableHashMap.empty();
             while (flatPersistences.keySet().anyMatch(localConstantNames::contains)) {
@@ -251,7 +256,7 @@ final class PersistenceChecker {
                 else {
                     alreadyAccumulated.put(target, oldPersistence);
 
-                    final ImmutableMap<String, PersistenceChecker.Persistence> statementPersistenceMap = obtainStatementPersistence(spaceName, constDefsMap.get(target), toInPersistence(oldPersistence));
+                    final ImmutableMap<String, PersistenceChecker.Persistence> statementPersistenceMap = obtainStatementPersistence(constDefsMap.get(target), newNamespace, newAnonymousCount, toInPersistence(oldPersistence));
                     for (Map.Entry<String, PersistenceChecker.Persistence> entry : statementPersistenceMap.entries()) {
                         final PersistenceChecker.Persistence newPersistence;
                         if (flatPersistences.containsKey(entry.key())) {
@@ -269,18 +274,24 @@ final class PersistenceChecker {
             return flatPersistences;
         }
         else if (expression instanceof FunctionDefinitionExpression exp) {
-            obtainExpressionPersistence(spaceName, exp.getBody(), full);
+            obtainExpressionPersistence(exp.getBody(), namespace, anonymousCount, directlyAssignedConstantName, full);
             return ImmutableHashMap.empty();
         }
         else if (expression instanceof FunctionExecutionExpression exp) {
             if (exp.getFunction() instanceof ReferenceExpression refExp) {
                 final String functionName = refExp.getReference();
-                Namespace targetSpaceName = spaceName;
+                Namespace targetSpaceName = namespace;
                 FunctionDefinitionExpression tempFuncDefExp = null;
                 do {
                     tempFuncDefExp = mFunctionMap.get(targetSpaceName.newConstant(functionName), null);
                     if (tempFuncDefExp == null) {
-                        targetSpaceName = ((NameSubspace) targetSpaceName).getParent();
+                        if (targetSpaceName instanceof NameSubspace n) {
+                            targetSpaceName = n.getParent();
+                        }
+                        else {
+                            throw new RuntimeException("Function '" + functionName + "' not found in namespace '" +
+                                    ((namespace instanceof NameSubspace n)? n.symbolText() : "") + "'");
+                        }
                     }
                 }
                 while (tempFuncDefExp == null);
@@ -288,11 +299,11 @@ final class PersistenceChecker {
                 final FunctionDefinitionExpression funcDefExp = tempFuncDefExp;
                 ensureValidState(exp.getParameters().size() == funcDefExp.getParameters().size());
 
-                final ImmutableMap<String, Persistence> funcPersistence = obtainExpressionPersistence(targetSpaceName.newSubspace(functionName), funcDefExp.getBody(), full);
+                final ImmutableMap<String, Persistence> funcPersistence = obtainExpressionPersistence(funcDefExp.getBody(), targetSpaceName, anonymousCount, functionName, full);
                 return exp.getParameters().indexes().map(paramIndex -> {
                     final String paramName = funcDefExp.getParameters().valueAt(paramIndex).getName();
                     final ImmutableMap<String, Persistence> result = funcPersistence.containsKey(paramName)?
-                        obtainExpressionPersistence(spaceName, exp.getParameters().valueAt(paramIndex), toInPersistence(funcPersistence.get(paramName))) : ImmutableHashMap.empty();
+                        obtainExpressionPersistence(exp.getParameters().valueAt(paramIndex), namespace, anonymousCount, null, toInPersistence(funcPersistence.get(paramName))) : ImmutableHashMap.empty();
                     return result;
                 }).reduce(PersistenceChecker::getUnionOfPersistenceMaps, ImmutableHashMap.empty());
             }
@@ -302,8 +313,8 @@ final class PersistenceChecker {
         }
         else if (expression instanceof IfExpression exp) {
             // We do not persist anything from the condition... should we check it anyway? If so, which InPersistence should I provide???
-            final ImmutableMap<String, Persistence> thenPersistence = obtainExpressionPersistence(spaceName, exp.getThenClause(), inPersistence);
-            final ImmutableMap<String, Persistence> elsePersistence = obtainExpressionPersistence(spaceName, exp.getElseClause(), inPersistence);
+            final ImmutableMap<String, Persistence> thenPersistence = obtainExpressionPersistence(exp.getThenClause(), namespace, anonymousCount, null, inPersistence);
+            final ImmutableMap<String, Persistence> elsePersistence = obtainExpressionPersistence(exp.getElseClause(), namespace, anonymousCount, null, inPersistence);
             return getUnionOfPersistenceMaps(thenPersistence, elsePersistence);
         }
         else if (expression instanceof LeftRightExpression) {
@@ -321,14 +332,17 @@ final class PersistenceChecker {
                     .build();
         }
         else if (expression instanceof RegisterConstructionExpression exp) {
+            final Namespace newNamespace = namespace.newSubspace((directlyAssignedConstantName != null)? directlyAssignedConstantName :
+                    Integer.toString(anonymousCount.value++));
+            final IntHolder newAnonymousCount = new IntHolder();
             return exp.getStatements()
-                    .map(st -> obtainStatementPersistence(spaceName, st, full))
+                    .map(st -> obtainStatementPersistence(st, newNamespace, newAnonymousCount, full))
                     .reduce(PersistenceChecker::getUnionOfPersistenceMaps, ImmutableHashMap.empty());
         }
         else if (expression instanceof RegisterFieldAccessExpression exp) {
             final Type fieldType = mTypeMap.get(exp);
             if (fieldType instanceof RegisterType) {
-                return obtainExpressionPersistence(spaceName, exp.getRegister(), new FieldInPersistence(inPersistence, exp.getFieldName()));
+                return obtainExpressionPersistence(exp.getRegister(), namespace, anonymousCount, null, new FieldInPersistence(inPersistence, exp.getFieldName()));
             }
             else {
                 return ImmutableHashMap.empty();
@@ -340,8 +354,10 @@ final class PersistenceChecker {
     }
 
     ImmutableMap<String, Persistence> obtainExpressionPersistence(
-            Namespace spaceName,
             Expression expression,
+            Namespace namespace,
+            IntHolder anonymousCount,
+            String directlyAssignedConstantName,
             InPersistence inPersistence) {
         final KeyPair newKeyPair = new KeyPair(expression, inPersistence);
         final ImmutableMap<String, Persistence> cachedResult = mResultMap.get(newKeyPair, null);
@@ -349,25 +365,18 @@ final class PersistenceChecker {
             return cachedResult;
         }
         else {
-            final ImmutableMap<String, Persistence> newResult = workOutExpressionPersistence(spaceName, expression, inPersistence);
+            final ImmutableMap<String, Persistence> newResult = workOutExpressionPersistence(expression, namespace, anonymousCount, directlyAssignedConstantName, inPersistence);
             mResultMap.put(newKeyPair, newResult);
             return newResult;
         }
     }
 
     ImmutableMap<String, Persistence> obtainStatementPersistence(
-            Namespace spaceName,
             Statement statement,
+            Namespace namespace,
+            IntHolder anonymousCount,
             InPersistence inPersistence) {
         return (statement instanceof ConstantDefinitionStatement constDef)?
-                obtainExpressionPersistence(spaceName.newSubspace(constDef.getName()), constDef.getExpression(), inPersistence) : ImmutableHashMap.empty();
-    }
-
-    ImmutableMap<KeyPair, ImmutableMap<String, Persistence>> check(ImmutableList<Statement> statements) {
-        for (Statement statement : statements) {
-            obtainStatementPersistence(Namespace.getFileRoot(), statement, full);
-        }
-
-        return mResultMap.toImmutable();
+                obtainExpressionPersistence(constDef.getExpression(), namespace, anonymousCount, constDef.getName(), inPersistence) : ImmutableHashMap.empty();
     }
 }

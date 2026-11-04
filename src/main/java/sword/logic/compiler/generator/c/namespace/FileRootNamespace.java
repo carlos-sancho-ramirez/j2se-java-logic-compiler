@@ -11,11 +11,6 @@ final class FileRootNamespace extends AbstractNamespace {
     }
 
     @Override
-    public NameSubspace newSubspace(String name) {
-        return new NameSubspace(this, name);
-    }
-
-    @Override
     public String toString() {
         return "FileRootNamespace";
     }

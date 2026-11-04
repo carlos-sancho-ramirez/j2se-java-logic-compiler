@@ -104,6 +104,8 @@ import sword.logic.types.RegisterType;
 import sword.logic.types.Type;
 import sword.logic.types.TypeConstants;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 import static sword.logic.compiler.IntegerLiteralOperations.greaterOrEqualThan;
 import static sword.logic.compiler.IntegerLiteralOperations.lowerThan;
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
@@ -216,6 +218,10 @@ public final class CCodeGenerator {
 
         final FunctionFinding functionFinding = new FunctionFinding();
         final ImmutableMap<ScopedConstantName, FunctionDefinitionExpression> foundFunctions = functionFinding.find(statements);
+        System.err.println("Functions found:");
+        for (ScopedConstantName scopedName : foundFunctions.keySet()) {
+            System.err.println("  * " + scopedName.symbolText() + " -> " + foundFunctions.get(scopedName));
+        }
 
         final PersistenceChecker persistenceChecker = new PersistenceChecker(mTypeMap, foundFunctions);
         final RequiredAllocationsChecker requiredAllocationsChecker = new RequiredAllocationsChecker(mTypeMap, foundFunctions, persistenceChecker);
@@ -297,63 +303,80 @@ public final class CCodeGenerator {
 
         private void findFunctionDefinitionsInStatement(
                 Statement statement,
-                Namespace spaceName) {
+                Namespace spaceName,
+                IntHolder anonymousCount) {
             if (statement instanceof ConstantDefinitionStatement constDef) {
-                final NameSubspace innerSpaceName = spaceName.newSubspace(statement.getName());
-                findFunctionDefinitionsInExpression(constDef.getExpression(), innerSpaceName);
+                findFunctionDefinitionsInExpression(constDef.getExpression(), spaceName, anonymousCount, statement.getName());
             }
         }
 
         private void findFunctionDefinitionsInExpression(
                 Expression expression,
-                NameSubspace spaceName) {
+                Namespace namespace,
+                IntHolder anonymousCount,
+                String directlyAssignedConstantName) {
             if (expression instanceof ArrayConstructionExpression exp) {
                 for (Expression parameter : exp.getValues()) {
-                    findFunctionDefinitionsInExpression(parameter, spaceName);
+                    findFunctionDefinitionsInExpression(parameter, namespace, anonymousCount, null);
                 }
             }
             else if (expression instanceof ArrayValueAtExpression exp) {
-                findFunctionDefinitionsInExpression(exp.getArray(), spaceName);
-                findFunctionDefinitionsInExpression(exp.getIndex(), spaceName);
+                findFunctionDefinitionsInExpression(exp.getArray(), namespace, anonymousCount, null);
+                findFunctionDefinitionsInExpression(exp.getIndex(), namespace, anonymousCount, null);
             }
             else if (expression instanceof ComplexExpression exp) {
+                final Namespace newNamespace = namespace.newSubspace((directlyAssignedConstantName != null)? directlyAssignedConstantName :
+                        Integer.toString(anonymousCount.value++));
+                final IntHolder newAnonymousCount = new IntHolder();
                 for (Statement statement : exp.getStatements()) {
-                    findFunctionDefinitionsInStatement(statement, spaceName);
+                    findFunctionDefinitionsInStatement(statement, newNamespace, newAnonymousCount);
                 }
 
-                findFunctionDefinitionsInExpression(exp.getExpression(), spaceName);
+                findFunctionDefinitionsInExpression(exp.getExpression(), newNamespace, newAnonymousCount, null);
             }
             else if (expression instanceof FunctionDefinitionExpression exp) {
-                final ScopedConstantName scopedName = spaceName.getParent().newConstant(spaceName.last());
-                mOutFunctions.put(scopedName, exp);
-                findFunctionDefinitionsInExpression(exp.getBody(), spaceName);
+                if (directlyAssignedConstantName != null) {
+                    // Currently a function that returns a function will share name, is it wrong?
+                    // Also new sub-namespaces starts with '{', so a body function with '{' should match the scoped function name?
+                    // TODO: Rethink how functions names are assigned
+                    final ScopedConstantName scopedName = namespace.newConstant(directlyAssignedConstantName);
+                    ensureValidState(!mOutFunctions.containsKey(scopedName));
+                    mOutFunctions.put(scopedName, exp);
+                    findFunctionDefinitionsInExpression(exp.getBody(), namespace, anonymousCount, directlyAssignedConstantName);
+                }
+                else {
+                    throw new UnsupportedOperationException("Handling anonymous functions");
+                }
             }
             else if (expression instanceof FunctionExecutionExpression exp) {
                 for (Expression parameter : exp.getParameters()) {
-                    findFunctionDefinitionsInExpression(parameter, spaceName);
+                    findFunctionDefinitionsInExpression(parameter, namespace, anonymousCount, null);
                 }
 
-                findFunctionDefinitionsInExpression(exp.getFunction(), spaceName);
+                findFunctionDefinitionsInExpression(exp.getFunction(), namespace, anonymousCount, null);
             }
             else if (expression instanceof IfExpression exp) {
-                findFunctionDefinitionsInExpression(exp.getCondition(), spaceName);
-                findFunctionDefinitionsInExpression(exp.getThenClause(), spaceName);
-                findFunctionDefinitionsInExpression(exp.getElseClause(), spaceName);
+                findFunctionDefinitionsInExpression(exp.getCondition(), namespace, anonymousCount, null);
+                findFunctionDefinitionsInExpression(exp.getThenClause(), namespace, anonymousCount, null);
+                findFunctionDefinitionsInExpression(exp.getElseClause(), namespace, anonymousCount, null);
             }
             else if (expression instanceof LeftRightExpression exp) {
-                findFunctionDefinitionsInExpression(exp.getLeftExpression(), spaceName);
-                findFunctionDefinitionsInExpression(exp.getRightExpression(), spaceName);
+                findFunctionDefinitionsInExpression(exp.getLeftExpression(), namespace, anonymousCount, null);
+                findFunctionDefinitionsInExpression(exp.getRightExpression(), namespace, anonymousCount, null);
             }
             else if (expression instanceof LiteralExpression || expression instanceof ReferenceExpression) {
                 // Nothing to be done
             }
             else if (expression instanceof RegisterConstructionExpression exp) {
+                final Namespace newNamespace = namespace.newSubspace((directlyAssignedConstantName != null)? directlyAssignedConstantName :
+                        Integer.toString(anonymousCount.value++));
+                final IntHolder newAnonymousCount = new IntHolder();
                 for (Statement statement : exp.getStatements()) {
-                    findFunctionDefinitionsInStatement(statement, spaceName);
+                    findFunctionDefinitionsInStatement(statement, newNamespace, newAnonymousCount);
                 }
             }
             else if (expression instanceof RegisterFieldAccessExpression exp) {
-                findFunctionDefinitionsInExpression(exp.getRegister(), spaceName);
+                findFunctionDefinitionsInExpression(exp.getRegister(), namespace, anonymousCount, null);
             }
             else {
                 throw new UnsupportedOperationException("Unimplemented");
@@ -364,9 +387,10 @@ public final class CCodeGenerator {
             ensureValidState(!mConsumed);
             mConsumed = true;
 
+            final IntHolder anonymousCount = new IntHolder();
             for (Statement statement : statements) {
                 if (statement instanceof ConstantDefinitionStatement constDef) {
-                    findFunctionDefinitionsInStatement(constDef, Namespace.getFileRoot());
+                    findFunctionDefinitionsInStatement(constDef, Namespace.getFileRoot(), anonymousCount);
                 }
             }
 
@@ -749,7 +773,7 @@ public final class CCodeGenerator {
                     final ImmutableList.Builder<CExpression> paramsBuilder = new ImmutableList.Builder<CExpression>()
                             .append(new CDereferenceExpression(tempArrayRef));
 
-                    final ImmutableMap<String, PersistenceChecker.Persistence> funcPersistence = mPersistenceChecker.obtainExpressionPersistence(targetSpaceName.newSubspace(functionName), funcDefExp.getBody(), mPersistenceChecker.full);
+                    final ImmutableMap<String, PersistenceChecker.Persistence> funcPersistence = mPersistenceChecker.obtainExpressionPersistence(funcDefExp.getBody(), targetSpaceName, new IntHolder(), functionName, mPersistenceChecker.full);
                     for (int paramIndex = 0; paramIndex < exp.getParameters().size(); paramIndex++) {
                         final FunctionParameter funcParameter = funcDefExp.getParameters().valueAt(paramIndex);
                         final String paramName = funcParameter.getName();
@@ -1132,7 +1156,7 @@ public final class CCodeGenerator {
                     final FunctionDefinitionExpression funcDefExp = tempFuncDefExp;
                     ensureValidState(exp.getParameters().size() == funcDefExp.getParameters().size());
 
-                    final ImmutableMap<String, PersistenceChecker.Persistence> funcPersistence = mPersistenceChecker.obtainExpressionPersistence(targetSpaceName.newSubspace(functionName), funcDefExp.getBody(), mPersistenceChecker.full);
+                    final ImmutableMap<String, PersistenceChecker.Persistence> funcPersistence = mPersistenceChecker.obtainExpressionPersistence(funcDefExp.getBody(), targetSpaceName, new IntHolder(), functionName, mPersistenceChecker.full);
                     final ImmutableList.Builder<CExpression> paramsBuilder = new ImmutableList.Builder<CExpression>()
                             .append(outRegisterRef);
 
@@ -1217,7 +1241,7 @@ public final class CCodeGenerator {
                 final boolean isPublic = !(spaceName instanceof NameSubspace) && statement.isPublic();
                 final NameSubspace innerSpaceName = spaceName.newSubspace(statement.getName());
 
-                final RequiredAllocationsChecker.Result funcRequiredAllocations = mRequiredAllocationsChecker.obtainCheckedExpression(innerSpaceName, funcExpression.getBody(), mPersistenceChecker.full);
+                final RequiredAllocationsChecker.Result funcRequiredAllocations = mRequiredAllocationsChecker.obtainCheckedExpression(funcExpression.getBody(), spaceName, new IntHolder(), statement.getName(), mPersistenceChecker.full);
                 final MutableMap<String, Type> paramTypes = MutableHashMap.empty();
                 final MutableSet<String> newRefIsPointer = MutableHashSet.empty();
                 for (FunctionParameter funcParam : funcExpression.getParameters()) {
