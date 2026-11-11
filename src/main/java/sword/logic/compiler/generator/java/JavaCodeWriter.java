@@ -8,10 +8,35 @@ import java.io.IOException;
 import java.io.PrintWriter;
 
 public final class JavaCodeWriter {
-    public void writeSource(String outputDir, ImmutableList<String> outputPackage, String outputClassName) {
+    private String typeToString(JavaPackage currentPackage, JavaVoidableType type) {
+        if (type == JavaBooleanType.getInstance()) {
+            return "boolean";
+        }
+        else if (type == JavaByteType.getInstance()) {
+            return "byte";
+        }
+        else if (type instanceof JavaArrayType arrayType) {
+            return typeToString(currentPackage, arrayType.getItemType()) + "[]";
+        }
+        else {
+            final JavaClassReference ref = (JavaClassReference) type;
+            final JavaPackage refPackage = ref.getPackage();
+            final String refPackageStr = refPackage.toStringList().reduce((a, b) -> a + "." + b);
+            if (refPackage == currentPackage || refPackageStr.equals("java.lang")) {
+                return ref.getName();
+            }
+            else {
+                return refPackageStr + "." + ref.getName();
+            }
+        }
+    }
+
+    public void writeSource(String outputDir, JavaClass javaClass) {
+        final JavaPackage javaPackage = javaClass.getPackage();
+        final ImmutableList<String> packageStringList = javaPackage.toStringList();
         File directory = new File(outputDir);
         if (directory.exists()) {
-            for (String subfolder : outputPackage) {
+            for (String subfolder : packageStringList) {
                 directory = new File(directory, subfolder);
                 if (!directory.exists() && !directory.mkdir()) {
                     throw new RuntimeException("Unable to create directory " + directory);
@@ -19,14 +44,84 @@ public final class JavaCodeWriter {
             }
         }
 
-        final String path = outputDir + File.separator + outputPackage.map(s -> s + File.separator).reduce((a, b) -> a + b, "") + outputClassName + ".java";
+        final String path = outputDir + File.separator + packageStringList.map(s -> s + File.separator).reduce((a, b) -> a + b, "") + javaClass.getName() + ".java";
         try (FileOutputStream outStream = new FileOutputStream(path)) {
             final PrintWriter out = new PrintWriter(outStream, true);
-            out.println("package " + outputPackage.reduce((a, b) -> a + "." + b) + ";");
+            out.println("package " + packageStringList.reduce((a, b) -> a + "." + b) + ";");
             out.println();
-            out.println("public final class " + outputClassName + " {");
-            out.println("    private " + outputClassName + "() {");
-            out.println("    }");
+            final StringBuilder classSignature = new StringBuilder();
+            if (javaClass.isPublic()) {
+                classSignature.append("public ");
+            }
+
+            if (javaClass.isFinal()) {
+                classSignature.append("final ");
+            }
+
+            out.println(classSignature.append("class ").append(javaClass.getName()).append(" {"));
+            for (JavaField field : javaClass.getFields()) {
+                final StringBuilder fieldSignature = new StringBuilder("    ");
+                if (field.isPublic()) {
+                    fieldSignature.append("public ");
+                }
+                else if (field.isProtected()) {
+                    fieldSignature.append("protected ");
+                }
+                else if (field.isPrivate()) {
+                    fieldSignature.append("private ");
+                }
+
+                if (field.isStatic()) {
+                    fieldSignature.append("static ");
+                }
+
+                if (field.isFinal()) {
+                    fieldSignature.append("final ");
+                }
+
+                out.println(fieldSignature
+                        .append(typeToString(javaPackage, field.getType()))
+                        .append(" ")
+                        .append(field.getName())
+                        .append(";"));
+            }
+
+            // TODO: Missing constructors
+
+            for (JavaMethod method : javaClass.getMethods()) {
+                final StringBuilder methodSignature = new StringBuilder("    ");
+                if (method.isPublic()) {
+                    methodSignature.append("public ");
+                }
+                else if (method.isProtected()) {
+                    methodSignature.append("protected ");
+                }
+                else if (method.isPrivate()) {
+                    methodSignature.append("private ");
+                }
+
+                if (method.isStatic()) {
+                    methodSignature.append("static ");
+                }
+
+                if (method.isFinal()) {
+                    methodSignature.append("final ");
+                }
+
+                out.println();
+                out.println(methodSignature
+                        .append(typeToString(javaPackage, method.getReturnType()))
+                        .append(" ")
+                        .append(method.getName())
+                        .append("(")
+                        .append(method.getParameters()
+                                .map(param -> typeToString(javaPackage, param.getType()) + " " + param.getName())
+                                .reduce((a, b) -> a + ", " + b, ""))
+                        .append(") {"));
+                out.println("        throw new RuntimeException(\"Code not yet converted\");");
+                out.println("    }");
+            }
+
             out.println("}");
         }
         catch (IOException e) {

@@ -3,8 +3,11 @@ package sword.logic.compiler;
 import sword.collections.ImmutableList;
 import sword.logic.compiler.generator.c.CCodeGenerator;
 import sword.logic.compiler.generator.c.CCodeWriter;
+import sword.logic.compiler.generator.java.JavaClass;
+import sword.logic.compiler.generator.java.JavaClassReference;
 import sword.logic.compiler.generator.java.JavaCodeGenerator;
 import sword.logic.compiler.generator.java.JavaCodeWriter;
+import sword.logic.compiler.generator.java.JavaPackage;
 import sword.logic.interpreter.LogicInterpreter;
 import sword.logic.interpreter.UnresolvedEnumValueException;
 import sword.logic.interpreter.UnresolvedTypeReferenceException;
@@ -109,16 +112,16 @@ public final class Main {
                 System.out.println("File read until the end with " + interpreterResult.getStatements().size() + " statements");
 
                 if (parameters.outputLanguage == Language.JAVA) {
-                    final JavaCodeGenerator codeGenerator = new JavaCodeGenerator(interpreterResult.getExpressionTypeMap());
-                    final JavaCodeGenerator.Result codeGenerationResult = codeGenerator.generate(interpreterResult.getStatements());
+                    final JavaClassReference outputClassRef = JavaPackage.createPackage("com")
+                            .newSubpackage("example")
+                            .newClassReference("Output");
+                    final JavaCodeGenerator codeGenerator = new JavaCodeGenerator(outputClassRef, interpreterResult.getExpressionTypeMap());
+                    final ImmutableList<JavaClass> javaClasses = codeGenerator.generate(interpreterResult.getStatements());
 
-                    final ImmutableList<String> outputPackage = new ImmutableList.Builder<String>()
-                            .append("com")
-                            .append("example")
-                            .build();
-                    final String outputClassName = "Output";
-                    final JavaCodeWriter codeWriter = new JavaCodeWriter();
-                    codeWriter.writeSource("build", outputPackage, outputClassName);
+                    for (JavaClass javaClass : javaClasses) {
+                        final JavaCodeWriter codeWriter = new JavaCodeWriter();
+                        codeWriter.writeSource("build", javaClass);
+                    }
                 }
                 else {
                     ensureValidState(parameters.outputLanguage == Language.C);
