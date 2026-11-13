@@ -18,22 +18,34 @@ public final class JavaIfStatement implements JavaStatement {
         mElseStatements = elseStatements;
     }
 
-    @Override
-    public String getText(Formatter formatter) {
-        String result = formatter.getIndentation() + "if (" + mCondition.getText() + ") {\n";
+    private String getTextNoFirstIndentation(Formatter formatter) {
+        String result = "if (" + mCondition.getText() + ") {\n";
         final Formatter innerFormatter = formatter.increaseIndentation();
         for (JavaStatement st : mThenStatements) {
             result += st.getText(innerFormatter) + "\n";
         }
 
         if (!mElseStatements.isEmpty()) {
-            result += formatter.getIndentation() + "}\n" +
-                    formatter.getIndentation() + "else {\n";
-            for (JavaStatement st : mElseStatements) {
-                result += st.getText(innerFormatter) + "\n";
+            if (mElseStatements.size() == 1 && mElseStatements.valueAt(0) instanceof JavaIfStatement innerIfStatement) {
+                return result +
+                        formatter.getIndentation() + "}\n" +
+                        formatter.getIndentation() + "else " +
+                        innerIfStatement.getTextNoFirstIndentation(formatter);
+            }
+            else {
+                result += formatter.getIndentation() + "}\n" +
+                        formatter.getIndentation() + "else {\n";
+                for (JavaStatement st : mElseStatements) {
+                    result += st.getText(innerFormatter) + "\n";
+                }
             }
         }
 
         return result + formatter.getIndentation() + "}";
+    }
+
+    @Override
+    public String getText(Formatter formatter) {
+        return formatter.getIndentation() + getTextNoFirstIndentation(formatter);
     }
 }
