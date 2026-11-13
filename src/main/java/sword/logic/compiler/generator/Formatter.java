@@ -1,4 +1,4 @@
-package sword.logic.compiler.generator.c;
+package sword.logic.compiler.generator;
 
 public interface Formatter {
     String getIndentation();

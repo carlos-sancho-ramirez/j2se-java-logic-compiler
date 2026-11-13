@@ -1,8 +1,6 @@
 package sword.logic.compiler.generator.c.expressions;
 
 import sword.collections.ImmutableList;
-import sword.logic.compiler.generator.c.Formatter;
-import sword.logic.compiler.generator.c.statements.CInFunctionStatement;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 

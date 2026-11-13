@@ -1,7 +1,7 @@
 package sword.logic.compiler.generator.c.statements;
 
 import sword.logic.compiler.generator.c.CFunction;
-import sword.logic.compiler.generator.c.Formatter;
+import sword.logic.compiler.generator.Formatter;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 

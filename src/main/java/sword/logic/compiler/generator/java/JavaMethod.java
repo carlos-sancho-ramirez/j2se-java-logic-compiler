@@ -1,6 +1,7 @@
 package sword.logic.compiler.generator.java;
 
 import sword.collections.ImmutableList;
+import sword.logic.compiler.generator.java.statements.JavaStatement;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
@@ -23,21 +24,25 @@ public final class JavaMethod {
     private final ImmutableList<JavaVariable> mParameters;
     private final JavaVoidableType mReturnType;
     private final int mModifiers;
-    // TODO: Code is missing
+    private final ImmutableList<JavaStatement> mStatements;
 
     public JavaMethod(
             JavaClass javaClass,
             String methodName,
             ImmutableList<JavaVariable> parameters,
             JavaVoidableType returnType,
-            int modifiers) {
-        ensureNonNull(javaClass, parameters, returnType);
+            int modifiers,
+            ImmutableList<JavaStatement> statements) {
+        ensureNonNull(javaClass, parameters, returnType, statements);
         ensureValidArguments(isValidVariableName(methodName));
+        ensureValidArguments(!statements.isEmpty() || returnType == JavaVoidType.getInstance());
+        // TODO: We should ensure that last statement is a return or a throw
         mClass = javaClass;
         mName = methodName;
         mParameters = parameters;
         mReturnType = returnType;
         mModifiers = modifiers;
+        mStatements = statements;
     }
 
     public String getName() {
@@ -70,6 +75,10 @@ public final class JavaMethod {
 
     public boolean isFinal() {
         return (mModifiers & Modifiers.FINAL) != 0;
+    }
+
+    public ImmutableList<JavaStatement> getStatements() {
+        return mStatements;
     }
 
     @Override

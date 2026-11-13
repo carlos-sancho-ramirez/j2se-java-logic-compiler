@@ -1,6 +1,6 @@
 package sword.logic.compiler.generator.c.statements;
 
-import sword.logic.compiler.generator.c.Formatter;
+import sword.logic.compiler.generator.Formatter;
 import sword.logic.compiler.generator.c.expressions.CAssignableExpression;
 import sword.logic.compiler.generator.c.expressions.CExpression;
 

@@ -2,6 +2,7 @@ package sword.logic.compiler.generator.java;
 
 import sword.collections.ImmutableList;
 import sword.collections.MutableList;
+import sword.logic.compiler.generator.java.statements.JavaStatement;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidState;
@@ -73,9 +74,9 @@ public final class JavaClass {
         return newField;
     }
 
-    public JavaMethod addMethod(String methodName, ImmutableList<JavaVariable> parameters, JavaVoidableType returnType, int modifiers) {
+    public JavaMethod addMethod(String methodName, ImmutableList<JavaVariable> parameters, JavaVoidableType returnType, int modifiers, ImmutableList<JavaStatement> statements) {
         ensureValidState(mAddedMethods.allMatch(m -> !m.getName().equals(methodName)));
-        final JavaMethod newMethod = new JavaMethod(this, methodName, parameters, returnType, modifiers);
+        final JavaMethod newMethod = new JavaMethod(this, methodName, parameters, returnType, modifiers, statements);
         mAddedMethods.append(newMethod);
         return newMethod;
     }

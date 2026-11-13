@@ -3,6 +3,7 @@ package sword.logic.compiler.generator.c;
 import sword.collections.ImmutableList;
 import sword.collections.ImmutableMap;
 import sword.collections.Map;
+import sword.logic.compiler.generator.Formatter;
 import sword.logic.compiler.generator.c.namespace.ScopedTypeName;
 import sword.logic.compiler.generator.c.statements.CFileRootStatement;
 import sword.logic.types.EnumType;

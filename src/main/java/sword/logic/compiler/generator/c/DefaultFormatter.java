@@ -1,5 +1,7 @@
 package sword.logic.compiler.generator.c;
 
+import sword.logic.compiler.generator.Formatter;
+
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 
 public final class DefaultFormatter implements Formatter {

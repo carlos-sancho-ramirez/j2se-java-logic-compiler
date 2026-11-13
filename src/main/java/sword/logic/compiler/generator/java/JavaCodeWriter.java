@@ -1,6 +1,8 @@
 package sword.logic.compiler.generator.java;
 
 import sword.collections.ImmutableList;
+import sword.logic.compiler.generator.Formatter;
+import sword.logic.compiler.generator.java.statements.JavaStatement;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -59,8 +61,9 @@ public final class JavaCodeWriter {
             }
 
             out.println(classSignature.append("class ").append(javaClass.getName()).append(" {"));
+            final Formatter classFormatter = new JavaDefaultFormatter().increaseIndentation();
             for (JavaField field : javaClass.getFields()) {
-                final StringBuilder fieldSignature = new StringBuilder("    ");
+                final StringBuilder fieldSignature = new StringBuilder(classFormatter.getIndentation());
                 if (field.isPublic()) {
                     fieldSignature.append("public ");
                 }
@@ -89,7 +92,7 @@ public final class JavaCodeWriter {
             // TODO: Missing constructors
 
             for (JavaMethod method : javaClass.getMethods()) {
-                final StringBuilder methodSignature = new StringBuilder("    ");
+                final StringBuilder methodSignature = new StringBuilder(classFormatter.getIndentation());
                 if (method.isPublic()) {
                     methodSignature.append("public ");
                 }
@@ -118,8 +121,13 @@ public final class JavaCodeWriter {
                                 .map(param -> typeToString(javaPackage, param.getType()) + " " + param.getName())
                                 .reduce((a, b) -> a + ", " + b, ""))
                         .append(") {"));
-                out.println("        throw new RuntimeException(\"Code not yet converted\");");
-                out.println("    }");
+
+                final Formatter methodFormatter = classFormatter.increaseIndentation();
+                for (JavaStatement statement : method.getStatements()) {
+                    out.println(statement.getText(methodFormatter));
+                }
+
+                out.println(classFormatter.getIndentation() + "}");
             }
 
             out.println("}");
