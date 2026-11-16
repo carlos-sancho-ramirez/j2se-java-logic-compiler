@@ -14,11 +14,11 @@ public final class JavaField {
         }
     }
 
-    private final JavaClass mClass;
+    private final JavaNormalClass mClass;
     private final JavaVariable mVariable;
     private final int mModifiers;
 
-    JavaField(JavaClass javaClass, JavaVariable variable, int modifiers) {
+    JavaField(JavaNormalClass javaClass, JavaVariable variable, int modifiers) {
         ensureNonNull(javaClass, variable);
         mClass = javaClass;
         mVariable = variable;

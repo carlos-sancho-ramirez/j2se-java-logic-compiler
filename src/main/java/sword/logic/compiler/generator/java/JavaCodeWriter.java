@@ -17,6 +17,12 @@ public final class JavaCodeWriter {
         else if (type == JavaByteType.getInstance()) {
             return "byte";
         }
+        else if (type == JavaShortType.getInstance()) {
+            return "short";
+        }
+        else if (type == JavaIntType.getInstance()) {
+            return "int";
+        }
         else if (type instanceof JavaArrayType arrayType) {
             return typeToString(currentPackage, arrayType.getItemType()) + "[]";
         }
@@ -31,6 +37,104 @@ public final class JavaCodeWriter {
                 return refPackageStr + "." + ref.getName();
             }
         }
+    }
+
+    private void writeNormalClassSource(PrintWriter out, JavaNormalClass javaClass) {
+        final JavaPackage javaPackage = javaClass.getPackage();
+        final StringBuilder classSignature = new StringBuilder();
+        if (javaClass.isPublic()) {
+            classSignature.append("public ");
+        }
+
+        if (javaClass.isFinal()) {
+            classSignature.append("final ");
+        }
+
+        out.println(classSignature.append("class ").append(javaClass.getName()).append(" {"));
+        final Formatter classFormatter = new JavaDefaultFormatter().increaseIndentation();
+        for (JavaField field : javaClass.getFields()) {
+            final StringBuilder fieldSignature = new StringBuilder(classFormatter.getIndentation());
+            if (field.isPublic()) {
+                fieldSignature.append("public ");
+            }
+            else if (field.isProtected()) {
+                fieldSignature.append("protected ");
+            }
+            else if (field.isPrivate()) {
+                fieldSignature.append("private ");
+            }
+
+            if (field.isStatic()) {
+                fieldSignature.append("static ");
+            }
+
+            if (field.isFinal()) {
+                fieldSignature.append("final ");
+            }
+
+            out.println(fieldSignature
+                    .append(typeToString(javaPackage, field.getType()))
+                    .append(" ")
+                    .append(field.getName())
+                    .append(";"));
+        }
+
+        // TODO: Missing constructors
+
+        for (JavaMethod method : javaClass.getMethods()) {
+            final StringBuilder methodSignature = new StringBuilder(classFormatter.getIndentation());
+            if (method.isPublic()) {
+                methodSignature.append("public ");
+            }
+            else if (method.isProtected()) {
+                methodSignature.append("protected ");
+            }
+            else if (method.isPrivate()) {
+                methodSignature.append("private ");
+            }
+
+            if (method.isStatic()) {
+                methodSignature.append("static ");
+            }
+
+            if (method.isFinal()) {
+                methodSignature.append("final ");
+            }
+
+            out.println();
+            out.println(methodSignature
+                    .append(typeToString(javaPackage, method.getReturnType()))
+                    .append(" ")
+                    .append(method.getName())
+                    .append("(")
+                    .append(method.getParameters()
+                            .map(param -> typeToString(javaPackage, param.getType()) + " " + param.getName())
+                            .reduce((a, b) -> a + ", " + b, ""))
+                    .append(") {"));
+
+            final Formatter methodFormatter = classFormatter.increaseIndentation();
+            for (JavaStatement statement : method.getStatements()) {
+                out.println(statement.getText(methodFormatter));
+            }
+
+            out.println(classFormatter.getIndentation() + "}");
+        }
+
+        out.println("}");
+    }
+
+    private void writeEnumClassSource(PrintWriter out, JavaEnum javaClass) {
+        final StringBuilder classSignature = new StringBuilder();
+        if (javaClass.isPublic()) {
+            classSignature.append("public ");
+        }
+
+        out.println(classSignature.append("enum ").append(javaClass.getName()).append(" {"));
+        final Formatter classFormatter = new JavaDefaultFormatter().increaseIndentation();
+        out.println(javaClass.getValues()
+                .map(v -> classFormatter.getIndentation() + v.getName())
+                .reduce((a, b) -> a + ",\n" + b, ""));
+        out.println("}");
     }
 
     public void writeSource(String outputDir, JavaClass javaClass) {
@@ -51,86 +155,13 @@ public final class JavaCodeWriter {
             final PrintWriter out = new PrintWriter(outStream, true);
             out.println("package " + packageStringList.reduce((a, b) -> a + "." + b) + ";");
             out.println();
-            final StringBuilder classSignature = new StringBuilder();
-            if (javaClass.isPublic()) {
-                classSignature.append("public ");
+            if (javaClass instanceof JavaNormalClass cls) {
+                writeNormalClassSource(out, cls);
             }
-
-            if (javaClass.isFinal()) {
-                classSignature.append("final ");
+            else {
+                final JavaEnum cls = (JavaEnum) javaClass;
+                writeEnumClassSource(out, cls);
             }
-
-            out.println(classSignature.append("class ").append(javaClass.getName()).append(" {"));
-            final Formatter classFormatter = new JavaDefaultFormatter().increaseIndentation();
-            for (JavaField field : javaClass.getFields()) {
-                final StringBuilder fieldSignature = new StringBuilder(classFormatter.getIndentation());
-                if (field.isPublic()) {
-                    fieldSignature.append("public ");
-                }
-                else if (field.isProtected()) {
-                    fieldSignature.append("protected ");
-                }
-                else if (field.isPrivate()) {
-                    fieldSignature.append("private ");
-                }
-
-                if (field.isStatic()) {
-                    fieldSignature.append("static ");
-                }
-
-                if (field.isFinal()) {
-                    fieldSignature.append("final ");
-                }
-
-                out.println(fieldSignature
-                        .append(typeToString(javaPackage, field.getType()))
-                        .append(" ")
-                        .append(field.getName())
-                        .append(";"));
-            }
-
-            // TODO: Missing constructors
-
-            for (JavaMethod method : javaClass.getMethods()) {
-                final StringBuilder methodSignature = new StringBuilder(classFormatter.getIndentation());
-                if (method.isPublic()) {
-                    methodSignature.append("public ");
-                }
-                else if (method.isProtected()) {
-                    methodSignature.append("protected ");
-                }
-                else if (method.isPrivate()) {
-                    methodSignature.append("private ");
-                }
-
-                if (method.isStatic()) {
-                    methodSignature.append("static ");
-                }
-
-                if (method.isFinal()) {
-                    methodSignature.append("final ");
-                }
-
-                out.println();
-                out.println(methodSignature
-                        .append(typeToString(javaPackage, method.getReturnType()))
-                        .append(" ")
-                        .append(method.getName())
-                        .append("(")
-                        .append(method.getParameters()
-                                .map(param -> typeToString(javaPackage, param.getType()) + " " + param.getName())
-                                .reduce((a, b) -> a + ", " + b, ""))
-                        .append(") {"));
-
-                final Formatter methodFormatter = classFormatter.increaseIndentation();
-                for (JavaStatement statement : method.getStatements()) {
-                    out.println(statement.getText(methodFormatter));
-                }
-
-                out.println(classFormatter.getIndentation() + "}");
-            }
-
-            out.println("}");
         }
         catch (IOException e) {
             throw new RuntimeException(e);

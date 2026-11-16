@@ -45,8 +45,12 @@ public final class JavaClassReference implements JavaType {
         return mClassName;
     }
 
-    public JavaClass newClass(int modifiers) {
-        return new JavaClass(this, modifiers);
+    public JavaNormalClass newClass(int modifiers) {
+        return new JavaNormalClass(this, modifiers);
+    }
+
+    public JavaEnum newEnum(int modifiers) {
+        return new JavaEnum(this, modifiers);
     }
 
     @Override

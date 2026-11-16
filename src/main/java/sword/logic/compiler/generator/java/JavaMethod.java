@@ -19,42 +19,38 @@ public final class JavaMethod {
         }
     }
 
-    private final JavaClass mClass;
-    private final String mName;
-    private final ImmutableList<JavaVariable> mParameters;
-    private final JavaVoidableType mReturnType;
+    private final JavaMethodReference mReference;
+    private final ImmutableList<String> mParameterNames;
     private final int mModifiers;
     private final ImmutableList<JavaStatement> mStatements;
 
     public JavaMethod(
-            JavaClass javaClass,
-            String methodName,
-            ImmutableList<JavaVariable> parameters,
-            JavaVoidableType returnType,
+            JavaMethodReference reference,
+            ImmutableList<String> parameterNames,
             int modifiers,
             ImmutableList<JavaStatement> statements) {
-        ensureNonNull(javaClass, parameters, returnType, statements);
-        ensureValidArguments(isValidVariableName(methodName));
-        ensureValidArguments(!statements.isEmpty() || returnType == JavaVoidType.getInstance());
-        // TODO: We should ensure that last statement is a return or a throw
-        mClass = javaClass;
-        mName = methodName;
-        mParameters = parameters;
-        mReturnType = returnType;
+        ensureNonNull(reference, parameterNames, statements);
+        ensureValidArguments(parameterNames.size() == reference.getParameters().size());
+        mReference = reference;
+        mParameterNames = parameterNames;
         mModifiers = modifiers;
         mStatements = statements;
     }
 
+    public JavaMethodReference getReference() {
+        return mReference;
+    }
+
     public String getName() {
-        return mName;
+        return mReference.getName();
     }
 
     public ImmutableList<JavaVariable> getParameters() {
-        return mParameters;
+        return mParameterNames.indexes().map(index -> new JavaVariable(mParameterNames.valueAt(index), mReference.getParameters().valueAt(index)));
     }
 
     public JavaVoidableType getReturnType() {
-        return mReturnType;
+        return mReference.getReturnType();
     }
 
     public boolean isPublic() {
@@ -83,16 +79,15 @@ public final class JavaMethod {
 
     @Override
     public int hashCode() {
-        return mName.hashCode();
+        return mReference.hashCode();
     }
 
     @Override
     public boolean equals(Object obj) {
         return this == obj || obj instanceof JavaMethod that &&
-                mClass.equals(that.mClass) &&
-                mName.equals(that.mName) &&
-                mParameters.equals(that.mParameters) &&
-                mReturnType.equals(that.mReturnType) &&
-                mModifiers == that.mModifiers;
+                mReference.equals(that.mReference) &&
+                mParameterNames.equals(that.mParameterNames) &&
+                mModifiers == that.mModifiers &&
+                mStatements.equals(that.mStatements);
     }
 }

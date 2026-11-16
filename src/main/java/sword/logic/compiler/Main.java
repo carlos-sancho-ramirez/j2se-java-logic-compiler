@@ -1,6 +1,6 @@
 package sword.logic.compiler;
 
-import sword.collections.ImmutableList;
+import sword.collections.ImmutableSet;
 import sword.logic.compiler.generator.c.CCodeGenerator;
 import sword.logic.compiler.generator.c.CCodeWriter;
 import sword.logic.compiler.generator.java.JavaClass;
@@ -116,7 +116,7 @@ public final class Main {
                             .newSubpackage("example")
                             .newClassReference("Output");
                     final JavaCodeGenerator codeGenerator = new JavaCodeGenerator(outputClassRef, interpreterResult.getExpressionTypeMap());
-                    final ImmutableList<JavaClass> javaClasses = codeGenerator.generate(interpreterResult.getStatements());
+                    final ImmutableSet<JavaClass> javaClasses = codeGenerator.generate(interpreterResult.getStatements());
 
                     for (JavaClass javaClass : javaClasses) {
                         final JavaCodeWriter codeWriter = new JavaCodeWriter();
