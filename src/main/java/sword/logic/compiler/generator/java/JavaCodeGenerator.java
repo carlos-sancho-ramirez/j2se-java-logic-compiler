@@ -1,11 +1,12 @@
 package sword.logic.compiler.generator.java;
 
+import sword.collections.ImmutableHashSet;
 import sword.collections.ImmutableList;
 import sword.collections.ImmutableMap;
+import sword.collections.ImmutableSet;
 import sword.collections.Map;
 import sword.collections.MutableHashMap;
 import sword.collections.MutableList;
-import sword.collections.MutableMap;
 import sword.logic.compiler.IntegerLiteralOperations;
 import sword.logic.compiler.generator.java.expressions.JavaAdditionExpression;
 import sword.logic.compiler.generator.java.expressions.JavaAndExpression;
@@ -31,6 +32,7 @@ import sword.logic.compiler.generator.java.statements.JavaStatement;
 import sword.logic.expressions.AdditionExpression;
 import sword.logic.expressions.AndExpression;
 import sword.logic.expressions.ArrayConcatenationExpression;
+import sword.logic.expressions.ArrayConstructionExpression;
 import sword.logic.expressions.ArrayValueAtExpression;
 import sword.logic.expressions.ComplexExpression;
 import sword.logic.expressions.DivisionExpression;
@@ -41,11 +43,14 @@ import sword.logic.expressions.FunctionExecutionExpression;
 import sword.logic.expressions.GreaterOrEqualThanExpression;
 import sword.logic.expressions.IfExpression;
 import sword.logic.expressions.IntegerLiteralExpression;
+import sword.logic.expressions.LeftRightExpression;
+import sword.logic.expressions.LiteralExpression;
 import sword.logic.expressions.LowerThanExpression;
 import sword.logic.expressions.ModuleExpression;
 import sword.logic.expressions.MultiplicationExpression;
 import sword.logic.expressions.OrExpression;
 import sword.logic.expressions.ReferenceExpression;
+import sword.logic.expressions.RegisterConstructionExpression;
 import sword.logic.expressions.RegisterFieldAccessExpression;
 import sword.logic.expressions.StringLiteralExpression;
 import sword.logic.statements.ConstantDefinitionStatement;
@@ -79,6 +84,105 @@ public final class JavaCodeGenerator {
     }
 
     private JavaClassReference javaLangStringClassRef;
+
+    private ImmutableSet<TypeDefinitionStatement> findAllRegisters(Expression expression) {
+        if (expression instanceof ArrayConstructionExpression exp) {
+            ImmutableSet<TypeDefinitionStatement> result = ImmutableHashSet.empty();
+            for (Expression value : exp.getValues()) {
+                result = result.addAll(findAllRegisters(value));
+            }
+
+            return result;
+        }
+        else if (expression instanceof ArrayValueAtExpression exp) {
+            return findAllRegisters(exp.getArray())
+                    .addAll(findAllRegisters(exp.getIndex()));
+        }
+        else if (expression instanceof ComplexExpression exp) {
+            return findAllRegisters(exp.getStatements());
+        }
+        else if (expression instanceof FunctionDefinitionExpression exp) {
+            return findAllRegisters(exp.getBody());
+        }
+        else if (expression instanceof FunctionExecutionExpression exp) {
+            ImmutableSet<TypeDefinitionStatement> result = findAllRegisters(exp.getFunction());
+            for (Expression value : exp.getParameters()) {
+                result = result.addAll(findAllRegisters(value));
+            }
+
+            return result;
+        }
+        else if (expression instanceof IfExpression exp) {
+            return findAllRegisters(exp.getCondition())
+                    .addAll(findAllRegisters(exp.getThenClause()))
+                    .addAll(findAllRegisters(exp.getElseClause()));
+        }
+        else if (expression instanceof LeftRightExpression exp) {
+            return findAllRegisters(exp.getLeftExpression())
+                    .addAll(findAllRegisters(exp.getRightExpression()));
+        }
+        else if (expression instanceof LiteralExpression) {
+            return ImmutableHashSet.empty();
+        }
+        else if (expression instanceof ReferenceExpression) {
+            return ImmutableHashSet.empty();
+        }
+        else if (expression instanceof RegisterConstructionExpression exp) {
+            return findAllRegisters(exp.getStatements());
+        }
+        else if (expression instanceof RegisterFieldAccessExpression exp) {
+            return findAllRegisters(exp.getRegister());
+        }
+        else {
+            throw new UnsupportedOperationException("Unimplemented");
+        }
+    }
+
+    private ImmutableSet<TypeDefinitionStatement> findAllRegisters(ImmutableList<Statement> statements) {
+        ImmutableSet<TypeDefinitionStatement> result = ImmutableHashSet.empty();
+        for (Statement statement : statements) {
+            if (statement instanceof TypeDefinitionStatement typeDef) {
+                if (typeDef.getType() instanceof RegisterType) {
+                    result = result.add(typeDef);
+                }
+            }
+            else {
+                final ConstantDefinitionStatement constDef = (ConstantDefinitionStatement) statement;
+                result = result.addAll(findAllRegisters(constDef.getExpression()));
+            }
+        }
+
+        return result;
+    }
+
+    private ImmutableMap<RegisterType.Definition, JavaClassReference> buildRegistersMap(JavaClassReference outputClass, ImmutableSet<TypeDefinitionStatement> allTypeDefinitions) {
+        final JavaPackage javaPackage = outputClass.getPackage();
+        final MutableHashMap<RegisterType.Definition, JavaClassReference> resultMap = MutableHashMap.empty();
+        for (TypeDefinitionStatement typeDef : allTypeDefinitions) {
+            final RegisterType.Definition regDef = ((RegisterType) typeDef.getType()).getDefinition();
+            final String desiredName = typeDef.getName();
+            if (desiredName.equals(outputClass.getName()) || resultMap.anyMatch(ref -> ref.getName().equals(desiredName))) {
+                final int retrials = 100;
+                int i;
+                for (i = 2; i < retrials; i++) {
+                    final String newProposedName = desiredName + i;
+                    if (!newProposedName.equals(outputClass.getName()) && resultMap.allMatch(ref -> !ref.getName().equals(newProposedName))) {
+                        resultMap.put(regDef, javaPackage.newClassReference(desiredName));
+                        break;
+                    }
+                }
+
+                if (i == retrials) {
+                    throw new RuntimeException("Unable to find a suitable class name for register");
+                }
+            }
+            else {
+                resultMap.put(regDef, javaPackage.newClassReference(desiredName));
+            }
+        }
+
+        return resultMap.toImmutable();
+    }
 
     private JavaType transformToJavaType(Type type, Map<RegisterType.Definition, JavaClassReference> definedRegisters) {
         if (type instanceof EnumType enumType && enumType.isBooleanType()) {
@@ -257,24 +361,20 @@ public final class JavaCodeGenerator {
     }
 
     public ImmutableList<JavaClass> generate(ImmutableList<Statement> statements) {
-        final MutableMap<RegisterType.Definition, JavaClassReference> definedRegisters = MutableHashMap.empty();
-        for (Statement statement : statements) {
-            if (statement instanceof TypeDefinitionStatement typeDef && typeDef.getType() instanceof RegisterType regType) {
-                definedRegisters.put(regType.getDefinition(), mOutputClassRef.getPackage().newClassReference(statement.getName()));
-            }
-        }
+        final ImmutableSet<TypeDefinitionStatement> allTypeDefinitionStatements = findAllRegisters(statements);
+        final ImmutableMap<RegisterType.Definition, JavaClassReference> allRegisters = buildRegistersMap(mOutputClassRef, allTypeDefinitionStatements);
 
         final MutableList<JavaClass> allClasses = MutableList.empty();
-        for (Statement statement : statements) {
-            if (statement instanceof TypeDefinitionStatement typeDef && typeDef.getType() instanceof RegisterType regType) {
-                final JavaClassReference classRef = definedRegisters.get(regType.getDefinition());
-                final JavaClass cls = classRef.newClass(JavaClass.Modifiers.PUBLIC | JavaClass.Modifiers.FINAL);
-                allClasses.append(cls);
+        for (TypeDefinitionStatement statement : allTypeDefinitionStatements) {
+            final RegisterType.Definition regDef = ((RegisterType) statement.getType()).getDefinition();
+            final JavaClassReference classRef = allRegisters.get(regDef);
+            final int classModifiers = statement.isPublic()? JavaClass.Modifiers.PUBLIC | JavaClass.Modifiers.FINAL : JavaClass.Modifiers.FINAL;
+            final JavaClass cls = classRef.newClass(classModifiers);
+            allClasses.append(cls);
 
-                for (Map.Entry<String, Type> fieldEntry : regType.getDefinition().getFields().entries()) {
-                    final int modifiers = JavaField.Modifiers.PRIVATE | JavaField.Modifiers.FINAL;
-                    cls.addField(mCodeStyleForRegister.propertyName(fieldEntry.key()), transformToJavaType(fieldEntry.value(), definedRegisters), modifiers);
-                }
+            for (Map.Entry<String, Type> fieldEntry : regDef.getFields().entries()) {
+                final int modifiers = JavaField.Modifiers.PRIVATE | JavaField.Modifiers.FINAL;
+                cls.addField(mCodeStyleForRegister.propertyName(fieldEntry.key()), transformToJavaType(fieldEntry.value(), allRegisters), modifiers);
             }
         }
 
@@ -284,7 +384,7 @@ public final class JavaCodeGenerator {
         for (Statement statement : statements) {
             if (statement instanceof ConstantDefinitionStatement constDef) {
                 if (constDef.getExpression() instanceof FunctionDefinitionExpression funcDef) {
-                    final ImmutableList<JavaVariable> parameters = funcDef.getParameters().map(p -> new JavaVariable(p.getName(), transformToJavaType(p.getType(), definedRegisters)));
+                    final ImmutableList<JavaVariable> parameters = funcDef.getParameters().map(p -> new JavaVariable(p.getName(), transformToJavaType(p.getType(), allRegisters)));
                     final int methodModifiers = JavaClass.Modifiers.STATIC |
                             (statement.isPublic()? JavaClass.Modifiers.PUBLIC : JavaClass.Modifiers.PRIVATE);
 
@@ -295,7 +395,7 @@ public final class JavaCodeGenerator {
                     else {
                         throw new UnsupportedOperationException("Unimplemented");
                     }
-                    outputClass.addMethod(statement.getName(), parameters, transformToJavaType(mTypeMap.get(funcDef.getBody()), definedRegisters), methodModifiers, javaStatements);
+                    outputClass.addMethod(statement.getName(), parameters, transformToJavaType(mTypeMap.get(funcDef.getBody()), allRegisters), methodModifiers, javaStatements);
                 }
             }
         }
