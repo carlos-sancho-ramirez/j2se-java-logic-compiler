@@ -24,8 +24,10 @@ import sword.logic.compiler.generator.java.entities.JavaVariable;
 import sword.logic.compiler.generator.java.expressions.JavaAdditionExpression;
 import sword.logic.compiler.generator.java.expressions.JavaAndExpression;
 import sword.logic.compiler.generator.java.expressions.JavaArrayConcatenationExpression;
+import sword.logic.compiler.generator.java.expressions.JavaArrayConstructionExpression;
 import sword.logic.compiler.generator.java.expressions.JavaArrayLengthExpression;
 import sword.logic.compiler.generator.java.expressions.JavaArrayValueAtExpression;
+import sword.logic.compiler.generator.java.expressions.JavaDifferentFromExpression;
 import sword.logic.compiler.generator.java.expressions.JavaDivisionExpression;
 import sword.logic.compiler.generator.java.expressions.JavaEnumValueLiteralExpression;
 import sword.logic.compiler.generator.java.expressions.JavaEqualThanExpression;
@@ -41,8 +43,11 @@ import sword.logic.compiler.generator.java.expressions.JavaNewExpression;
 import sword.logic.compiler.generator.java.expressions.JavaOrExpression;
 import sword.logic.compiler.generator.java.expressions.JavaReferenceExpression;
 import sword.logic.compiler.generator.java.expressions.JavaStringLiteralExpression;
+import sword.logic.compiler.generator.java.expressions.JavaSubtractionExpression;
 import sword.logic.compiler.generator.java.expressions.JavaTernaryExpression;
 import sword.logic.compiler.generator.java.statements.JavaAssignmentStatement;
+import sword.logic.compiler.generator.java.statements.JavaConstantDeclarationStatement;
+import sword.logic.compiler.generator.java.statements.JavaConstantDefinitionStatement;
 import sword.logic.compiler.generator.java.statements.JavaIfStatement;
 import sword.logic.compiler.generator.java.statements.JavaReturnStatement;
 import sword.logic.compiler.generator.java.statements.JavaStatement;
@@ -58,6 +63,7 @@ import sword.logic.expressions.ArrayConcatenationExpression;
 import sword.logic.expressions.ArrayConstructionExpression;
 import sword.logic.expressions.ArrayValueAtExpression;
 import sword.logic.expressions.ComplexExpression;
+import sword.logic.expressions.DifferentFromExpression;
 import sword.logic.expressions.DivisionExpression;
 import sword.logic.expressions.EnumValueLiteralExpression;
 import sword.logic.expressions.EqualThanExpression;
@@ -77,6 +83,7 @@ import sword.logic.expressions.ReferenceExpression;
 import sword.logic.expressions.RegisterConstructionExpression;
 import sword.logic.expressions.RegisterFieldAccessExpression;
 import sword.logic.expressions.StringLiteralExpression;
+import sword.logic.expressions.SubtractionExpression;
 import sword.logic.statements.ConstantDefinitionStatement;
 import sword.logic.statements.Statement;
 import sword.logic.statements.TypeDefinitionStatement;
@@ -428,13 +435,19 @@ public final class JavaCodeGenerator {
     private final class Generation {
         private final ImmutableMap<TypeDefinitionStatement, JavaEnum> mDeclaredEnums;
         private final ImmutableMap<ConstantDefinitionStatement, ImmutableSet<JavaEnum>> mEnumsDeclaredInMethodScope;
+        private final ImmutableMap<EnumType.Definition, JavaClassReference> mDefinedEnums;
+        private final ImmutableMap<RegisterType.Definition, JavaClassReference> mDefinedRegisters;
 
         Generation(
                 ImmutableMap<TypeDefinitionStatement, JavaEnum> declaredEnums,
-                ImmutableMap<ConstantDefinitionStatement, ImmutableSet<JavaEnum>> enumsDeclaredInMethodScope) {
-            ensureNonNull(declaredEnums, enumsDeclaredInMethodScope);
+                ImmutableMap<ConstantDefinitionStatement, ImmutableSet<JavaEnum>> enumsDeclaredInMethodScope,
+                ImmutableMap<EnumType.Definition, JavaClassReference> definedEnums,
+                ImmutableMap<RegisterType.Definition, JavaClassReference> definedRegisters) {
+            ensureNonNull(declaredEnums, enumsDeclaredInMethodScope, definedEnums, definedRegisters);
             mDeclaredEnums = declaredEnums;
             mEnumsDeclaredInMethodScope = enumsDeclaredInMethodScope;
+            mDefinedEnums = definedEnums;
+            mDefinedRegisters = definedRegisters;
         }
 
         private JavaExpression generateExpression(
@@ -459,10 +472,22 @@ public final class JavaCodeGenerator {
                         generateExpression(exp.getLeftExpression(), enumsInScope),
                         generateExpression(exp.getRightExpression(), enumsInScope));
             }
+            else if (expression instanceof ArrayConstructionExpression exp) {
+                return new JavaArrayConstructionExpression(transformToJavaType(((ArrayType) mTypeMap.get(exp)).getItemType(), mDefinedEnums, mDefinedRegisters), exp.getValues().map(e -> generateExpression(e, enumsInScope)));
+            }
             else if (expression instanceof ArrayValueAtExpression exp) {
                 return new JavaArrayValueAtExpression(
                         generateExpression(exp.getArray(), enumsInScope),
                         generateExpression(exp.getIndex(), enumsInScope));
+            }
+            else if (expression instanceof DifferentFromExpression exp) {
+                final Type leftType = mTypeMap.get(exp.getLeftExpression());
+                if (leftType instanceof IntType || leftType instanceof EnumType) {
+                    return new JavaDifferentFromExpression(generateExpression(exp.getLeftExpression(), enumsInScope), generateExpression(exp.getRightExpression(), enumsInScope));
+                }
+                else {
+                    throw new UnsupportedOperationException("Unimplemented");
+                }
             }
             else if (expression instanceof DivisionExpression exp) {
                 ensureValidState(mTypeMap.get(exp.getLeftExpression()) instanceof IntType &&
@@ -562,8 +587,60 @@ public final class JavaCodeGenerator {
             else if (expression instanceof StringLiteralExpression exp) {
                 return new JavaStringLiteralExpression(exp.getLiteral());
             }
+            else if (expression instanceof SubtractionExpression exp) {
+                ensureValidState(mTypeMap.get(exp.getLeftExpression()) instanceof IntType &&
+                        mTypeMap.get(exp.getRightExpression()) instanceof IntType);
+                return new JavaSubtractionExpression(
+                        generateExpression(exp.getLeftExpression(), enumsInScope),
+                        generateExpression(exp.getRightExpression(), enumsInScope));
+            }
             else {
                 throw new UnsupportedOperationException("Unimplemented");
+            }
+        }
+
+        private ImmutableList<JavaStatement> generateAssignment(
+                Expression expression,
+                Set<JavaEnum> enumsInScope,
+                String output) {
+            if (expression instanceof ComplexExpression exp) {
+                final ImmutableList.Builder<JavaStatement> builder = new ImmutableList.Builder<>();
+                for (Statement statement : exp.getStatements()) {
+                    if (statement instanceof ConstantDefinitionStatement constDef) {
+                        if (constDef.getExpression() instanceof IfExpression) {
+                            final JavaVariable variable = new JavaVariable(constDef.getName(), transformToJavaType(mTypeMap.get(constDef.getExpression()), mDefinedEnums, mDefinedRegisters));
+                            builder.append(new JavaConstantDeclarationStatement(variable));
+                            for (JavaStatement st : generateAssignment(constDef.getExpression(), enumsInScope, constDef.getName())) {
+                                builder.append(st);
+                            }
+                        }
+                        else if (!(constDef.getExpression() instanceof FunctionDefinitionExpression)) {
+                            final JavaVariable variable = new JavaVariable(constDef.getName(), transformToJavaType(mTypeMap.get(constDef.getExpression()), mDefinedEnums, mDefinedRegisters));
+                            builder.append(new JavaConstantDefinitionStatement(variable, generateExpression(constDef.getExpression(), enumsInScope)));
+                        }
+                    }
+                }
+
+                for (JavaStatement st : generateAssignment(exp.getExpression(), enumsInScope, output)) {
+                    builder.append(st);
+                }
+
+                return builder.build();
+            }
+            else if (expression instanceof IfExpression exp) {
+                final JavaExpression condition = generateExpression(exp.getCondition(), enumsInScope);
+                return new ImmutableList.Builder<JavaStatement>()
+                        .append(new JavaIfStatement(condition,
+                                generateAssignment(exp.getThenClause(), enumsInScope, output),
+                                generateAssignment(exp.getElseClause(), enumsInScope, output)))
+                        .build();
+            }
+            else {
+                return new ImmutableList.Builder<JavaStatement>()
+                        .append(new JavaAssignmentStatement(
+                                new JavaReferenceExpression(output),
+                                generateExpression(expression, enumsInScope)))
+                        .build();
             }
         }
 
@@ -576,8 +653,28 @@ public final class JavaCodeGenerator {
                         .build();
             }
             else if (expression instanceof ComplexExpression exp) {
-                // TODO: We should handle the statements as well. For now we just bypass the expression inside
-                return generateMethodCode(exp.getExpression(), enumsInScope);
+                final ImmutableList.Builder<JavaStatement> builder = new ImmutableList.Builder<>();
+                for (Statement statement : exp.getStatements()) {
+                    if (statement instanceof ConstantDefinitionStatement constDef) {
+                        if (constDef.getExpression() instanceof IfExpression) {
+                            final JavaVariable variable = new JavaVariable(constDef.getName(), transformToJavaType(mTypeMap.get(constDef.getExpression()), mDefinedEnums, mDefinedRegisters));
+                            builder.append(new JavaConstantDeclarationStatement(variable));
+                            for (JavaStatement st : generateAssignment(constDef.getExpression(), enumsInScope, constDef.getName())) {
+                                builder.append(st);
+                            }
+                        }
+                        else if (!(constDef.getExpression() instanceof FunctionDefinitionExpression)) {
+                            final JavaVariable variable = new JavaVariable(constDef.getName(), transformToJavaType(mTypeMap.get(constDef.getExpression()), mDefinedEnums, mDefinedRegisters));
+                            builder.append(new JavaConstantDefinitionStatement(variable, generateExpression(constDef.getExpression(), enumsInScope)));
+                        }
+                    }
+                }
+
+                for (JavaStatement st : generateMethodCode(exp.getExpression(), enumsInScope)) {
+                    builder.append(st);
+                }
+
+                return builder.build();
             }
             else if (expression instanceof EnumValueLiteralExpression exp) {
                 return new ImmutableList.Builder<JavaStatement>()
@@ -670,7 +767,7 @@ public final class JavaCodeGenerator {
         final ImmutableMap<ConstantDefinitionStatement, ImmutableSet<JavaEnum>> allStatementMethods = methodFinder.findAllMethods(statements, ImmutableHashSet.empty());
         final ImmutableMap<FunctionDefinitionExpression, JavaMethodReference> allMethods = buildMethodsMap(outputClass, allStatementMethods.keySet(), allEnums, allRegisters);
 
-        final Generation generation = new Generation(allEnumClasses.toImmutable(), allStatementMethods);
+        final Generation generation = new Generation(allEnumClasses.toImmutable(), allStatementMethods, allEnums.toImmutable(), allRegisters.toImmutable());
         for (ConstantDefinitionStatement constDef : allStatementMethods.keySet()) {
             final FunctionDefinitionExpression funcDef = (FunctionDefinitionExpression) constDef.getExpression();
             final JavaMethodReference methodRef = allMethods.get(funcDef);

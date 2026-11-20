@@ -1,5 +1,8 @@
 package sword.logic.compiler.generator.java.expressions;
 
+import sword.collections.ImmutableSet;
+import sword.logic.compiler.generator.java.entities.JavaWildcardableClassReference;
+
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 
 public final class JavaArrayLengthExpression implements JavaExpression {
@@ -11,7 +14,7 @@ public final class JavaArrayLengthExpression implements JavaExpression {
     }
 
     @Override
-    public String getText() {
-        return mArray.getText() + ".length";
+    public String getText(ImmutableSet<JavaWildcardableClassReference> importedClassReferences) {
+        return mArray.getText(importedClassReferences) + ".length";
     }
 }

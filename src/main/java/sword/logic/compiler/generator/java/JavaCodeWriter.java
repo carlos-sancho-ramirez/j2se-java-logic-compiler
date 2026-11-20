@@ -87,7 +87,7 @@ public final class JavaCodeWriter {
 
             final Formatter methodFormatter = classFormatter.increaseIndentation();
             for (JavaStatement statement : constructor.getStatements()) {
-                out.println(statement.getText(methodFormatter));
+                out.println(statement.getText(importedClassReferences, methodFormatter));
             }
 
             out.println(classFormatter.getIndentation() + "}");
@@ -126,7 +126,7 @@ public final class JavaCodeWriter {
 
             final Formatter methodFormatter = classFormatter.increaseIndentation();
             for (JavaStatement statement : method.getStatements()) {
-                out.println(statement.getText(methodFormatter));
+                out.println(statement.getText(importedClassReferences, methodFormatter));
             }
 
             out.println(classFormatter.getIndentation() + "}");

@@ -1,5 +1,8 @@
 package sword.logic.compiler.generator.java.expressions;
 
+import sword.collections.ImmutableSet;
+import sword.logic.compiler.generator.java.entities.JavaWildcardableClassReference;
+
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 
 public final class JavaLowerThanExpression implements JavaExpression {
@@ -13,7 +16,7 @@ public final class JavaLowerThanExpression implements JavaExpression {
     }
 
     @Override
-    public String getText() {
-        return mLeft.getText() + " < " + mRight.getText();
+    public String getText(ImmutableSet<JavaWildcardableClassReference> importedClassReferences) {
+        return mLeft.getText(importedClassReferences) + " < " + mRight.getText(importedClassReferences);
     }
 }

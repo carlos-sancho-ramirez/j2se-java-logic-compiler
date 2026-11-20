@@ -1,6 +1,8 @@
 package sword.logic.compiler.generator.java.statements;
 
+import sword.collections.ImmutableSet;
 import sword.logic.compiler.generator.Formatter;
+import sword.logic.compiler.generator.java.entities.JavaWildcardableClassReference;
 import sword.logic.compiler.generator.java.expressions.JavaExpression;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
@@ -14,7 +16,7 @@ public final class JavaReturnStatement implements JavaStatement {
     }
 
     @Override
-    public String getText(Formatter formatter) {
-        return formatter.getIndentation() + "return " + mExpression.getText() + ";";
+    public String getText(ImmutableSet<JavaWildcardableClassReference> importedClassReferences, Formatter formatter) {
+        return formatter.getIndentation() + "return " + mExpression.getText(importedClassReferences) + ";";
     }
 }

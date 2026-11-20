@@ -1,5 +1,8 @@
 package sword.logic.compiler.generator.java.expressions;
 
+import sword.collections.ImmutableSet;
+import sword.logic.compiler.generator.java.entities.JavaWildcardableClassReference;
+
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 
 public final class JavaMultiplicationExpression implements JavaExpression {
@@ -17,15 +20,15 @@ public final class JavaMultiplicationExpression implements JavaExpression {
                 exp instanceof JavaSubtractionExpression;
     }
 
-    static String composeText(JavaExpression left, JavaExpression right, String operator) {
-        final String leftText = left.getText();
-        final String rightText = right.getText();
+    static String composeText(ImmutableSet<JavaWildcardableClassReference> importedClassReferences, JavaExpression left, JavaExpression right, String operator) {
+        final String leftText = left.getText(importedClassReferences);
+        final String rightText = right.getText(importedClassReferences);
         return (requiresParentheses(left)? "(" + leftText + ") " : leftText + " ") + operator +
                 (requiresParentheses(right)? " (" + rightText + ")" : " " + rightText);
     }
 
     @Override
-    public String getText() {
-        return composeText(mLeft, mRight, "*");
+    public String getText(ImmutableSet<JavaWildcardableClassReference> importedClassReferences) {
+        return composeText(importedClassReferences, mLeft, mRight, "*");
     }
 }

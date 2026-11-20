@@ -1,5 +1,8 @@
 package sword.logic.compiler.generator.java.expressions;
 
+import sword.collections.ImmutableSet;
+import sword.logic.compiler.generator.java.entities.JavaWildcardableClassReference;
+
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 
 public final class JavaFieldAccessExpression implements JavaAssignableExpression {
@@ -13,7 +16,7 @@ public final class JavaFieldAccessExpression implements JavaAssignableExpression
     }
 
     @Override
-    public String getText() {
-        return mClass.getText() + "." + mFieldName;
+    public String getText(ImmutableSet<JavaWildcardableClassReference> importedClassReferences) {
+        return mClass.getText(importedClassReferences) + "." + mFieldName;
     }
 }

@@ -1,7 +1,9 @@
 package sword.logic.compiler.generator.java.statements;
 
 import sword.collections.ImmutableList;
+import sword.collections.ImmutableSet;
 import sword.logic.compiler.generator.Formatter;
+import sword.logic.compiler.generator.java.entities.JavaWildcardableClassReference;
 import sword.logic.compiler.generator.java.expressions.JavaExpression;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
@@ -18,11 +20,11 @@ public final class JavaIfStatement implements JavaStatement {
         mElseStatements = elseStatements;
     }
 
-    private String getTextNoFirstIndentation(Formatter formatter) {
-        String result = "if (" + mCondition.getText() + ") {\n";
+    private String getTextNoFirstIndentation(ImmutableSet<JavaWildcardableClassReference> importedClassReferences, Formatter formatter) {
+        String result = "if (" + mCondition.getText(importedClassReferences) + ") {\n";
         final Formatter innerFormatter = formatter.increaseIndentation();
         for (JavaStatement st : mThenStatements) {
-            result += st.getText(innerFormatter) + "\n";
+            result += st.getText(importedClassReferences, innerFormatter) + "\n";
         }
 
         if (!mElseStatements.isEmpty()) {
@@ -30,13 +32,13 @@ public final class JavaIfStatement implements JavaStatement {
                 return result +
                         formatter.getIndentation() + "}\n" +
                         formatter.getIndentation() + "else " +
-                        innerIfStatement.getTextNoFirstIndentation(formatter);
+                        innerIfStatement.getTextNoFirstIndentation(importedClassReferences, formatter);
             }
             else {
                 result += formatter.getIndentation() + "}\n" +
                         formatter.getIndentation() + "else {\n";
                 for (JavaStatement st : mElseStatements) {
-                    result += st.getText(innerFormatter) + "\n";
+                    result += st.getText(importedClassReferences, innerFormatter) + "\n";
                 }
             }
         }
@@ -45,7 +47,7 @@ public final class JavaIfStatement implements JavaStatement {
     }
 
     @Override
-    public String getText(Formatter formatter) {
-        return formatter.getIndentation() + getTextNoFirstIndentation(formatter);
+    public String getText(ImmutableSet<JavaWildcardableClassReference> importedClassReferences, Formatter formatter) {
+        return formatter.getIndentation() + getTextNoFirstIndentation(importedClassReferences, formatter);
     }
 }
