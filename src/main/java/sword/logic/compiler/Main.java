@@ -42,11 +42,13 @@ public final class Main {
     private static final class Parameters {
         final String sourceFilePath;
         final Language outputLanguage;
+        final String outputDirectory;
 
-        Parameters(String sourceFilePath, Language outputLanguage) {
-            ensureNonNull(sourceFilePath, outputLanguage);
+        Parameters(String sourceFilePath, Language outputLanguage, String outputDirectory) {
+            ensureNonNull(sourceFilePath, outputLanguage, outputDirectory);
             this.sourceFilePath = sourceFilePath;
             this.outputLanguage = outputLanguage;
+            this.outputDirectory = outputDirectory;
         }
     }
 
@@ -54,6 +56,7 @@ public final class Main {
         final int argCount = args.length;
         String sourceFilePath = null;
         Language outputLanguage = null;
+        String outputDirectory = null;
 
         for (int argIndex = 0; argIndex < argCount; argIndex++) {
             final String arg = args[argIndex];
@@ -80,6 +83,19 @@ public final class Main {
                     }
                 }
             }
+            else if ("--outputDirectory".equals(arg)) {
+                if (argIndex == argCount - 1) {
+                    System.err.println("Expected path after argument --outputDirectory");
+                    return null;
+                }
+                else if (outputDirectory != null) {
+                    System.err.println("Argument --outputDirectory present more than once");
+                    return null;
+                }
+                else {
+                    outputDirectory = args[++argIndex];
+                }
+            }
             else if (sourceFilePath == null) {
                 sourceFilePath = arg;
             }
@@ -98,7 +114,11 @@ public final class Main {
                 outputLanguage = Language.C;
             }
 
-            return new Parameters(sourceFilePath, outputLanguage);
+            if (outputDirectory == null) {
+                outputDirectory = "build";
+            }
+
+            return new Parameters(sourceFilePath, outputLanguage, outputDirectory);
         }
     }
 
@@ -120,7 +140,7 @@ public final class Main {
 
                     for (JavaClass javaClass : javaClasses) {
                         final JavaCodeWriter codeWriter = new JavaCodeWriter();
-                        codeWriter.writeSource("build", javaClass);
+                        codeWriter.writeSource(parameters.outputDirectory, javaClass);
                     }
                 }
                 else {
@@ -129,7 +149,7 @@ public final class Main {
                     final CCodeGenerator.Result codeGenerationResult = codeGenerator.generate(interpreterResult.getStatements());
 
                     final CCodeWriter codeWriter = new CCodeWriter();
-                    final String path = "build" + File.separator + "output";
+                    final String path = parameters.outputDirectory + File.separator + "output";
                     codeWriter.writeHeader(path, codeGenerationResult.getHeaderEnums(), codeGenerationResult.getHeaderStatements());
                     codeWriter.writeSource(path, codeGenerationResult.getSourceEnums(), codeGenerationResult.getSourceStatements());
                 }
