@@ -25,6 +25,7 @@ public final class JavaNormalClass implements JavaClass {
     private final int mModifiers;
 
     private final MutableList<JavaField> mAddedFields = MutableList.empty();
+    private final MutableList<JavaConstructor> mAddedConstructors = MutableList.empty();
     private final MutableList<JavaMethod> mAddedMethods = MutableList.empty();
 
     JavaNormalClass(JavaClassReference reference, int modifiers) {
@@ -67,6 +68,10 @@ public final class JavaNormalClass implements JavaClass {
         return mAddedFields.toImmutable();
     }
 
+    public ImmutableList<JavaConstructor> getConstructors() {
+        return mAddedConstructors.toImmutable();
+    }
+
     public ImmutableList<JavaMethod> getMethods() {
         return mAddedMethods.toImmutable();
     }
@@ -76,6 +81,16 @@ public final class JavaNormalClass implements JavaClass {
         final JavaField newField = new JavaField(this, new JavaVariable(fieldName, type), modifiers);
         mAddedFields.append(newField);
         return newField;
+    }
+
+    public JavaConstructor addConstructor(
+            ImmutableList<JavaVariable> parameters,
+            int modifiers,
+            ImmutableList<JavaStatement> statements) {
+        ensureValidState(mAddedConstructors.allMatch(c -> !c.getParameters().map(JavaVariable::getType).equals(parameters.map(JavaVariable::getType))));
+        final JavaConstructor newConstructor = new JavaConstructor(this, parameters, modifiers, statements);
+        mAddedConstructors.append(newConstructor);
+        return newConstructor;
     }
 
     public JavaMethodReference newMethodReference(String methodName, ImmutableList<JavaType> parameters, JavaVoidableType returnType) {

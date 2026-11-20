@@ -20,6 +20,7 @@ import sword.logic.compiler.generator.java.entities.JavaField;
 import sword.logic.compiler.generator.java.entities.JavaMethodReference;
 import sword.logic.compiler.generator.java.entities.JavaNormalClass;
 import sword.logic.compiler.generator.java.entities.JavaPackage;
+import sword.logic.compiler.generator.java.entities.JavaVariable;
 import sword.logic.compiler.generator.java.expressions.JavaAdditionExpression;
 import sword.logic.compiler.generator.java.expressions.JavaAndExpression;
 import sword.logic.compiler.generator.java.expressions.JavaArrayConcatenationExpression;
@@ -29,6 +30,7 @@ import sword.logic.compiler.generator.java.expressions.JavaDivisionExpression;
 import sword.logic.compiler.generator.java.expressions.JavaEnumValueLiteralExpression;
 import sword.logic.compiler.generator.java.expressions.JavaEqualThanExpression;
 import sword.logic.compiler.generator.java.expressions.JavaExpression;
+import sword.logic.compiler.generator.java.expressions.JavaFieldAccessExpression;
 import sword.logic.compiler.generator.java.expressions.JavaFunctionExecutionExpression;
 import sword.logic.compiler.generator.java.expressions.JavaGreaterOrEqualThanExpression;
 import sword.logic.compiler.generator.java.expressions.JavaIntegerLiteralExpression;
@@ -40,6 +42,7 @@ import sword.logic.compiler.generator.java.expressions.JavaOrExpression;
 import sword.logic.compiler.generator.java.expressions.JavaReferenceExpression;
 import sword.logic.compiler.generator.java.expressions.JavaStringLiteralExpression;
 import sword.logic.compiler.generator.java.expressions.JavaTernaryExpression;
+import sword.logic.compiler.generator.java.statements.JavaAssignmentStatement;
 import sword.logic.compiler.generator.java.statements.JavaIfStatement;
 import sword.logic.compiler.generator.java.statements.JavaReturnStatement;
 import sword.logic.compiler.generator.java.statements.JavaStatement;
@@ -646,6 +649,13 @@ public final class JavaCodeGenerator {
                     final int modifiers = JavaField.Modifiers.PRIVATE | JavaField.Modifiers.FINAL;
                     cls.addField(mCodeStyleForRegister.propertyName(fieldEntry.key()), transformToJavaType(fieldEntry.value(), allRegisters), modifiers);
                 }
+
+                final ImmutableList<JavaVariable> constructorParameters = regDef.getFields().entries().map(fieldEntry ->
+                        new JavaVariable(fieldEntry.key(), transformToJavaType(fieldEntry.value(), allRegisters)));
+                final JavaReferenceExpression thisExpression = new JavaReferenceExpression("this");
+                final ImmutableList<JavaStatement> constructorStatements = regDef.getFields().entries().map(fieldEntry ->
+                        new JavaAssignmentStatement(new JavaFieldAccessExpression(thisExpression, fieldEntry.key()), new JavaReferenceExpression(fieldEntry.key())));
+                cls.addConstructor(constructorParameters, classModifiers, constructorStatements);
             }
         }
 

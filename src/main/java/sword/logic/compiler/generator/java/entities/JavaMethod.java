@@ -30,7 +30,7 @@ public final class JavaMethod {
             int modifiers,
             ImmutableList<JavaStatement> statements) {
         ensureNonNull(reference, parameterNames, statements);
-        ensureValidArguments(parameterNames.size() == reference.getParameters().size());
+        ensureValidArguments(parameterNames.size() == reference.getParameters().size() && parameterNames.toSet().size() == parameterNames.size());
         mReference = reference;
         mParameterNames = parameterNames;
         mModifiers = modifiers;

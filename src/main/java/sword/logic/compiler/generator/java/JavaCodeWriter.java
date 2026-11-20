@@ -4,6 +4,7 @@ import sword.collections.ImmutableList;
 import sword.logic.compiler.generator.Formatter;
 import sword.logic.compiler.generator.java.entities.JavaClass;
 import sword.logic.compiler.generator.java.entities.JavaClassReference;
+import sword.logic.compiler.generator.java.entities.JavaConstructor;
 import sword.logic.compiler.generator.java.entities.JavaEnum;
 import sword.logic.compiler.generator.java.entities.JavaField;
 import sword.logic.compiler.generator.java.entities.JavaMethod;
@@ -92,7 +93,35 @@ public final class JavaCodeWriter {
                     .append(";"));
         }
 
-        // TODO: Missing constructors
+        for (JavaConstructor constructor : javaClass.getConstructors()) {
+            final StringBuilder constructorSignature = new StringBuilder(classFormatter.getIndentation());
+            if (constructor.isPublic()) {
+                constructorSignature.append("public ");
+            }
+            else if (constructor.isProtected()) {
+                constructorSignature.append("protected ");
+            }
+            else if (constructor.isPrivate()) {
+                constructorSignature.append("private ");
+            }
+
+            out.println();
+            out.println(constructorSignature
+                    .append(javaClass.getName())
+                    .append("(")
+                    .append(constructor.getParameters()
+                            .map(param -> typeToString(javaPackage, param.getType()) + " " + param.getName())
+                            .reduce((a, b) -> a + ", " + b, ""))
+                    .append(") {"));
+
+            final Formatter methodFormatter = classFormatter.increaseIndentation();
+            for (JavaStatement statement : constructor.getStatements()) {
+                out.println(statement.getText(methodFormatter));
+            }
+
+            out.println(classFormatter.getIndentation() + "}");
+        }
+
 
         for (JavaMethod method : javaClass.getMethods()) {
             final StringBuilder methodSignature = new StringBuilder(classFormatter.getIndentation());
