@@ -2,7 +2,20 @@ package sword.logic.compiler.generator.java;
 
 import sword.collections.ImmutableList;
 import sword.logic.compiler.generator.Formatter;
+import sword.logic.compiler.generator.java.entities.JavaClass;
+import sword.logic.compiler.generator.java.entities.JavaClassReference;
+import sword.logic.compiler.generator.java.entities.JavaEnum;
+import sword.logic.compiler.generator.java.entities.JavaField;
+import sword.logic.compiler.generator.java.entities.JavaMethod;
+import sword.logic.compiler.generator.java.entities.JavaNormalClass;
+import sword.logic.compiler.generator.java.entities.JavaPackage;
 import sword.logic.compiler.generator.java.statements.JavaStatement;
+import sword.logic.compiler.generator.java.types.JavaArrayType;
+import sword.logic.compiler.generator.java.types.JavaBooleanType;
+import sword.logic.compiler.generator.java.types.JavaByteType;
+import sword.logic.compiler.generator.java.types.JavaIntType;
+import sword.logic.compiler.generator.java.types.JavaShortType;
+import sword.logic.compiler.generator.java.types.JavaVoidableType;
 
 import java.io.File;
 import java.io.FileOutputStream;

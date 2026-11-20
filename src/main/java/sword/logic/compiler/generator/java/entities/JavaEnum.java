@@ -1,4 +1,4 @@
-package sword.logic.compiler.generator.java;
+package sword.logic.compiler.generator.java.entities;
 
 import sword.collections.ImmutableList;
 import sword.collections.MutableList;

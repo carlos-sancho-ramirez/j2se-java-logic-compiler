@@ -1,4 +1,4 @@
-package sword.logic.compiler.generator.java;
+package sword.logic.compiler.generator.java.types;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 

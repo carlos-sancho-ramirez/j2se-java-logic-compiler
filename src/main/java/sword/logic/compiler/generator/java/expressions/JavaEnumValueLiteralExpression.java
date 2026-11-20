@@ -1,6 +1,6 @@
 package sword.logic.compiler.generator.java.expressions;
 
-import sword.logic.compiler.generator.java.JavaEnumValue;
+import sword.logic.compiler.generator.java.entities.JavaEnumValue;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 

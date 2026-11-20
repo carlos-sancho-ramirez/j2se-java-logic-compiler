@@ -1,4 +1,6 @@
-package sword.logic.compiler.generator.java;
+package sword.logic.compiler.generator.java.entities;
+
+import sword.logic.compiler.generator.java.types.JavaType;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 

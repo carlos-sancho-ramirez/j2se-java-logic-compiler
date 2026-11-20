@@ -1,4 +1,4 @@
-package sword.logic.compiler.generator.java;
+package sword.logic.compiler.generator.java.types;
 
 public final class JavaShortType implements JavaType {
     private static JavaShortType instance;

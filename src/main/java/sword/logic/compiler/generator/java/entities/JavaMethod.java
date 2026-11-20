@@ -1,11 +1,11 @@
-package sword.logic.compiler.generator.java;
+package sword.logic.compiler.generator.java.entities;
 
 import sword.collections.ImmutableList;
 import sword.logic.compiler.generator.java.statements.JavaStatement;
+import sword.logic.compiler.generator.java.types.JavaVoidableType;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
-import static sword.logic.compiler.generator.java.JavaVariable.isValidVariableName;
 
 public final class JavaMethod {
     public static final class Modifiers {
