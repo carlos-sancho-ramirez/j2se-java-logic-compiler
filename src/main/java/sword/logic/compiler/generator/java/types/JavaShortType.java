@@ -1,5 +1,8 @@
 package sword.logic.compiler.generator.java.types;
 
+import sword.collections.ImmutableSet;
+import sword.logic.compiler.generator.java.entities.JavaWildcardableClassReference;
+
 public final class JavaShortType implements JavaType {
     private static JavaShortType instance;
 
@@ -12,5 +15,10 @@ public final class JavaShortType implements JavaType {
     }
 
     private JavaShortType() {
+    }
+
+    @Override
+    public String getTypeText(ImmutableSet<JavaWildcardableClassReference> importedClassReferences) {
+        return "short";
     }
 }

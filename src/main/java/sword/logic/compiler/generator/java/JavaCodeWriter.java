@@ -1,22 +1,18 @@
 package sword.logic.compiler.generator.java;
 
+import sword.collections.ImmutableHashSet;
 import sword.collections.ImmutableList;
+import sword.collections.ImmutableSet;
 import sword.logic.compiler.generator.Formatter;
 import sword.logic.compiler.generator.java.entities.JavaClass;
-import sword.logic.compiler.generator.java.entities.JavaClassReference;
 import sword.logic.compiler.generator.java.entities.JavaConstructor;
 import sword.logic.compiler.generator.java.entities.JavaEnum;
 import sword.logic.compiler.generator.java.entities.JavaField;
 import sword.logic.compiler.generator.java.entities.JavaMethod;
 import sword.logic.compiler.generator.java.entities.JavaNormalClass;
 import sword.logic.compiler.generator.java.entities.JavaPackage;
+import sword.logic.compiler.generator.java.entities.JavaWildcardableClassReference;
 import sword.logic.compiler.generator.java.statements.JavaStatement;
-import sword.logic.compiler.generator.java.types.JavaArrayType;
-import sword.logic.compiler.generator.java.types.JavaBooleanType;
-import sword.logic.compiler.generator.java.types.JavaByteType;
-import sword.logic.compiler.generator.java.types.JavaIntType;
-import sword.logic.compiler.generator.java.types.JavaShortType;
-import sword.logic.compiler.generator.java.types.JavaVoidableType;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -24,37 +20,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 
 public final class JavaCodeWriter {
-    private String typeToString(JavaPackage currentPackage, JavaVoidableType type) {
-        if (type == JavaBooleanType.getInstance()) {
-            return "boolean";
-        }
-        else if (type == JavaByteType.getInstance()) {
-            return "byte";
-        }
-        else if (type == JavaShortType.getInstance()) {
-            return "short";
-        }
-        else if (type == JavaIntType.getInstance()) {
-            return "int";
-        }
-        else if (type instanceof JavaArrayType arrayType) {
-            return typeToString(currentPackage, arrayType.getItemType()) + "[]";
-        }
-        else {
-            final JavaClassReference ref = (JavaClassReference) type;
-            final JavaPackage refPackage = ref.getPackage();
-            final String refPackageStr = refPackage.toStringList().reduce((a, b) -> a + "." + b);
-            if (refPackage == currentPackage || refPackageStr.equals("java.lang")) {
-                return ref.getName();
-            }
-            else {
-                return refPackageStr + "." + ref.getName();
-            }
-        }
-    }
-
     private void writeNormalClassSource(PrintWriter out, JavaNormalClass javaClass) {
-        final JavaPackage javaPackage = javaClass.getPackage();
         final StringBuilder classSignature = new StringBuilder();
         if (javaClass.isPublic()) {
             classSignature.append("public ");
@@ -66,6 +32,11 @@ public final class JavaCodeWriter {
 
         out.println(classSignature.append("class ").append(javaClass.getName()).append(" {"));
         final Formatter classFormatter = new JavaDefaultFormatter().increaseIndentation();
+        final ImmutableSet<JavaWildcardableClassReference> importedClassReferences = new ImmutableHashSet.Builder<JavaWildcardableClassReference>()
+                .add(JavaPackage.createPackage("java").newSubpackage("lang").newWildcardClassReference())
+                .add(javaClass.getPackage().newWildcardClassReference())
+                .build();
+
         for (JavaField field : javaClass.getFields()) {
             final StringBuilder fieldSignature = new StringBuilder(classFormatter.getIndentation());
             if (field.isPublic()) {
@@ -87,7 +58,7 @@ public final class JavaCodeWriter {
             }
 
             out.println(fieldSignature
-                    .append(typeToString(javaPackage, field.getType()))
+                    .append(field.getType().getTypeText(importedClassReferences))
                     .append(" ")
                     .append(field.getName())
                     .append(";"));
@@ -110,7 +81,7 @@ public final class JavaCodeWriter {
                     .append(javaClass.getName())
                     .append("(")
                     .append(constructor.getParameters()
-                            .map(param -> typeToString(javaPackage, param.getType()) + " " + param.getName())
+                            .map(param -> param.getType().getTypeText(importedClassReferences) + " " + param.getName())
                             .reduce((a, b) -> a + ", " + b, ""))
                     .append(") {"));
 
@@ -121,7 +92,6 @@ public final class JavaCodeWriter {
 
             out.println(classFormatter.getIndentation() + "}");
         }
-
 
         for (JavaMethod method : javaClass.getMethods()) {
             final StringBuilder methodSignature = new StringBuilder(classFormatter.getIndentation());
@@ -145,12 +115,12 @@ public final class JavaCodeWriter {
 
             out.println();
             out.println(methodSignature
-                    .append(typeToString(javaPackage, method.getReturnType()))
+                    .append(method.getReturnType().getTypeText(importedClassReferences))
                     .append(" ")
                     .append(method.getName())
                     .append("(")
                     .append(method.getParameters()
-                            .map(param -> typeToString(javaPackage, param.getType()) + " " + param.getName())
+                            .map(param -> param.getType().getTypeText(importedClassReferences) + " " + param.getName())
                             .reduce((a, b) -> a + ", " + b, ""))
                     .append(") {"));
 

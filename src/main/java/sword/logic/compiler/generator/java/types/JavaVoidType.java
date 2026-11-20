@@ -1,5 +1,8 @@
 package sword.logic.compiler.generator.java.types;
 
+import sword.collections.ImmutableSet;
+import sword.logic.compiler.generator.java.entities.JavaWildcardableClassReference;
+
 public final class JavaVoidType implements JavaVoidableType {
     private static JavaVoidType instance;
 
@@ -12,5 +15,10 @@ public final class JavaVoidType implements JavaVoidableType {
     }
 
     private JavaVoidType() {
+    }
+
+    @Override
+    public String getTypeText(ImmutableSet<JavaWildcardableClassReference> importedClassReferences) {
+        return "void";
     }
 }

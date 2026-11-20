@@ -1,5 +1,8 @@
 package sword.logic.compiler.generator.java.types;
 
+import sword.collections.ImmutableSet;
+import sword.logic.compiler.generator.java.entities.JavaWildcardableClassReference;
+
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 
 public final class JavaArrayType implements JavaType {
@@ -23,5 +26,10 @@ public final class JavaArrayType implements JavaType {
     public boolean equals(Object obj) {
         return this == obj || obj instanceof JavaArrayType that &&
                 mItemType.equals(that.mItemType);
+    }
+
+    @Override
+    public String getTypeText(ImmutableSet<JavaWildcardableClassReference> importedClassReferences) {
+        return mItemType.getTypeText(importedClassReferences) + "[]";
     }
 }

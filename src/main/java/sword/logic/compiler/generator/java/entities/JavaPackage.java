@@ -57,6 +57,10 @@ public final class JavaPackage {
         return new JavaClassReference(this, className);
     }
 
+    public JavaWildcardClassReference newWildcardClassReference() {
+        return new JavaWildcardClassReference(this);
+    }
+
     @Override
     public int hashCode() {
         return mSegment.hashCode();

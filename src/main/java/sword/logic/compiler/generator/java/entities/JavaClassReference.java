@@ -1,11 +1,12 @@
 package sword.logic.compiler.generator.java.entities;
 
+import sword.collections.ImmutableSet;
 import sword.logic.compiler.generator.java.types.JavaType;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 
-public final class JavaClassReference implements JavaType {
+public final class JavaClassReference implements JavaType, JavaWildcardableClassReference {
     public static boolean isValidClassName(String className) {
         if (className == null || className.isEmpty()) {
             return false;
@@ -65,5 +66,11 @@ public final class JavaClassReference implements JavaType {
         return this == obj || obj instanceof JavaClassReference that &&
                 mPackage.equals(that.mPackage) &&
                 mClassName.equals(that.mClassName);
+    }
+
+    @Override
+    public String getTypeText(ImmutableSet<JavaWildcardableClassReference> importedClassReferences) {
+        final boolean simpleNameIsOk = importedClassReferences.anyMatch(ref -> ref == this || ref instanceof JavaWildcardClassReference wRef && wRef.getPackage().equals(mPackage));
+        return simpleNameIsOk? mClassName : mPackage.toStringList().append(mClassName).reduce((a, b) -> a + '.' + b);
     }
 }

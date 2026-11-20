@@ -1,5 +1,8 @@
 package sword.logic.compiler.generator.java.types;
 
+import sword.collections.ImmutableSet;
+import sword.logic.compiler.generator.java.entities.JavaWildcardableClassReference;
+
 public final class JavaByteType implements JavaType {
     private static JavaByteType instance;
 
@@ -12,5 +15,10 @@ public final class JavaByteType implements JavaType {
     }
 
     private JavaByteType() {
+    }
+
+    @Override
+    public String getTypeText(ImmutableSet<JavaWildcardableClassReference> importedClassReferences) {
+        return "byte";
     }
 }
