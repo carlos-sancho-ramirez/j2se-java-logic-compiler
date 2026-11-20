@@ -342,12 +342,13 @@ public final class JavaCodeGenerator {
     private ImmutableMap<FunctionDefinitionExpression, JavaMethodReference> buildMethodsMap(
             JavaNormalClass javaClass,
             ImmutableSet<ConstantDefinitionStatement> statements,
+            Map<EnumType.Definition, JavaClassReference> definedEnums,
             Map<RegisterType.Definition, JavaClassReference> definedRegisters) {
         final MutableHashMap<FunctionDefinitionExpression, JavaMethodReference> resultMap = MutableHashMap.empty();
         for (ConstantDefinitionStatement statement : statements) {
             final FunctionDefinitionExpression funcDef = (FunctionDefinitionExpression) statement.getExpression();
-            final ImmutableList<JavaType> paramTypes = funcDef.getParameters().map(p -> transformToJavaType(p.getType(), definedRegisters));
-            final JavaType returnType = transformToJavaType(mTypeMap.get(funcDef.getBody()), definedRegisters);
+            final ImmutableList<JavaType> paramTypes = funcDef.getParameters().map(p -> transformToJavaType(p.getType(), definedEnums, definedRegisters));
+            final JavaType returnType = transformToJavaType(mTypeMap.get(funcDef.getBody()), definedEnums, definedRegisters);
             final JavaMethodReference desiredReference = javaClass.newMethodReference(statement.getName(), paramTypes, returnType);
             if (resultMap.anyMatch(ref -> ref.equals(desiredReference))) {
                 final int retrials = 100;
@@ -372,13 +373,16 @@ public final class JavaCodeGenerator {
         return resultMap.toImmutable();
     }
 
-    private JavaType transformToJavaType(Type type, Map<RegisterType.Definition, JavaClassReference> definedRegisters) {
+    private JavaType transformToJavaType(
+            Type type,
+            Map<EnumType.Definition, JavaClassReference> definedEnums,
+            Map<RegisterType.Definition, JavaClassReference> definedRegisters) {
         if (type instanceof EnumType enumType) {
             if (enumType.isBooleanType()) {
                 return JavaBooleanType.getInstance();
             }
             else {
-                return JavaIntType.getInstance();
+                return definedEnums.get(enumType.getDefinition());
             }
         }
         else if (type instanceof ArrayType arrayType) {
@@ -392,7 +396,7 @@ public final class JavaCodeGenerator {
                 return javaLangStringClassRef;
             }
             else {
-                return new JavaArrayType(transformToJavaType(arrayType.getItemType(), definedRegisters));
+                return new JavaArrayType(transformToJavaType(arrayType.getItemType(), definedEnums, definedRegisters));
             }
         }
         else if (type instanceof IntType intType) {
@@ -647,11 +651,11 @@ public final class JavaCodeGenerator {
 
                 for (Map.Entry<String, Type> fieldEntry : regDef.getFields().entries()) {
                     final int modifiers = JavaField.Modifiers.PRIVATE | JavaField.Modifiers.FINAL;
-                    cls.addField(mCodeStyleForRegister.propertyName(fieldEntry.key()), transformToJavaType(fieldEntry.value(), allRegisters), modifiers);
+                    cls.addField(mCodeStyleForRegister.propertyName(fieldEntry.key()), transformToJavaType(fieldEntry.value(), allEnums, allRegisters), modifiers);
                 }
 
                 final ImmutableList<JavaVariable> constructorParameters = regDef.getFields().entries().map(fieldEntry ->
-                        new JavaVariable(fieldEntry.key(), transformToJavaType(fieldEntry.value(), allRegisters)));
+                        new JavaVariable(fieldEntry.key(), transformToJavaType(fieldEntry.value(), allEnums, allRegisters)));
                 final JavaReferenceExpression thisExpression = new JavaReferenceExpression("this");
                 final ImmutableList<JavaStatement> constructorStatements = regDef.getFields().entries().map(fieldEntry ->
                         new JavaAssignmentStatement(new JavaFieldAccessExpression(thisExpression, fieldEntry.key()), new JavaReferenceExpression(fieldEntry.key())));
@@ -664,7 +668,7 @@ public final class JavaCodeGenerator {
 
         final MethodFinder methodFinder = new MethodFinder(allEnumClasses.toImmutable());
         final ImmutableMap<ConstantDefinitionStatement, ImmutableSet<JavaEnum>> allStatementMethods = methodFinder.findAllMethods(statements, ImmutableHashSet.empty());
-        final ImmutableMap<FunctionDefinitionExpression, JavaMethodReference> allMethods = buildMethodsMap(outputClass, allStatementMethods.keySet(), allRegisters);
+        final ImmutableMap<FunctionDefinitionExpression, JavaMethodReference> allMethods = buildMethodsMap(outputClass, allStatementMethods.keySet(), allEnums, allRegisters);
 
         final Generation generation = new Generation(allEnumClasses.toImmutable(), allStatementMethods);
         for (ConstantDefinitionStatement constDef : allStatementMethods.keySet()) {
