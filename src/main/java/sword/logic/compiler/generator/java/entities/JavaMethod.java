@@ -2,7 +2,7 @@ package sword.logic.compiler.generator.java.entities;
 
 import sword.collections.ImmutableList;
 import sword.logic.compiler.generator.java.statements.JavaStatement;
-import sword.logic.compiler.generator.java.types.JavaVoidableType;
+import sword.logic.compiler.generator.java.types.JavaType;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
@@ -49,7 +49,7 @@ public final class JavaMethod {
         return mParameterNames.indexes().map(index -> new JavaVariable(mParameterNames.valueAt(index), mReference.getParameters().valueAt(index)));
     }
 
-    public JavaVoidableType getReturnType() {
+    public JavaType getReturnType() {
         return mReference.getReturnType();
     }
 

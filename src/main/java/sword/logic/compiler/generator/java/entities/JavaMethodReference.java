@@ -2,7 +2,6 @@ package sword.logic.compiler.generator.java.entities;
 
 import sword.collections.ImmutableList;
 import sword.logic.compiler.generator.java.types.JavaType;
-import sword.logic.compiler.generator.java.types.JavaVoidableType;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
@@ -12,13 +11,13 @@ public final class JavaMethodReference {
     private final JavaNormalClass mClass;
     private final String mName;
     private final ImmutableList<JavaType> mParameters;
-    private final JavaVoidableType mReturnType;
+    private final JavaType mReturnType;
 
     public JavaMethodReference(
             JavaNormalClass javaClass,
             String methodName,
             ImmutableList<JavaType> parameters,
-            JavaVoidableType returnType) {
+            JavaType returnType) {
         ensureNonNull(javaClass, parameters, returnType);
         ensureValidArguments(isValidVariableName(methodName));
         mClass = javaClass;
@@ -39,7 +38,7 @@ public final class JavaMethodReference {
         return mParameters;
     }
 
-    public JavaVoidableType getReturnType() {
+    public JavaType getReturnType() {
         return mReturnType;
     }
 

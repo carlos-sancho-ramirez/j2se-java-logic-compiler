@@ -4,7 +4,6 @@ import sword.collections.ImmutableList;
 import sword.collections.MutableList;
 import sword.logic.compiler.generator.java.statements.JavaStatement;
 import sword.logic.compiler.generator.java.types.JavaType;
-import sword.logic.compiler.generator.java.types.JavaVoidableType;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidState;
@@ -93,7 +92,7 @@ public final class JavaNormalClass implements JavaClass {
         return newConstructor;
     }
 
-    public JavaMethodReference newMethodReference(String methodName, ImmutableList<JavaType> parameters, JavaVoidableType returnType) {
+    public JavaMethodReference newMethodReference(String methodName, ImmutableList<JavaType> parameters, JavaType returnType) {
         return new JavaMethodReference(this, methodName, parameters, returnType);
     }
 
