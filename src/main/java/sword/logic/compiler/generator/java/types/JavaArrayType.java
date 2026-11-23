@@ -1,7 +1,7 @@
 package sword.logic.compiler.generator.java.types;
 
 import sword.collections.ImmutableSet;
-import sword.logic.compiler.generator.java.entities.JavaWildcardableClassReference;
+import sword.logic.compiler.generator.java.entities.JavaImportableReference;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 
@@ -29,7 +29,7 @@ public final class JavaArrayType implements JavaType {
     }
 
     @Override
-    public String getTypeText(ImmutableSet<JavaWildcardableClassReference> importedClassReferences) {
+    public String getTypeText(ImmutableSet<JavaImportableReference> importedClassReferences) {
         return mItemType.getTypeText(importedClassReferences) + "[]";
     }
 }

@@ -3,7 +3,7 @@ package sword.logic.compiler.generator.java.statements;
 import sword.collections.ImmutableList;
 import sword.collections.ImmutableSet;
 import sword.logic.compiler.generator.Formatter;
-import sword.logic.compiler.generator.java.entities.JavaWildcardableClassReference;
+import sword.logic.compiler.generator.java.entities.JavaImportableReference;
 import sword.logic.compiler.generator.java.expressions.JavaExpression;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
@@ -20,7 +20,7 @@ public final class JavaIfStatement implements JavaStatement {
         mElseStatements = elseStatements;
     }
 
-    private String getTextNoFirstIndentation(ImmutableSet<JavaWildcardableClassReference> importedClassReferences, Formatter formatter) {
+    private String getTextNoFirstIndentation(ImmutableSet<JavaImportableReference> importedClassReferences, Formatter formatter) {
         String result = "if (" + mCondition.getText(importedClassReferences) + ") {\n";
         final Formatter innerFormatter = formatter.increaseIndentation();
         for (JavaStatement st : mThenStatements) {
@@ -47,7 +47,7 @@ public final class JavaIfStatement implements JavaStatement {
     }
 
     @Override
-    public String getText(ImmutableSet<JavaWildcardableClassReference> importedClassReferences, Formatter formatter) {
+    public String getText(ImmutableSet<JavaImportableReference> importedClassReferences, Formatter formatter) {
         return formatter.getIndentation() + getTextNoFirstIndentation(importedClassReferences, formatter);
     }
 }

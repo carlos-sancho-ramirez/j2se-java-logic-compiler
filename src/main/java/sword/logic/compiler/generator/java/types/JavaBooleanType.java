@@ -1,7 +1,7 @@
 package sword.logic.compiler.generator.java.types;
 
 import sword.collections.ImmutableSet;
-import sword.logic.compiler.generator.java.entities.JavaWildcardableClassReference;
+import sword.logic.compiler.generator.java.entities.JavaImportableReference;
 
 public final class JavaBooleanType implements JavaType {
     private static JavaBooleanType instance;
@@ -18,7 +18,7 @@ public final class JavaBooleanType implements JavaType {
     }
 
     @Override
-    public String getTypeText(ImmutableSet<JavaWildcardableClassReference> importedClassReferences) {
+    public String getTypeText(ImmutableSet<JavaImportableReference> importedClassReferences) {
         return "boolean";
     }
 }

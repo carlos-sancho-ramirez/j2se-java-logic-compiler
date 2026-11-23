@@ -2,8 +2,8 @@ package sword.logic.compiler.generator.java.statements;
 
 import sword.collections.ImmutableSet;
 import sword.logic.compiler.generator.Formatter;
-import sword.logic.compiler.generator.java.entities.JavaWildcardableClassReference;
+import sword.logic.compiler.generator.java.entities.JavaImportableReference;
 
 public interface JavaStatement {
-    String getText(ImmutableSet<JavaWildcardableClassReference> importedClassReferences, Formatter formatter);
+    String getText(ImmutableSet<JavaImportableReference> importedClassReferences, Formatter formatter);
 }

@@ -1,7 +1,7 @@
 package sword.logic.compiler.generator.java.types;
 
 import sword.collections.ImmutableSet;
-import sword.logic.compiler.generator.java.entities.JavaWildcardableClassReference;
+import sword.logic.compiler.generator.java.entities.JavaImportableReference;
 
 public interface JavaType {
     /**
@@ -12,5 +12,5 @@ public interface JavaType {
      *                                name if it is already imported.
      * @return The text that should be displayed in the resulting Java source code for this type.
      */
-    String getTypeText(ImmutableSet<JavaWildcardableClassReference> importedClassReferences);
+    String getTypeText(ImmutableSet<JavaImportableReference> importedClassReferences);
 }

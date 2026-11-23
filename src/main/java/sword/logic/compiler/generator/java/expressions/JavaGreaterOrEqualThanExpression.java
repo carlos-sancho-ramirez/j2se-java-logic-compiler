@@ -1,7 +1,7 @@
 package sword.logic.compiler.generator.java.expressions;
 
 import sword.collections.ImmutableSet;
-import sword.logic.compiler.generator.java.entities.JavaWildcardableClassReference;
+import sword.logic.compiler.generator.java.entities.JavaImportableReference;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 
@@ -16,7 +16,7 @@ public final class JavaGreaterOrEqualThanExpression implements JavaExpression {
     }
 
     @Override
-    public String getText(ImmutableSet<JavaWildcardableClassReference> importedClassReferences) {
+    public String getText(ImmutableSet<JavaImportableReference> importedClassReferences) {
         return mLeft.getText(importedClassReferences) + " >= " + mRight.getText(importedClassReferences);
     }
 }

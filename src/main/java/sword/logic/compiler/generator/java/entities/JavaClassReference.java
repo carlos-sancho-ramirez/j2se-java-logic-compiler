@@ -6,7 +6,7 @@ import sword.logic.compiler.generator.java.types.JavaType;
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
 import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 
-public final class JavaClassReference implements JavaType, JavaWildcardableClassReference {
+public final class JavaClassReference implements JavaType, JavaImportableReference {
     public static boolean isValidClassName(String className) {
         if (className == null || className.isEmpty()) {
             return false;
@@ -69,8 +69,8 @@ public final class JavaClassReference implements JavaType, JavaWildcardableClass
     }
 
     @Override
-    public String getTypeText(ImmutableSet<JavaWildcardableClassReference> importedClassReferences) {
-        final boolean simpleNameIsOk = importedClassReferences.anyMatch(ref -> ref == this || ref instanceof JavaWildcardClassReference wRef && wRef.getPackage().equals(mPackage));
+    public String getTypeText(ImmutableSet<JavaImportableReference> importedClassReferences) {
+        final boolean simpleNameIsOk = importedClassReferences.anyMatch(ref -> ref == this || ref instanceof JavaWildcardReference wRef && wRef.getPackage().equals(mPackage));
         return simpleNameIsOk? mClassName : mPackage.toStringList().append(mClassName).reduce((a, b) -> a + '.' + b);
     }
 }

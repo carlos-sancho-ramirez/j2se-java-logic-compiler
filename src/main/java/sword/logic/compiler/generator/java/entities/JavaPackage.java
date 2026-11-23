@@ -57,8 +57,8 @@ public final class JavaPackage {
         return new JavaClassReference(this, className);
     }
 
-    public JavaWildcardClassReference newWildcardClassReference() {
-        return new JavaWildcardClassReference(this);
+    public JavaWildcardReference newWildcardReference() {
+        return new JavaWildcardReference(this);
     }
 
     @Override

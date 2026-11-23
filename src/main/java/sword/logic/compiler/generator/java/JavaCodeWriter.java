@@ -11,7 +11,7 @@ import sword.logic.compiler.generator.java.entities.JavaField;
 import sword.logic.compiler.generator.java.entities.JavaMethod;
 import sword.logic.compiler.generator.java.entities.JavaNormalClass;
 import sword.logic.compiler.generator.java.entities.JavaPackage;
-import sword.logic.compiler.generator.java.entities.JavaWildcardableClassReference;
+import sword.logic.compiler.generator.java.entities.JavaImportableReference;
 import sword.logic.compiler.generator.java.statements.JavaStatement;
 
 import java.io.File;
@@ -32,9 +32,9 @@ public final class JavaCodeWriter {
 
         out.println(classSignature.append("class ").append(javaClass.getName()).append(" {"));
         final Formatter classFormatter = new JavaDefaultFormatter().increaseIndentation();
-        final ImmutableSet<JavaWildcardableClassReference> importedClassReferences = new ImmutableHashSet.Builder<JavaWildcardableClassReference>()
-                .add(JavaPackage.createPackage("java").newSubpackage("lang").newWildcardClassReference())
-                .add(javaClass.getPackage().newWildcardClassReference())
+        final ImmutableSet<JavaImportableReference> importedClassReferences = new ImmutableHashSet.Builder<JavaImportableReference>()
+                .add(JavaPackage.createPackage("java").newSubpackage("lang").newWildcardReference())
+                .add(javaClass.getPackage().newWildcardReference())
                 .build();
 
         for (JavaField field : javaClass.getFields()) {
