@@ -3,8 +3,14 @@
 test: build/disasm_x86_instruction/c/main
 	$<
 
-build/disasm_x86_instruction/java/build/classes/com/example/Output.class: build/disasm_x86_instruction/java/src/main/java/com/example/Output.java
+build/disasm_x86_instruction/java/build/classes/com/example/Output.class: build/disasm_x86_instruction/java/src/main/java/com/example/Output.java build/disasm_x86_instruction/java/src/main/java/com/example/ImmutableList.java build/disasm_x86_instruction/java/src/main/java/com/example/ImmutableIntList.java
 	javac -d build/disasm_x86_instruction/java/build/classes build/disasm_x86_instruction/java/src/main/java/com/example/*.java
+
+build/disasm_x86_instruction/java/src/main/java/com/example/ImmutableList.java: samples/disasm_x86_instruction/java/ImmutableList.java build/disasm_x86_instruction/java/src/main/java/com/example/Output.java
+	cp $< $@
+
+build/disasm_x86_instruction/java/src/main/java/com/example/ImmutableIntList.java: samples/disasm_x86_instruction/java/ImmutableIntList.java build/disasm_x86_instruction/java/src/main/java/com/example/Output.java
+	cp $< $@
 
 build/disasm_x86_instruction/java/src/main/java/com/example/Output.java: samples/disasm_x86_instruction/logic/disasm_x86_instruction.logic build/disasm_x86_instruction/java/src/main/java
 	./gradlew run --args="--outputLanguage java --outputDirectory build/disasm_x86_instruction/java/src/main/java $<"
