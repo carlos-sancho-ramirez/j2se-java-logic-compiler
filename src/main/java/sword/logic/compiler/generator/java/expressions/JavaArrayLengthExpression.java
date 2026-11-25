@@ -15,6 +15,6 @@ public final class JavaArrayLengthExpression implements JavaExpression {
 
     @Override
     public String getText(ImmutableSet<JavaImportableReference> importedClassReferences) {
-        return mArray.getText(importedClassReferences) + ".length";
+        return mArray.getText(importedClassReferences) + ".size()";
     }
 }

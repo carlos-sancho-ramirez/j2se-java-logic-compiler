@@ -51,7 +51,6 @@ import sword.logic.compiler.generator.java.statements.JavaConstantDefinitionStat
 import sword.logic.compiler.generator.java.statements.JavaIfStatement;
 import sword.logic.compiler.generator.java.statements.JavaReturnStatement;
 import sword.logic.compiler.generator.java.statements.JavaStatement;
-import sword.logic.compiler.generator.java.types.JavaArrayType;
 import sword.logic.compiler.generator.java.types.JavaBooleanType;
 import sword.logic.compiler.generator.java.types.JavaByteType;
 import sword.logic.compiler.generator.java.types.JavaIntType;
@@ -103,11 +102,18 @@ public final class JavaCodeGenerator {
     private final ImmutableMap<Expression, Type> mTypeMap;
     private final JavaCodeStyleForRegister mCodeStyleForRegister = new JavaBeansCodeStyleForRegister();
 
+    private final JavaClassReference mListClassReference;
+    private final JavaClassReference mIntListClassReference;
+
     public JavaCodeGenerator(
             JavaClassReference outputClassReference,
             ImmutableMap<Expression, Type> expressionTypeMap) {
         mOutputClassRef = outputClassReference;
         mTypeMap = expressionTypeMap;
+
+        final JavaPackage collectionsPackage = mOutputClassRef.getPackage();
+        mListClassReference = collectionsPackage.newClassReference("ImmutableList");
+        mIntListClassReference = collectionsPackage.newClassReference("ImmutableIntList");
     }
 
     static boolean arrayShouldBeString(ArrayType arrayType) {
@@ -402,8 +408,13 @@ public final class JavaCodeGenerator {
 
                 return javaLangStringClassRef;
             }
+            else if (arrayType.getItemType() instanceof IntType) {
+                return mIntListClassReference;
+            }
             else {
-                return new JavaArrayType(transformToJavaType(arrayType.getItemType(), definedEnums, definedRegisters));
+                return mListClassReference.newGenericClassReference(new ImmutableList.Builder<JavaType>()
+                        .append(transformToJavaType(arrayType.getItemType(), definedEnums, definedRegisters))
+                        .build());
             }
         }
         else if (type instanceof IntType intType) {

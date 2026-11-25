@@ -17,6 +17,6 @@ public final class JavaArrayValueAtExpression implements JavaExpression {
 
     @Override
     public String getText(ImmutableSet<JavaImportableReference> importedClassReferences) {
-        return mArray.getText(importedClassReferences) + "[" + mIndex.getText(importedClassReferences) + "]";
+        return mArray.getText(importedClassReferences) + ".valueAt(" + mIndex.getText(importedClassReferences) + ")";
     }
 }
