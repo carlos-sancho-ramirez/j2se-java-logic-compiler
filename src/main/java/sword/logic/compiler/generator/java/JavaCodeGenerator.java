@@ -36,6 +36,7 @@ import sword.logic.compiler.generator.java.expressions.JavaFieldAccessExpression
 import sword.logic.compiler.generator.java.expressions.JavaFunctionExecutionExpression;
 import sword.logic.compiler.generator.java.expressions.JavaGreaterOrEqualThanExpression;
 import sword.logic.compiler.generator.java.expressions.JavaIntegerLiteralExpression;
+import sword.logic.compiler.generator.java.expressions.JavaLambdaExpression;
 import sword.logic.compiler.generator.java.expressions.JavaLowerThanExpression;
 import sword.logic.compiler.generator.java.expressions.JavaModuleExpression;
 import sword.logic.compiler.generator.java.expressions.JavaMultiplicationExpression;
@@ -52,9 +53,7 @@ import sword.logic.compiler.generator.java.statements.JavaIfStatement;
 import sword.logic.compiler.generator.java.statements.JavaReturnStatement;
 import sword.logic.compiler.generator.java.statements.JavaStatement;
 import sword.logic.compiler.generator.java.types.JavaBooleanType;
-import sword.logic.compiler.generator.java.types.JavaByteType;
 import sword.logic.compiler.generator.java.types.JavaIntType;
-import sword.logic.compiler.generator.java.types.JavaShortType;
 import sword.logic.compiler.generator.java.types.JavaType;
 import sword.logic.expressions.AdditionExpression;
 import sword.logic.expressions.AndExpression;
@@ -89,6 +88,7 @@ import sword.logic.statements.TypeDefinitionStatement;
 import sword.logic.types.ArrayType;
 import sword.logic.types.EnumType;
 import sword.logic.types.FunctionParameter;
+import sword.logic.types.FunctionType;
 import sword.logic.types.IntType;
 import sword.logic.types.RegisterType;
 import sword.logic.types.Type;
@@ -104,6 +104,8 @@ public final class JavaCodeGenerator {
 
     private final JavaClassReference mListClassReference;
     private final JavaClassReference mIntListClassReference;
+    private final JavaPackage mFunctionClassPackage;
+    private final MutableMap<String, JavaClassReference> mFunctionClassReferences = MutableHashMap.empty();
 
     public JavaCodeGenerator(
             JavaClassReference outputClassReference,
@@ -114,6 +116,17 @@ public final class JavaCodeGenerator {
         final JavaPackage collectionsPackage = mOutputClassRef.getPackage();
         mListClassReference = collectionsPackage.newClassReference("ImmutableList");
         mIntListClassReference = collectionsPackage.newClassReference("ImmutableIntList");
+        mFunctionClassPackage = mOutputClassRef.getPackage();
+    }
+
+    private JavaClassReference obtainFunctionClassReference(String signature) {
+        JavaClassReference ref = mFunctionClassReferences.get(signature, null);
+        if (ref == null) {
+            ref = mFunctionClassPackage.newClassReference("Function" + signature);
+            mFunctionClassReferences.put(signature, ref);
+        }
+
+        return ref;
     }
 
     static boolean arrayShouldBeString(ArrayType arrayType) {
@@ -417,6 +430,25 @@ public final class JavaCodeGenerator {
                         .build());
             }
         }
+        else if (type instanceof FunctionType funcType) {
+            final ImmutableList<JavaType> types = funcType.getParameterTypes()
+                    .map(t -> transformToJavaType(t, definedEnums, definedRegisters))
+                    .append(transformToJavaType(funcType.getResultType(), definedEnums, definedRegisters));
+
+            final ImmutableList.Builder<JavaType> genericsBuilder = new ImmutableList.Builder<>();
+            for (JavaType t : types) {
+                if ("L".equals(t.getSignatureType())) {
+                    genericsBuilder.append(t);
+                }
+            }
+
+            final JavaClassReference ref = obtainFunctionClassReference(types
+                    .map(JavaType::getSignatureType)
+                    .reduce((a, b) -> a + b));
+
+            final ImmutableList<JavaType> generics = genericsBuilder.build();
+            return generics.isEmpty()? ref : ref.newGenericClassReference(generics);
+        }
         else if (type instanceof IntType intType) {
             final String min = intType.getMin();
             final String max = intType.getMax();
@@ -424,15 +456,7 @@ public final class JavaCodeGenerator {
                 throw new UnsupportedOperationException("Unimplemented");
             }
             else {
-                if (IntegerLiteralOperations.lowerThan(IntegerLiteralOperations.subtraction(max, min), "256")) {
-                    return JavaByteType.getInstance();
-                }
-                else if (IntegerLiteralOperations.lowerThan(IntegerLiteralOperations.subtraction(max, min), "65536")) {
-                    return JavaShortType.getInstance();
-                }
-                else {
-                    return JavaIntType.getInstance();
-                }
+                return JavaIntType.getInstance();
             }
         }
         else if (type instanceof RegisterType regType) {
@@ -525,6 +549,9 @@ public final class JavaCodeGenerator {
                 else {
                     throw new UnsupportedOperationException("Unimplemented");
                 }
+            }
+            else if (expression instanceof FunctionDefinitionExpression exp) {
+                return new JavaLambdaExpression(exp.getParameters().map(FunctionParameter::getName), generateExpression(exp.getBody(), enumsInScope));
             }
             else if (expression instanceof FunctionExecutionExpression exp) {
                 if (exp.getFunction() instanceof ReferenceExpression funcRef) {
@@ -664,6 +691,13 @@ public final class JavaCodeGenerator {
                         .build();
             }
             else if (expression instanceof ComplexExpression exp) {
+                final MutableSet<JavaEnum> newEnumsInScope = enumsInScope.mutate();
+                for (Statement statement : exp.getStatements()) {
+                    if (statement instanceof TypeDefinitionStatement typeDef && typeDef.getType() instanceof EnumType) {
+                        newEnumsInScope.add(mDeclaredEnums.get(typeDef));
+                    }
+                }
+
                 final ImmutableList.Builder<JavaStatement> builder = new ImmutableList.Builder<>();
                 for (Statement statement : exp.getStatements()) {
                     if (statement instanceof ConstantDefinitionStatement constDef) {
@@ -674,9 +708,9 @@ public final class JavaCodeGenerator {
                                 builder.append(st);
                             }
                         }
-                        else if (!(constDef.getExpression() instanceof FunctionDefinitionExpression)) {
+                        else {
                             final JavaVariable variable = new JavaVariable(constDef.getName(), transformToJavaType(mTypeMap.get(constDef.getExpression()), mDefinedEnums, mDefinedRegisters));
-                            builder.append(new JavaConstantDefinitionStatement(variable, generateExpression(constDef.getExpression(), enumsInScope)));
+                            builder.append(new JavaConstantDefinitionStatement(variable, generateExpression(constDef.getExpression(), newEnumsInScope)));
                         }
                     }
                 }
@@ -779,14 +813,15 @@ public final class JavaCodeGenerator {
         final ImmutableMap<FunctionDefinitionExpression, JavaMethodReference> allMethods = buildMethodsMap(outputClass, allStatementMethods.keySet(), allEnums, allRegisters);
 
         final Generation generation = new Generation(allEnumClasses.toImmutable(), allStatementMethods, allEnums.toImmutable(), allRegisters.toImmutable());
-        for (ConstantDefinitionStatement constDef : allStatementMethods.keySet()) {
-            final FunctionDefinitionExpression funcDef = (FunctionDefinitionExpression) constDef.getExpression();
-            final JavaMethodReference methodRef = allMethods.get(funcDef);
-            final int methodModifiers = JavaNormalClass.Modifiers.STATIC |
-                    (constDef.isPublic()? JavaNormalClass.Modifiers.PUBLIC : JavaNormalClass.Modifiers.PRIVATE);
+        for (Statement statement : statements) {
+            if (statement instanceof ConstantDefinitionStatement constDef && constDef.getExpression() instanceof FunctionDefinitionExpression funcDef) {
+                final JavaMethodReference methodRef = allMethods.get(funcDef);
+                final int methodModifiers = JavaNormalClass.Modifiers.STATIC |
+                        (constDef.isPublic()? JavaNormalClass.Modifiers.PUBLIC : JavaNormalClass.Modifiers.PRIVATE);
 
-            final ImmutableList<JavaStatement> javaStatements = generation.generateMethodCode(funcDef.getBody(), allStatementMethods.get(constDef));
-            outputClass.addMethod(methodRef, funcDef.getParameters().map(FunctionParameter::getName), methodModifiers, javaStatements);
+                final ImmutableList<JavaStatement> javaStatements = generation.generateMethodCode(funcDef.getBody(), allStatementMethods.get(constDef));
+                outputClass.addMethod(methodRef, funcDef.getParameters().map(FunctionParameter::getName), methodModifiers, javaStatements);
+            }
         }
 
         final ImmutableSet.Builder<JavaClass> builder = new ImmutableHashSet.Builder<>();

@@ -78,4 +78,9 @@ public final class JavaClassReference implements JavaType, JavaImportableReferen
     public JavaGenericClassReference newGenericClassReference(ImmutableList<JavaType> types) {
         return new JavaGenericClassReference(this, types);
     }
+
+    @Override
+    public String getSignatureType() {
+        return "L";
+    }
 }

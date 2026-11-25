@@ -21,4 +21,9 @@ public final class JavaIntType implements JavaType {
     public String getTypeText(ImmutableSet<JavaImportableReference> importedClassReferences) {
         return "int";
     }
+
+    @Override
+    public String getSignatureType() {
+        return "I";
+    }
 }
