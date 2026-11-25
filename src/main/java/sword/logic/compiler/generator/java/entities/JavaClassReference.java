@@ -1,5 +1,6 @@
 package sword.logic.compiler.generator.java.entities;
 
+import sword.collections.ImmutableList;
 import sword.collections.ImmutableSet;
 import sword.logic.compiler.generator.java.types.JavaType;
 
@@ -72,5 +73,9 @@ public final class JavaClassReference implements JavaType, JavaImportableReferen
     public String getTypeText(ImmutableSet<JavaImportableReference> importedClassReferences) {
         final boolean simpleNameIsOk = importedClassReferences.anyMatch(ref -> ref == this || ref instanceof JavaWildcardReference wRef && wRef.getPackage().equals(mPackage));
         return simpleNameIsOk? mClassName : mPackage.toStringList().append(mClassName).reduce((a, b) -> a + '.' + b);
+    }
+
+    public JavaGenericClassReference newGenericClassReference(ImmutableList<JavaType> types) {
+        return new JavaGenericClassReference(this, types);
     }
 }
