@@ -15,6 +15,7 @@ import sword.collections.Set;
 import sword.logic.compiler.IntegerLiteralOperations;
 import sword.logic.compiler.generator.java.entities.JavaClass;
 import sword.logic.compiler.generator.java.entities.JavaClassReference;
+import sword.logic.compiler.generator.java.entities.JavaConstructor;
 import sword.logic.compiler.generator.java.entities.JavaEnum;
 import sword.logic.compiler.generator.java.entities.JavaField;
 import sword.logic.compiler.generator.java.entities.JavaMethodReference;
@@ -32,11 +33,13 @@ import sword.logic.compiler.generator.java.expressions.JavaDivisionExpression;
 import sword.logic.compiler.generator.java.expressions.JavaEnumValueLiteralExpression;
 import sword.logic.compiler.generator.java.expressions.JavaEqualThanExpression;
 import sword.logic.compiler.generator.java.expressions.JavaExpression;
+import sword.logic.compiler.generator.java.expressions.JavaFalseLiteralExpression;
 import sword.logic.compiler.generator.java.expressions.JavaFieldAccessExpression;
-import sword.logic.compiler.generator.java.expressions.JavaFunctionExecutionExpression;
 import sword.logic.compiler.generator.java.expressions.JavaGreaterOrEqualThanExpression;
 import sword.logic.compiler.generator.java.expressions.JavaIntegerLiteralExpression;
+import sword.logic.compiler.generator.java.expressions.JavaLambdaExpression;
 import sword.logic.compiler.generator.java.expressions.JavaLowerThanExpression;
+import sword.logic.compiler.generator.java.expressions.JavaMethodExecutionExpression;
 import sword.logic.compiler.generator.java.expressions.JavaModuleExpression;
 import sword.logic.compiler.generator.java.expressions.JavaMultiplicationExpression;
 import sword.logic.compiler.generator.java.expressions.JavaNewExpression;
@@ -45,17 +48,15 @@ import sword.logic.compiler.generator.java.expressions.JavaReferenceExpression;
 import sword.logic.compiler.generator.java.expressions.JavaStringLiteralExpression;
 import sword.logic.compiler.generator.java.expressions.JavaSubtractionExpression;
 import sword.logic.compiler.generator.java.expressions.JavaTernaryExpression;
+import sword.logic.compiler.generator.java.expressions.JavaTrueLiteralExpression;
 import sword.logic.compiler.generator.java.statements.JavaAssignmentStatement;
 import sword.logic.compiler.generator.java.statements.JavaConstantDeclarationStatement;
 import sword.logic.compiler.generator.java.statements.JavaConstantDefinitionStatement;
 import sword.logic.compiler.generator.java.statements.JavaIfStatement;
 import sword.logic.compiler.generator.java.statements.JavaReturnStatement;
 import sword.logic.compiler.generator.java.statements.JavaStatement;
-import sword.logic.compiler.generator.java.types.JavaArrayType;
 import sword.logic.compiler.generator.java.types.JavaBooleanType;
-import sword.logic.compiler.generator.java.types.JavaByteType;
 import sword.logic.compiler.generator.java.types.JavaIntType;
-import sword.logic.compiler.generator.java.types.JavaShortType;
 import sword.logic.compiler.generator.java.types.JavaType;
 import sword.logic.expressions.AdditionExpression;
 import sword.logic.expressions.AndExpression;
@@ -90,6 +91,7 @@ import sword.logic.statements.TypeDefinitionStatement;
 import sword.logic.types.ArrayType;
 import sword.logic.types.EnumType;
 import sword.logic.types.FunctionParameter;
+import sword.logic.types.FunctionType;
 import sword.logic.types.IntType;
 import sword.logic.types.RegisterType;
 import sword.logic.types.Type;
@@ -103,11 +105,31 @@ public final class JavaCodeGenerator {
     private final ImmutableMap<Expression, Type> mTypeMap;
     private final JavaCodeStyleForRegister mCodeStyleForRegister = new JavaBeansCodeStyleForRegister();
 
+    private final JavaClassReference mListClassReference;
+    private final JavaClassReference mIntListClassReference;
+    private final JavaPackage mFunctionClassPackage;
+    private final MutableMap<String, JavaClassReference> mFunctionClassReferences = MutableHashMap.empty();
+
     public JavaCodeGenerator(
             JavaClassReference outputClassReference,
             ImmutableMap<Expression, Type> expressionTypeMap) {
         mOutputClassRef = outputClassReference;
         mTypeMap = expressionTypeMap;
+
+        final JavaPackage collectionsPackage = mOutputClassRef.getPackage();
+        mListClassReference = collectionsPackage.newClassReference("ImmutableList");
+        mIntListClassReference = collectionsPackage.newClassReference("ImmutableIntList");
+        mFunctionClassPackage = mOutputClassRef.getPackage();
+    }
+
+    private JavaClassReference obtainFunctionClassReference(String signature) {
+        JavaClassReference ref = mFunctionClassReferences.get(signature, null);
+        if (ref == null) {
+            ref = mFunctionClassPackage.newClassReference("Function" + signature);
+            mFunctionClassReferences.put(signature, ref);
+        }
+
+        return ref;
     }
 
     static boolean arrayShouldBeString(ArrayType arrayType) {
@@ -252,58 +274,70 @@ public final class JavaCodeGenerator {
         return resultMap.toImmutable();
     }
 
-    private final class MethodFinder {
+    private static final class MethodFinder {
         private final ImmutableMap<TypeDefinitionStatement, JavaEnum> mDeclaredEnums;
+        private final ImmutableMap<TypeDefinitionStatement, JavaConstructor> mDeclaredRegisterConstructors;
 
-        MethodFinder(ImmutableMap<TypeDefinitionStatement, JavaEnum> declaredEnums) {
-            ensureNonNull(declaredEnums);
+        MethodFinder(
+                ImmutableMap<TypeDefinitionStatement, JavaEnum> declaredEnums,
+                ImmutableMap<TypeDefinitionStatement, JavaConstructor> declaredRegisterConstructors) {
+            ensureNonNull(declaredEnums, declaredRegisterConstructors);
             mDeclaredEnums = declaredEnums;
+            mDeclaredRegisterConstructors = declaredRegisterConstructors;
         }
 
-        private ImmutableMap<ConstantDefinitionStatement, ImmutableSet<JavaEnum>> findAllMethods(Expression expression, ImmutableSet<JavaEnum> enumsInScope) {
+        private ImmutableMap<ConstantDefinitionStatement, ScopeDefinitions> findAllMethods(Expression expression, ImmutableSet<JavaEnum> enumsInScope, ImmutableMap<String, JavaConstructor> registerConstructorsInScope) {
             if (expression instanceof ArrayConstructionExpression exp) {
-                ImmutableMap<ConstantDefinitionStatement, ImmutableSet<JavaEnum>> result = ImmutableHashMap.empty();
+                ImmutableMap<ConstantDefinitionStatement, ScopeDefinitions> result = ImmutableHashMap.empty();
                 for (Expression value : exp.getValues()) {
-                    result = result.putAll(findAllMethods(value, enumsInScope));
+                    result = result.putAll(findAllMethods(value, enumsInScope, registerConstructorsInScope));
                 }
 
                 return result;
             }
             else if (expression instanceof ArrayValueAtExpression exp) {
-                return findAllMethods(exp.getArray(), enumsInScope)
-                        .putAll(findAllMethods(exp.getIndex(), enumsInScope));
+                return findAllMethods(exp.getArray(), enumsInScope, registerConstructorsInScope)
+                        .putAll(findAllMethods(exp.getIndex(), enumsInScope, registerConstructorsInScope));
             }
             else if (expression instanceof ComplexExpression exp) {
-                final ImmutableMap<ConstantDefinitionStatement, ImmutableSet<JavaEnum>> statementsResult = findAllMethods(exp.getStatements(), enumsInScope);
+                final ImmutableMap<ConstantDefinitionStatement, ScopeDefinitions> statementsResult = findAllMethods(exp.getStatements(), enumsInScope, registerConstructorsInScope);
 
                 for (Statement statement : exp.getStatements()) {
-                    final JavaEnum statementEnum = (statement instanceof TypeDefinitionStatement typeDef)? mDeclaredEnums.get(typeDef, null) : null;
-                    if (statementEnum != null) {
-                        enumsInScope = enumsInScope.add(statementEnum);
+                    if (statement instanceof TypeDefinitionStatement typeDef) {
+                        final JavaEnum statementEnum = mDeclaredEnums.get(typeDef, null);
+                        if (statementEnum != null) {
+                            enumsInScope = enumsInScope.add(statementEnum);
+                        }
+                        else {
+                            final JavaConstructor statementRegConstructor = mDeclaredRegisterConstructors.get(typeDef, null);
+                            if (statementRegConstructor != null) {
+                                registerConstructorsInScope = registerConstructorsInScope.put(statement.getName(), statementRegConstructor);
+                            }
+                        }
                     }
                 }
 
-                return statementsResult.putAll(findAllMethods(exp.getExpression(), enumsInScope));
+                return statementsResult.putAll(findAllMethods(exp.getExpression(), enumsInScope, registerConstructorsInScope));
             }
             else if (expression instanceof FunctionDefinitionExpression exp) {
-                return findAllMethods(exp.getBody(), enumsInScope);
+                return findAllMethods(exp.getBody(), enumsInScope, registerConstructorsInScope);
             }
             else if (expression instanceof FunctionExecutionExpression exp) {
-                ImmutableMap<ConstantDefinitionStatement, ImmutableSet<JavaEnum>> result = findAllMethods(exp.getFunction(), enumsInScope);
+                ImmutableMap<ConstantDefinitionStatement, ScopeDefinitions> result = findAllMethods(exp.getFunction(), enumsInScope, registerConstructorsInScope);
                 for (Expression value : exp.getParameters()) {
-                    result = result.putAll(findAllMethods(value, enumsInScope));
+                    result = result.putAll(findAllMethods(value, enumsInScope, registerConstructorsInScope));
                 }
 
                 return result;
             }
             else if (expression instanceof IfExpression exp) {
-                return findAllMethods(exp.getCondition(), enumsInScope)
-                        .putAll(findAllMethods(exp.getThenClause(), enumsInScope))
-                        .putAll(findAllMethods(exp.getElseClause(), enumsInScope));
+                return findAllMethods(exp.getCondition(), enumsInScope, registerConstructorsInScope)
+                        .putAll(findAllMethods(exp.getThenClause(), enumsInScope, registerConstructorsInScope))
+                        .putAll(findAllMethods(exp.getElseClause(), enumsInScope, registerConstructorsInScope));
             }
             else if (expression instanceof LeftRightExpression exp) {
-                return findAllMethods(exp.getLeftExpression(), enumsInScope)
-                        .putAll(findAllMethods(exp.getRightExpression(), enumsInScope));
+                return findAllMethods(exp.getLeftExpression(), enumsInScope, registerConstructorsInScope)
+                        .putAll(findAllMethods(exp.getRightExpression(), enumsInScope, registerConstructorsInScope));
             }
             else if (expression instanceof LiteralExpression) {
                 return ImmutableHashMap.empty();
@@ -312,33 +346,66 @@ public final class JavaCodeGenerator {
                 return ImmutableHashMap.empty();
             }
             else if (expression instanceof RegisterConstructionExpression exp) {
-                return findAllMethods(exp.getStatements(), enumsInScope);
+                return findAllMethods(exp.getStatements(), enumsInScope, registerConstructorsInScope);
             }
             else if (expression instanceof RegisterFieldAccessExpression exp) {
-                return findAllMethods(exp.getRegister(), enumsInScope);
+                return findAllMethods(exp.getRegister(), enumsInScope, registerConstructorsInScope);
             }
             else {
                 throw new UnsupportedOperationException("Unimplemented");
             }
         }
 
-        private ImmutableMap<ConstantDefinitionStatement, ImmutableSet<JavaEnum>> findAllMethods(ImmutableList<Statement> statements, ImmutableSet<JavaEnum> enumsInScope) {
-            ImmutableMap<ConstantDefinitionStatement, ImmutableSet<JavaEnum>> result = ImmutableHashMap.empty();
+        private static final class ScopeDefinitions {
+            private final ImmutableSet<JavaEnum> mEnums;
+            private final ImmutableMap<String, JavaConstructor> mRegisterConstructors;
+
+            ScopeDefinitions(
+                    ImmutableSet<JavaEnum> enums,
+                    ImmutableMap<String, JavaConstructor> registerConstructors) {
+                ensureNonNull(enums, registerConstructors);
+                mEnums = enums;
+                mRegisterConstructors = registerConstructors;
+            }
+
+            public ImmutableSet<JavaEnum> getEnums() {
+                return mEnums;
+            }
+
+            public ImmutableMap<String, JavaConstructor> getRegisterConstructors() {
+                return mRegisterConstructors;
+            }
+        }
+
+        private ImmutableMap<ConstantDefinitionStatement, ScopeDefinitions> findAllMethods(ImmutableList<Statement> statements, ImmutableSet<JavaEnum> enumsInScope, ImmutableMap<String, JavaConstructor> registerConstructorsInScope) {
+            ImmutableMap<ConstantDefinitionStatement, ScopeDefinitions> result = ImmutableHashMap.empty();
 
             for (Statement statement : statements) {
-                final JavaEnum statementEnum = (statement instanceof TypeDefinitionStatement typeDef)? mDeclaredEnums.get(typeDef, null) : null;
-                if (statementEnum != null) {
-                    enumsInScope = enumsInScope.add(statementEnum);
+                if (statement instanceof TypeDefinitionStatement typeDef) {
+                    final JavaEnum statementEnum = mDeclaredEnums.get(typeDef, null);
+                    if (statementEnum != null) {
+                        enumsInScope = enumsInScope.add(statementEnum);
+                    }
+                    else {
+                        final JavaConstructor statementRegConstructor = mDeclaredRegisterConstructors.get(typeDef, null);
+                        if (statementRegConstructor != null) {
+                            registerConstructorsInScope = registerConstructorsInScope.put(statement.getName(), statementRegConstructor);
+                        }
+                    }
                 }
             }
+
+            final ScopeDefinitions scopeDefinitions = new ScopeDefinitions(
+                    enumsInScope.toImmutable(),
+                    registerConstructorsInScope.toImmutable());
 
             for (Statement statement : statements) {
                 if (statement instanceof ConstantDefinitionStatement constDef) {
                     if (constDef.getExpression() instanceof FunctionDefinitionExpression) {
-                        result = result.put(constDef, enumsInScope);
+                        result = result.put(constDef, scopeDefinitions);
                     }
 
-                    result = result.putAll(findAllMethods(constDef.getExpression(), enumsInScope));
+                    result = result.putAll(findAllMethods(constDef.getExpression(), enumsInScope, registerConstructorsInScope));
                 }
             }
 
@@ -402,9 +469,33 @@ public final class JavaCodeGenerator {
 
                 return javaLangStringClassRef;
             }
-            else {
-                return new JavaArrayType(transformToJavaType(arrayType.getItemType(), definedEnums, definedRegisters));
+            else if (arrayType.getItemType() instanceof IntType) {
+                return mIntListClassReference;
             }
+            else {
+                return mListClassReference.newGenericClassReference(new ImmutableList.Builder<JavaType>()
+                        .append(transformToJavaType(arrayType.getItemType(), definedEnums, definedRegisters))
+                        .build());
+            }
+        }
+        else if (type instanceof FunctionType funcType) {
+            final ImmutableList<JavaType> types = funcType.getParameterTypes()
+                    .map(t -> transformToJavaType(t, definedEnums, definedRegisters))
+                    .append(transformToJavaType(funcType.getResultType(), definedEnums, definedRegisters));
+
+            final ImmutableList.Builder<JavaType> genericsBuilder = new ImmutableList.Builder<>();
+            for (JavaType t : types) {
+                if ("L".equals(t.getSignatureType())) {
+                    genericsBuilder.append(t);
+                }
+            }
+
+            final JavaClassReference ref = obtainFunctionClassReference(types
+                    .map(JavaType::getSignatureType)
+                    .reduce((a, b) -> a + b));
+
+            final ImmutableList<JavaType> generics = genericsBuilder.build();
+            return generics.isEmpty()? ref : ref.newGenericClassReference(generics);
         }
         else if (type instanceof IntType intType) {
             final String min = intType.getMin();
@@ -413,15 +504,7 @@ public final class JavaCodeGenerator {
                 throw new UnsupportedOperationException("Unimplemented");
             }
             else {
-                if (IntegerLiteralOperations.lowerThan(IntegerLiteralOperations.subtraction(max, min), "256")) {
-                    return JavaByteType.getInstance();
-                }
-                else if (IntegerLiteralOperations.lowerThan(IntegerLiteralOperations.subtraction(max, min), "65536")) {
-                    return JavaShortType.getInstance();
-                }
-                else {
-                    return JavaIntType.getInstance();
-                }
+                return JavaIntType.getInstance();
             }
         }
         else if (type instanceof RegisterType regType) {
@@ -434,56 +517,61 @@ public final class JavaCodeGenerator {
 
     private final class Generation {
         private final ImmutableMap<TypeDefinitionStatement, JavaEnum> mDeclaredEnums;
-        private final ImmutableMap<ConstantDefinitionStatement, ImmutableSet<JavaEnum>> mEnumsDeclaredInMethodScope;
+        private final ImmutableMap<ConstantDefinitionStatement, MethodFinder.ScopeDefinitions> mMethodScopeDefinitions;
         private final ImmutableMap<EnumType.Definition, JavaClassReference> mDefinedEnums;
         private final ImmutableMap<RegisterType.Definition, JavaClassReference> mDefinedRegisters;
 
         Generation(
                 ImmutableMap<TypeDefinitionStatement, JavaEnum> declaredEnums,
-                ImmutableMap<ConstantDefinitionStatement, ImmutableSet<JavaEnum>> enumsDeclaredInMethodScope,
+                ImmutableMap<ConstantDefinitionStatement, MethodFinder.ScopeDefinitions> methodScopeDefinitions,
                 ImmutableMap<EnumType.Definition, JavaClassReference> definedEnums,
                 ImmutableMap<RegisterType.Definition, JavaClassReference> definedRegisters) {
-            ensureNonNull(declaredEnums, enumsDeclaredInMethodScope, definedEnums, definedRegisters);
+            ensureNonNull(declaredEnums, methodScopeDefinitions, definedEnums, definedRegisters);
             mDeclaredEnums = declaredEnums;
-            mEnumsDeclaredInMethodScope = enumsDeclaredInMethodScope;
+            mMethodScopeDefinitions = methodScopeDefinitions;
             mDefinedEnums = definedEnums;
             mDefinedRegisters = definedRegisters;
         }
 
         private JavaExpression generateExpression(
                 Expression expression,
-                Set<JavaEnum> enumsInScope) {
+                Set<JavaEnum> enumsInScope,
+                Map<String, JavaConstructor> registerConstructorsInScope,
+                Set<String> lambdaMethods,
+                Map<String, JavaExpression> methodsInScope) {
             if (expression instanceof AdditionExpression exp) {
                 ensureValidState(mTypeMap.get(exp.getLeftExpression()) instanceof IntType &&
                         mTypeMap.get(exp.getRightExpression()) instanceof IntType);
                 return new JavaAdditionExpression(
-                        generateExpression(exp.getLeftExpression(), enumsInScope),
-                        generateExpression(exp.getRightExpression(), enumsInScope));
+                        generateExpression(exp.getLeftExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope),
+                        generateExpression(exp.getRightExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope));
             }
             else if (expression instanceof AndExpression exp) {
                 ensureValidState(mTypeMap.get(exp.getLeftExpression()) instanceof EnumType leftEnumType && leftEnumType.isBooleanType() &&
                         mTypeMap.get(exp.getRightExpression()) instanceof EnumType rightEnumType && rightEnumType.isBooleanType());
                 return new JavaAndExpression(
-                        generateExpression(exp.getLeftExpression(), enumsInScope),
-                        generateExpression(exp.getRightExpression(), enumsInScope));
+                        generateExpression(exp.getLeftExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope),
+                        generateExpression(exp.getRightExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope));
             }
             else if (expression instanceof ArrayConcatenationExpression exp) {
                 return new JavaArrayConcatenationExpression(
-                        generateExpression(exp.getLeftExpression(), enumsInScope),
-                        generateExpression(exp.getRightExpression(), enumsInScope));
+                        generateExpression(exp.getLeftExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope),
+                        generateExpression(exp.getRightExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope));
             }
             else if (expression instanceof ArrayConstructionExpression exp) {
-                return new JavaArrayConstructionExpression(transformToJavaType(((ArrayType) mTypeMap.get(exp)).getItemType(), mDefinedEnums, mDefinedRegisters), exp.getValues().map(e -> generateExpression(e, enumsInScope)));
+                return new JavaArrayConstructionExpression(transformToJavaType(((ArrayType) mTypeMap.get(exp)).getItemType(), mDefinedEnums, mDefinedRegisters), exp.getValues().map(e -> generateExpression(e, enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope)));
             }
             else if (expression instanceof ArrayValueAtExpression exp) {
                 return new JavaArrayValueAtExpression(
-                        generateExpression(exp.getArray(), enumsInScope),
-                        generateExpression(exp.getIndex(), enumsInScope));
+                        generateExpression(exp.getArray(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope),
+                        generateExpression(exp.getIndex(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope));
             }
             else if (expression instanceof DifferentFromExpression exp) {
                 final Type leftType = mTypeMap.get(exp.getLeftExpression());
                 if (leftType instanceof IntType || leftType instanceof EnumType) {
-                    return new JavaDifferentFromExpression(generateExpression(exp.getLeftExpression(), enumsInScope), generateExpression(exp.getRightExpression(), enumsInScope));
+                    return new JavaDifferentFromExpression(
+                            generateExpression(exp.getLeftExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope),
+                            generateExpression(exp.getRightExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope));
                 }
                 else {
                     throw new UnsupportedOperationException("Unimplemented");
@@ -493,8 +581,8 @@ public final class JavaCodeGenerator {
                 ensureValidState(mTypeMap.get(exp.getLeftExpression()) instanceof IntType &&
                         mTypeMap.get(exp.getRightExpression()) instanceof IntType);
                 return new JavaDivisionExpression(
-                        generateExpression(exp.getLeftExpression(), enumsInScope),
-                        generateExpression(exp.getRightExpression(), enumsInScope));
+                        generateExpression(exp.getLeftExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope),
+                        generateExpression(exp.getRightExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope));
             }
             else if (expression instanceof EnumValueLiteralExpression exp) {
                 final String enumValue = exp.getValue();
@@ -504,20 +592,45 @@ public final class JavaCodeGenerator {
                         return new JavaEnumValueLiteralExpression(javaEnum.getValues().valueAt(index));
                     }
                 }
-                throw new RuntimeException("Unknown enum value '" + enumValue + "'");
+
+                if ("TRUE".equals(enumValue)) {
+                    return JavaTrueLiteralExpression.getInstance();
+                }
+                else if ("FALSE".equals(enumValue)) {
+                    return JavaFalseLiteralExpression.getInstance();
+                }
+                else {
+                    throw new RuntimeException("Unknown enum value '" + enumValue + "'");
+                }
             }
             else if (expression instanceof EqualThanExpression exp) {
                 final Type leftType = mTypeMap.get(exp.getLeftExpression());
                 if (leftType instanceof IntType || leftType instanceof EnumType) {
-                    return new JavaEqualThanExpression(generateExpression(exp.getLeftExpression(), enumsInScope), generateExpression(exp.getRightExpression(), enumsInScope));
+                    return new JavaEqualThanExpression(
+                            generateExpression(exp.getLeftExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope),
+                            generateExpression(exp.getRightExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope));
                 }
                 else {
                     throw new UnsupportedOperationException("Unimplemented");
                 }
             }
+            else if (expression instanceof FunctionDefinitionExpression exp) {
+                return new JavaLambdaExpression(
+                        exp.getParameters().map(FunctionParameter::getName),
+                        generateExpression(exp.getBody(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope));
+            }
             else if (expression instanceof FunctionExecutionExpression exp) {
                 if (exp.getFunction() instanceof ReferenceExpression funcRef) {
-                    return new JavaFunctionExecutionExpression(funcRef.getReference(), exp.getParameters().map(p -> generateExpression(p, enumsInScope)));
+                    // TODO: Handle static methods
+                    final String methodName = funcRef.getReference();
+                    final ImmutableList<JavaExpression> params = exp.getParameters().map(p -> generateExpression(p, enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope));
+                    if (lambdaMethods.contains(methodName)) {
+                        return new JavaMethodExecutionExpression(new JavaReferenceExpression(methodName), "apply", params);
+                    }
+                    else {
+                        final JavaExpression instance = methodsInScope.get(methodName);
+                        return new JavaMethodExecutionExpression(instance, methodName, params);
+                    }
                 }
                 else {
                     throw new UnsupportedOperationException("Unimplemented");
@@ -527,15 +640,15 @@ public final class JavaCodeGenerator {
                 ensureValidState(mTypeMap.get(exp.getLeftExpression()) instanceof IntType &&
                         mTypeMap.get(exp.getRightExpression()) instanceof IntType);
                 return new JavaGreaterOrEqualThanExpression(
-                        generateExpression(exp.getLeftExpression(), enumsInScope),
-                        generateExpression(exp.getRightExpression(), enumsInScope));
+                        generateExpression(exp.getLeftExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope),
+                        generateExpression(exp.getRightExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope));
             }
             else if (expression instanceof IfExpression exp) {
                 ensureValidState(mTypeMap.get(exp.getCondition()) instanceof EnumType enumType && enumType.isBooleanType());
                 return new JavaTernaryExpression(
-                        generateExpression(exp.getCondition(), enumsInScope),
-                        generateExpression(exp.getThenClause(), enumsInScope),
-                        generateExpression(exp.getElseClause(), enumsInScope));
+                        generateExpression(exp.getCondition(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope),
+                        generateExpression(exp.getThenClause(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope),
+                        generateExpression(exp.getElseClause(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope));
             }
             else if (expression instanceof IntegerLiteralExpression exp) {
                 return new JavaIntegerLiteralExpression(exp.getLiteral());
@@ -544,41 +657,51 @@ public final class JavaCodeGenerator {
                 ensureValidState(mTypeMap.get(exp.getLeftExpression()) instanceof IntType &&
                         mTypeMap.get(exp.getRightExpression()) instanceof IntType);
                 return new JavaLowerThanExpression(
-                        generateExpression(exp.getLeftExpression(), enumsInScope),
-                        generateExpression(exp.getRightExpression(), enumsInScope));
+                        generateExpression(exp.getLeftExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope),
+                        generateExpression(exp.getRightExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope));
             }
             else if (expression instanceof ModuleExpression exp) {
                 ensureValidState(mTypeMap.get(exp.getLeftExpression()) instanceof IntType &&
                         mTypeMap.get(exp.getRightExpression()) instanceof IntType);
                 return new JavaModuleExpression(
-                        generateExpression(exp.getLeftExpression(), enumsInScope),
-                        generateExpression(exp.getRightExpression(), enumsInScope));
+                        generateExpression(exp.getLeftExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope),
+                        generateExpression(exp.getRightExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope));
             }
             else if (expression instanceof MultiplicationExpression exp) {
                 ensureValidState(mTypeMap.get(exp.getLeftExpression()) instanceof IntType &&
                         mTypeMap.get(exp.getRightExpression()) instanceof IntType);
                 return new JavaMultiplicationExpression(
-                        generateExpression(exp.getLeftExpression(), enumsInScope),
-                        generateExpression(exp.getRightExpression(), enumsInScope));
+                        generateExpression(exp.getLeftExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope),
+                        generateExpression(exp.getRightExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope));
             }
             else if (expression instanceof OrExpression exp) {
                 ensureValidState(mTypeMap.get(exp.getLeftExpression()) instanceof EnumType leftEnumType && leftEnumType.isBooleanType() &&
                         mTypeMap.get(exp.getRightExpression()) instanceof EnumType rightEnumType && rightEnumType.isBooleanType());
                 return new JavaOrExpression(
-                        generateExpression(exp.getLeftExpression(), enumsInScope),
-                        generateExpression(exp.getRightExpression(), enumsInScope));
+                        generateExpression(exp.getLeftExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope),
+                        generateExpression(exp.getRightExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope));
             }
             else if (expression instanceof ReferenceExpression exp) {
                 return new JavaReferenceExpression(exp.getReference());
             }
             else if (expression instanceof RegisterConstructionExpression exp) {
-                // TODO: Fix this once we have constructors
-                return new JavaNewExpression();
+                final JavaConstructor regConstructor = registerConstructorsInScope.get(exp.getType());
+                final JavaClassReference regRef = regConstructor.getJavaClass().getReference();
+                final ImmutableList<JavaExpression> params = regConstructor.getParameters().map(variable -> {
+                    for (Statement statement : exp.getStatements()) {
+                        if (statement.getName().equals(variable.getName()) && statement instanceof ConstantDefinitionStatement constDef) {
+                            return generateExpression(constDef.getExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope);
+                        }
+                    }
+
+                    throw new RuntimeException("No expression for '" + variable.getName() + "'");
+                });
+                return new JavaNewExpression(regRef, params);
             }
             else if (expression instanceof RegisterFieldAccessExpression exp) {
                 final Type type = mTypeMap.get(exp.getRegister());
                 if (type instanceof ArrayType && exp.getFieldName().equals(RegisterFieldAccessExpression.ARRAY_FIELD_LENGTH)) {
-                    return new JavaArrayLengthExpression(generateExpression(exp.getRegister(), enumsInScope));
+                    return new JavaArrayLengthExpression(generateExpression(exp.getRegister(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope));
                 }
                 else {
                     throw new UnsupportedOperationException("Unimplemented");
@@ -591,8 +714,8 @@ public final class JavaCodeGenerator {
                 ensureValidState(mTypeMap.get(exp.getLeftExpression()) instanceof IntType &&
                         mTypeMap.get(exp.getRightExpression()) instanceof IntType);
                 return new JavaSubtractionExpression(
-                        generateExpression(exp.getLeftExpression(), enumsInScope),
-                        generateExpression(exp.getRightExpression(), enumsInScope));
+                        generateExpression(exp.getLeftExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope),
+                        generateExpression(exp.getRightExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope));
             }
             else {
                 throw new UnsupportedOperationException("Unimplemented");
@@ -602,6 +725,9 @@ public final class JavaCodeGenerator {
         private ImmutableList<JavaStatement> generateAssignment(
                 Expression expression,
                 Set<JavaEnum> enumsInScope,
+                Map<String, JavaConstructor> registerConstructorsInScope,
+                Set<String> lambdaMethods,
+                Map<String, JavaExpression> methodsInScope,
                 String output) {
             if (expression instanceof ComplexExpression exp) {
                 final ImmutableList.Builder<JavaStatement> builder = new ImmutableList.Builder<>();
@@ -610,67 +736,84 @@ public final class JavaCodeGenerator {
                         if (constDef.getExpression() instanceof IfExpression) {
                             final JavaVariable variable = new JavaVariable(constDef.getName(), transformToJavaType(mTypeMap.get(constDef.getExpression()), mDefinedEnums, mDefinedRegisters));
                             builder.append(new JavaConstantDeclarationStatement(variable));
-                            for (JavaStatement st : generateAssignment(constDef.getExpression(), enumsInScope, constDef.getName())) {
+                            for (JavaStatement st : generateAssignment(constDef.getExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope, constDef.getName())) {
                                 builder.append(st);
                             }
                         }
                         else if (!(constDef.getExpression() instanceof FunctionDefinitionExpression)) {
                             final JavaVariable variable = new JavaVariable(constDef.getName(), transformToJavaType(mTypeMap.get(constDef.getExpression()), mDefinedEnums, mDefinedRegisters));
-                            builder.append(new JavaConstantDefinitionStatement(variable, generateExpression(constDef.getExpression(), enumsInScope)));
+                            builder.append(new JavaConstantDefinitionStatement(variable, generateExpression(constDef.getExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope)));
                         }
                     }
                 }
 
-                for (JavaStatement st : generateAssignment(exp.getExpression(), enumsInScope, output)) {
+                for (JavaStatement st : generateAssignment(exp.getExpression(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope, output)) {
                     builder.append(st);
                 }
 
                 return builder.build();
             }
             else if (expression instanceof IfExpression exp) {
-                final JavaExpression condition = generateExpression(exp.getCondition(), enumsInScope);
+                final JavaExpression condition = generateExpression(exp.getCondition(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope);
                 return new ImmutableList.Builder<JavaStatement>()
                         .append(new JavaIfStatement(condition,
-                                generateAssignment(exp.getThenClause(), enumsInScope, output),
-                                generateAssignment(exp.getElseClause(), enumsInScope, output)))
+                                generateAssignment(exp.getThenClause(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope, output),
+                                generateAssignment(exp.getElseClause(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope, output)))
                         .build();
             }
             else {
                 return new ImmutableList.Builder<JavaStatement>()
                         .append(new JavaAssignmentStatement(
                                 new JavaReferenceExpression(output),
-                                generateExpression(expression, enumsInScope)))
+                                generateExpression(expression, enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope)))
                         .build();
             }
         }
 
         private ImmutableList<JavaStatement> generateMethodCode(
                 Expression expression,
-                Set<JavaEnum> enumsInScope) {
+                Set<JavaEnum> enumsInScope,
+                Map<String, JavaConstructor> registerConstructorsInScope,
+                Set<String> lambdaMethods,
+                Map<String, JavaExpression> methodsInScope) {
             if (expression instanceof ArrayConcatenationExpression exp) {
                 return new ImmutableList.Builder<JavaStatement>()
-                        .append(new JavaReturnStatement(generateExpression(exp, enumsInScope)))
+                        .append(new JavaReturnStatement(generateExpression(exp, enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope)))
                         .build();
             }
             else if (expression instanceof ComplexExpression exp) {
+                final MutableSet<JavaEnum> newEnumsInScope = enumsInScope.mutate();
+                for (Statement statement : exp.getStatements()) {
+                    if (statement instanceof TypeDefinitionStatement typeDef && typeDef.getType() instanceof EnumType) {
+                        newEnumsInScope.add(mDeclaredEnums.get(typeDef));
+                    }
+                }
+
+                final MutableSet<String> newLambdaMethods = lambdaMethods.mutate();
+                for (Statement statement : exp.getStatements()) {
+                    if (statement instanceof ConstantDefinitionStatement constDef && constDef.getExpression() instanceof FunctionDefinitionExpression) {
+                        newLambdaMethods.add(statement.getName());
+                    }
+                }
+
                 final ImmutableList.Builder<JavaStatement> builder = new ImmutableList.Builder<>();
                 for (Statement statement : exp.getStatements()) {
                     if (statement instanceof ConstantDefinitionStatement constDef) {
                         if (constDef.getExpression() instanceof IfExpression) {
                             final JavaVariable variable = new JavaVariable(constDef.getName(), transformToJavaType(mTypeMap.get(constDef.getExpression()), mDefinedEnums, mDefinedRegisters));
                             builder.append(new JavaConstantDeclarationStatement(variable));
-                            for (JavaStatement st : generateAssignment(constDef.getExpression(), enumsInScope, constDef.getName())) {
+                            for (JavaStatement st : generateAssignment(constDef.getExpression(), enumsInScope, registerConstructorsInScope, newLambdaMethods, methodsInScope, constDef.getName())) {
                                 builder.append(st);
                             }
                         }
-                        else if (!(constDef.getExpression() instanceof FunctionDefinitionExpression)) {
+                        else {
                             final JavaVariable variable = new JavaVariable(constDef.getName(), transformToJavaType(mTypeMap.get(constDef.getExpression()), mDefinedEnums, mDefinedRegisters));
-                            builder.append(new JavaConstantDefinitionStatement(variable, generateExpression(constDef.getExpression(), enumsInScope)));
+                            builder.append(new JavaConstantDefinitionStatement(variable, generateExpression(constDef.getExpression(), newEnumsInScope, registerConstructorsInScope, newLambdaMethods, methodsInScope)));
                         }
                     }
                 }
 
-                for (JavaStatement st : generateMethodCode(exp.getExpression(), enumsInScope)) {
+                for (JavaStatement st : generateMethodCode(exp.getExpression(), enumsInScope, registerConstructorsInScope, newLambdaMethods, methodsInScope)) {
                     builder.append(st);
                 }
 
@@ -678,30 +821,30 @@ public final class JavaCodeGenerator {
             }
             else if (expression instanceof EnumValueLiteralExpression exp) {
                 return new ImmutableList.Builder<JavaStatement>()
-                        .append(new JavaReturnStatement(generateExpression(exp, enumsInScope)))
+                        .append(new JavaReturnStatement(generateExpression(exp, enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope)))
                         .build();
             }
             else if (expression instanceof FunctionExecutionExpression exp) {
                 return new ImmutableList.Builder<JavaStatement>()
-                        .append(new JavaReturnStatement(generateExpression(exp, enumsInScope)))
+                        .append(new JavaReturnStatement(generateExpression(exp, enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope)))
                         .build();
             }
             else if (expression instanceof IfExpression exp) {
-                final JavaExpression condition = generateExpression(exp.getCondition(), enumsInScope);
+                final JavaExpression condition = generateExpression(exp.getCondition(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope);
                 return new ImmutableList.Builder<JavaStatement>()
                         .append(new JavaIfStatement(condition,
-                                generateMethodCode(exp.getThenClause(), enumsInScope),
-                                generateMethodCode(exp.getElseClause(), enumsInScope)))
+                                generateMethodCode(exp.getThenClause(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope),
+                                generateMethodCode(exp.getElseClause(), enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope)))
                         .build();
             }
             else if (expression instanceof RegisterConstructionExpression exp) {
                 return new ImmutableList.Builder<JavaStatement>()
-                        .append(new JavaReturnStatement(generateExpression(exp, enumsInScope)))
+                        .append(new JavaReturnStatement(generateExpression(exp, enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope)))
                         .build();
             }
             else if (expression instanceof StringLiteralExpression exp) {
                 return new ImmutableList.Builder<JavaStatement>()
-                        .append(new JavaReturnStatement(generateExpression(exp, enumsInScope)))
+                        .append(new JavaReturnStatement(generateExpression(exp, enumsInScope, registerConstructorsInScope, lambdaMethods, methodsInScope)))
                         .build();
             }
             else {
@@ -738,6 +881,7 @@ public final class JavaCodeGenerator {
         }
 
         final MutableList<JavaNormalClass> allNormalClasses = MutableList.empty();
+        final MutableMap<TypeDefinitionStatement, JavaConstructor> allRegisterConstructors = MutableHashMap.empty();
         for (TypeDefinitionStatement statement : allTypeDefinitionStatements) {
             if (statement.getType() instanceof RegisterType regType) {
                 final RegisterType.Definition regDef = regType.getDefinition();
@@ -756,26 +900,29 @@ public final class JavaCodeGenerator {
                 final JavaReferenceExpression thisExpression = new JavaReferenceExpression("this");
                 final ImmutableList<JavaStatement> constructorStatements = regDef.getFields().entries().map(fieldEntry ->
                         new JavaAssignmentStatement(new JavaFieldAccessExpression(thisExpression, fieldEntry.key()), new JavaReferenceExpression(fieldEntry.key())));
-                cls.addConstructor(constructorParameters, classModifiers, constructorStatements);
+                final JavaConstructor constructor = cls.addConstructor(constructorParameters, classModifiers, constructorStatements);
+                allRegisterConstructors.put(statement, constructor);
             }
         }
 
         final JavaNormalClass outputClass = mOutputClassRef.newClass(JavaNormalClass.Modifiers.PUBLIC | JavaNormalClass.Modifiers.FINAL);
         allNormalClasses.append(outputClass);
 
-        final MethodFinder methodFinder = new MethodFinder(allEnumClasses.toImmutable());
-        final ImmutableMap<ConstantDefinitionStatement, ImmutableSet<JavaEnum>> allStatementMethods = methodFinder.findAllMethods(statements, ImmutableHashSet.empty());
+        final MethodFinder methodFinder = new MethodFinder(allEnumClasses.toImmutable(), allRegisterConstructors.toImmutable());
+        final ImmutableMap<ConstantDefinitionStatement, MethodFinder.ScopeDefinitions> allStatementMethods = methodFinder.findAllMethods(statements, ImmutableHashSet.empty(), ImmutableHashMap.empty());
         final ImmutableMap<FunctionDefinitionExpression, JavaMethodReference> allMethods = buildMethodsMap(outputClass, allStatementMethods.keySet(), allEnums, allRegisters);
 
         final Generation generation = new Generation(allEnumClasses.toImmutable(), allStatementMethods, allEnums.toImmutable(), allRegisters.toImmutable());
-        for (ConstantDefinitionStatement constDef : allStatementMethods.keySet()) {
-            final FunctionDefinitionExpression funcDef = (FunctionDefinitionExpression) constDef.getExpression();
-            final JavaMethodReference methodRef = allMethods.get(funcDef);
-            final int methodModifiers = JavaNormalClass.Modifiers.STATIC |
-                    (constDef.isPublic()? JavaNormalClass.Modifiers.PUBLIC : JavaNormalClass.Modifiers.PRIVATE);
+        for (Statement statement : statements) {
+            if (statement instanceof ConstantDefinitionStatement constDef && constDef.getExpression() instanceof FunctionDefinitionExpression funcDef) {
+                final JavaMethodReference methodRef = allMethods.get(funcDef);
+                final int methodModifiers = JavaNormalClass.Modifiers.STATIC |
+                        (constDef.isPublic()? JavaNormalClass.Modifiers.PUBLIC : JavaNormalClass.Modifiers.PRIVATE);
 
-            final ImmutableList<JavaStatement> javaStatements = generation.generateMethodCode(funcDef.getBody(), allStatementMethods.get(constDef));
-            outputClass.addMethod(methodRef, funcDef.getParameters().map(FunctionParameter::getName), methodModifiers, javaStatements);
+                final MethodFinder.ScopeDefinitions scopeDefinitions = allStatementMethods.get(constDef);
+                final ImmutableList<JavaStatement> javaStatements = generation.generateMethodCode(funcDef.getBody(), scopeDefinitions.getEnums(), scopeDefinitions.getRegisterConstructors(), ImmutableHashSet.empty(), ImmutableHashMap.empty());
+                outputClass.addMethod(methodRef, funcDef.getParameters().map(FunctionParameter::getName), methodModifiers, javaStatements);
+            }
         }
 
         final ImmutableSet.Builder<JavaClass> builder = new ImmutableHashSet.Builder<>();

@@ -5,7 +5,6 @@ import sword.collections.ImmutableSet;
 import sword.logic.compiler.generator.java.types.JavaType;
 
 import static sword.logic.compiler.PreconditionUtils.ensureNonNull;
-import static sword.logic.compiler.PreconditionUtils.ensureValidArguments;
 
 public final class JavaGenericClassReference implements JavaType {
     private final JavaClassReference mRawReference;
@@ -40,5 +39,10 @@ public final class JavaGenericClassReference implements JavaType {
     @Override
     public String getTypeText(ImmutableSet<JavaImportableReference> importedClassReferences) {
         return mRawReference.getTypeText(importedClassReferences) + "<" + mTypes.map(t -> t.getTypeText(importedClassReferences)).reduce((a, b) -> a + ", " + b, "") + ">";
+    }
+
+    @Override
+    public String getSignatureType() {
+        return mRawReference.getSignatureType();
     }
 }

@@ -34,6 +34,11 @@ public final class JavaNormalClass implements JavaClass {
     }
 
     @Override
+    public JavaClassReference getReference() {
+        return mReference;
+    }
+
+    @Override
     public JavaPackage getPackage() {
         return mReference.getPackage();
     }

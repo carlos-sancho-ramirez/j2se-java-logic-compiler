@@ -21,4 +21,9 @@ public final class JavaBooleanType implements JavaType {
     public String getTypeText(ImmutableSet<JavaImportableReference> importedClassReferences) {
         return "boolean";
     }
+
+    @Override
+    public String getSignatureType() {
+        return "Z";
+    }
 }

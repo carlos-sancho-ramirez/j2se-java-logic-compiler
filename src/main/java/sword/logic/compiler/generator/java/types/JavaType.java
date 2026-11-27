@@ -13,4 +13,10 @@ public interface JavaType {
      * @return The text that should be displayed in the resulting Java source code for this type.
      */
     String getTypeText(ImmutableSet<JavaImportableReference> importedClassReferences);
+
+    /**
+     * Return the character used in the Java Native Interface (JNI) for the type.
+     * In case of being an object, just L will be returned.
+     */
+    String getSignatureType();
 }
