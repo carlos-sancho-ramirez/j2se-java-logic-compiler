@@ -18,6 +18,7 @@ import sword.logic.compiler.generator.java.entities.JavaClassReference;
 import sword.logic.compiler.generator.java.entities.JavaConstructor;
 import sword.logic.compiler.generator.java.entities.JavaEnum;
 import sword.logic.compiler.generator.java.entities.JavaField;
+import sword.logic.compiler.generator.java.entities.JavaMethod;
 import sword.logic.compiler.generator.java.entities.JavaMethodReference;
 import sword.logic.compiler.generator.java.entities.JavaNormalClass;
 import sword.logic.compiler.generator.java.entities.JavaPackage;
@@ -891,8 +892,17 @@ public final class JavaCodeGenerator {
                 allNormalClasses.append(cls);
 
                 for (Map.Entry<String, Type> fieldEntry : regDef.getFields().entries()) {
+                    final String fieldName = mCodeStyleForRegister.propertyName(fieldEntry.key());
                     final int modifiers = JavaField.Modifiers.PRIVATE | JavaField.Modifiers.FINAL;
-                    cls.addField(mCodeStyleForRegister.propertyName(fieldEntry.key()), transformToJavaType(fieldEntry.value(), allEnums, allRegisters), modifiers);
+                    final JavaType propertyType = transformToJavaType(fieldEntry.value(), allEnums, allRegisters);
+                    cls.addField(fieldName, propertyType, modifiers);
+
+                    final boolean isBooleanProperty = propertyType == JavaBooleanType.getInstance();
+                    final String getterMethodName = mCodeStyleForRegister.getterName(fieldEntry.key(), isBooleanProperty);
+                    final JavaMethodReference methodReference = cls.newMethodReference(getterMethodName, ImmutableList.empty(), propertyType);
+                    cls.addMethod(methodReference, ImmutableList.empty(), JavaMethod.Modifiers.PUBLIC, new ImmutableList.Builder<JavaStatement>()
+                            .append(new JavaReturnStatement(new JavaReferenceExpression(fieldName)))
+                            .build());
                 }
 
                 final ImmutableList<JavaVariable> constructorParameters = regDef.getFields().entries().map(fieldEntry ->

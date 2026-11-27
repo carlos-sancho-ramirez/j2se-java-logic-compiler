@@ -1,21 +1,19 @@
 .PHONY: clean test
 
-test: build/disasm_x86_instruction/c/main
+test: build/disasm_x86_instruction/c/main build/disasm_x86_instruction/java/build/classes/com/example/Main.class
 	$<
+	java -cp build/disasm_x86_instruction/java/build/classes com.example.Main
 
-build/disasm_x86_instruction/java/build/classes/com/example/Output.class: build/disasm_x86_instruction/java/src/main/java/com/example/Output.java build/disasm_x86_instruction/java/src/main/java/com/example/FunctionIL.java build/disasm_x86_instruction/java/src/main/java/com/example/FunctionLL.java build/disasm_x86_instruction/java/src/main/java/com/example/ImmutableList.java build/disasm_x86_instruction/java/src/main/java/com/example/ImmutableIntList.java
+build/disasm_x86_instruction/java/build/classes/com/example/Main.class: build/disasm_x86_instruction/java/src/main/java/com/example/Main.java build/disasm_x86_instruction/java/src/main/java/com/example/Output.java build/disasm_x86_instruction/java/src/main/java/com/example/FunctionIL.java build/disasm_x86_instruction/java/src/main/java/com/example/FunctionLL.java build/disasm_x86_instruction/java/src/main/java/com/example/ImmutableList.java build/disasm_x86_instruction/java/src/main/java/com/example/ImmutableIntList.java
 	javac -d build/disasm_x86_instruction/java/build/classes build/disasm_x86_instruction/java/src/main/java/com/example/*.java
 
-build/disasm_x86_instruction/java/src/main/java/com/example/FunctionIL.java: samples/disasm_x86_instruction/java/FunctionIL.java build/disasm_x86_instruction/java/src/main/java/com/example/Output.java
+build/disasm_x86_instruction/java/src/main/java/com/example/Function%.java: samples/disasm_x86_instruction/java/Function%.java build/disasm_x86_instruction/java/src/main/java/com/example/Output.java
 	cp $< $@
 
-build/disasm_x86_instruction/java/src/main/java/com/example/FunctionLL.java: samples/disasm_x86_instruction/java/FunctionLL.java build/disasm_x86_instruction/java/src/main/java/com/example/Output.java
+build/disasm_x86_instruction/java/src/main/java/com/example/Immutable%.java: samples/disasm_x86_instruction/java/Immutable%.java build/disasm_x86_instruction/java/src/main/java/com/example/Output.java
 	cp $< $@
 
-build/disasm_x86_instruction/java/src/main/java/com/example/ImmutableList.java: samples/disasm_x86_instruction/java/ImmutableList.java build/disasm_x86_instruction/java/src/main/java/com/example/Output.java
-	cp $< $@
-
-build/disasm_x86_instruction/java/src/main/java/com/example/ImmutableIntList.java: samples/disasm_x86_instruction/java/ImmutableIntList.java build/disasm_x86_instruction/java/src/main/java/com/example/Output.java
+build/disasm_x86_instruction/java/src/main/java/com/example/Main.java: samples/disasm_x86_instruction/java/Main.java build/disasm_x86_instruction/java/src/main/java/com/example/Output.java
 	cp $< $@
 
 build/disasm_x86_instruction/java/src/main/java/com/example/Output.java: samples/disasm_x86_instruction/logic/disasm_x86_instruction.logic build/disasm_x86_instruction/java/src/main/java

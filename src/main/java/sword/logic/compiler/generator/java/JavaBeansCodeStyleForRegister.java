@@ -5,8 +5,8 @@ package sword.logic.compiler.generator.java;
  */
 public final class JavaBeansCodeStyleForRegister implements JavaCodeStyleForRegister {
     @Override
-    public String getterName(String originalPropertyName) {
-        return "get" + (originalPropertyName.charAt(0) - 0x20) + originalPropertyName.substring(1);
+    public String getterName(String originalPropertyName, boolean isBooleanProperty) {
+        return (isBooleanProperty? "is" : "get") + ((char) (originalPropertyName.charAt(0) - 0x20)) + originalPropertyName.substring(1);
     }
 
     @Override
