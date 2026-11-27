@@ -15,8 +15,15 @@ public final class JavaAndExpression implements JavaExpression {
         mRight = right;
     }
 
+    private static boolean requiresParentheses(JavaExpression exp) {
+        return exp instanceof JavaOrExpression;
+    }
+
     @Override
     public String getText(ImmutableSet<JavaImportableReference> importedClassReferences) {
-        return mLeft.getText(importedClassReferences) + " && " + mRight.getText(importedClassReferences);
+        final String leftText = mLeft.getText(importedClassReferences);
+        final String rightText = mRight.getText(importedClassReferences);
+        return (requiresParentheses(mLeft)? "(" + leftText + ") " : leftText + " ") + "&& " +
+                (requiresParentheses(mRight)? "(" + rightText + ")" : rightText);
     }
 }
